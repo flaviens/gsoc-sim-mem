@@ -104,9 +104,18 @@ struct WriteRespBankTestbench {
     m_module->in_valid_i = 0;
   }
 
+  void allow_output_data() {
+    m_module->release_en_i = -1;
+  }
+  void forbid_output_data() {
+    m_module->release_en_i = 0;
+  }
+
   void fetch_output_data() {
     m_module->out_ready_i = 1;
-    m_module->release_en_i = -1;
+  }
+  void stop_output_data() {
+    m_module->out_ready_i = 0;
   }
 
 };
@@ -138,7 +147,13 @@ int main(int argc, char **argv, char **env)
 
   tb->tick(4);
 
+  tb->allow_output_data();
+
+  tb->tick(4);
+
   tb->fetch_output_data();
+  tb->tick(10);
+  tb->stop_output_data();
 
 	while (!tb->is_done())
 	{		
