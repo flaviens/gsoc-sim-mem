@@ -8,7 +8,7 @@
 #include "verilated.h"
 
 #define RESET_LENGTH 5
-#define TRACE_LEVEL 8
+#define TRACE_LEVEL 4
 
 #define ID_WIDTH 4
 
@@ -52,30 +52,32 @@ struct WriteRespBankTestbench {
 		m_trace->close();
 	}
 
-	void tick(void) {
+	void tick(int nbTicks=1) {
+    for (int i = 0; i < nbTicks; i++) {
 
-    printf("Running iteration %d.\n", m_tick_count);
+      printf("Running iteration %d.\n", m_tick_count);
 
-		m_tick_count++;
+      m_tick_count++;
 
-		m_module->clk_i = 0;
-		m_module->eval();
+      m_module->clk_i = 0;
+      m_module->eval();
 
-    if(m_record_trace)
-      m_trace->dump(5*m_tick_count-1);
+      if(m_record_trace)
+        m_trace->dump(5*m_tick_count-1);
 
-		m_module->clk_i = 1;
-		m_module->eval();
+      m_module->clk_i = 1;
+      m_module->eval();
 
-    if(m_record_trace)
-      m_trace->dump(5*m_tick_count);
+      if(m_record_trace)
+        m_trace->dump(5*m_tick_count);
 
-		m_module->clk_i = 0;
-		m_module->eval();
+      m_module->clk_i = 0;
+      m_module->eval();
 
-    if(m_record_trace) {
-      m_trace->dump(5*m_tick_count+2);
-      m_trace->flush();
+      if(m_record_trace) {
+        m_trace->dump(5*m_tick_count+2);
+        m_trace->flush();
+      }
     }
 	}
 
@@ -89,10 +91,24 @@ struct WriteRespBankTestbench {
     m_module->reservation_request_id_i = axi_id;
   }
 
+  void stop_reserve() {
+    m_module->reservation_request_ready_i = 0;
+  }
+
   void apply_input_data(int data_i) {
     m_module->data_i = data_i;
     m_module->in_valid_i = 1;
   }
+
+  void stop_input_data() {
+    m_module->in_valid_i = 0;
+  }
+
+  void fetch_output_data() {
+    m_module->out_ready_i = 1;
+    m_module->release_en_i = -1;
+  }
+
 };
 
 
@@ -107,7 +123,22 @@ int main(int argc, char **argv, char **env)
 
   tb->reset();
   tb->reserve(4);
-  tb->apply_input_data(4);
+
+  tb->tick(4);
+
+  tb->stop_reserve();
+
+  tb->tick(4);
+
+  tb->apply_input_data(4 | (9<<ID_WIDTH));
+
+  tb->tick(6);
+
+  tb->stop_input_data();
+
+  tb->tick(4);
+
+  tb->fetch_output_data();
 
 	while (!tb->is_done())
 	{		
