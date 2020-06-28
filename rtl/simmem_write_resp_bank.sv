@@ -77,9 +77,9 @@ module simmem_write_resp_bank #(
   logic [$clog2(TotalCapacity)-1:0] reservation_length_q[2**IDWidth-1:0];
 
   logic initialize_actual_heads[2**IDWidth-1:0];
-  logic update_tails_from_ram_d[2**IDWidth-1:0];
-  logic update_tails_from_ram_q[2**IDWidth-1:0];
-  logic update_tails_from_actual_head[2**IDWidth-1:0];
+  logic update_tail_from_ram_d[2**IDWidth-1:0];
+  logic update_tail_from_ram_q[2**IDWidth-1:0];
+  logic update_tail_from_actual_head[2**IDWidth-1:0];
   logic update_actual_head_from_ram_d[2**IDWidth-1:0];
   logic update_actual_head_from_ram_q[2**IDWidth-1:0];
   logic update_actual_head_from_reservation_head[2**IDWidth-1:0];
@@ -91,9 +91,9 @@ module simmem_write_resp_bank #(
     assign actual_heads[current_id] = initialize_actual_heads[current_id] ? next_free_ram_entry_binary :
         (update_actual_head_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id]);
 
-    assign tails_d[current_id] = update_tails_from_actual_head[current_id] ? actual_heads_q[current_id] : tails[current_id];
+    assign tails_d[current_id] = update_tail_from_actual_head[current_id] ? actual_heads_q[current_id] : tails[current_id];
     assign tails[current_id] = initialize_actual_heads[current_id] ? next_free_ram_entry_binary :
-        (update_tails_from_ram_q[current_id] ? data_out_next_elem_ram : tails_q[current_id]);
+        (update_tail_from_ram_q[current_id] ? data_out_next_elem_ram : tails_q[current_id]);
     
 
     assign reservation_heads_d[current_id] = update_reservation_heads[current_id] ? next_free_ram_entry_binary : reservation_heads_q[current_id]; 
@@ -101,13 +101,14 @@ module simmem_write_resp_bank #(
     
     // assign tails_d[current_id] = initialize_actual_heads[current_id] ? next_free_ram_entry_binary : 
     //     (current_output_valid_q && out_ready_i && current_output_identifier_onehot_q[current_id] ? 
-    //     (update_tails_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id]) : tails_q[current_id]);
+    //     (update_tail_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id]) : tails_q[current_id]);
 
     assign reservation_heads[current_id] = reservation_heads_q[current_id];
   end
 
   // Output valid and address
   logic current_output_valid_d;
+  logic [2**IDWidth-1:0] current_output_valid_d_id; // TODO Enlever ça et regarder si qn a actuellement (ou dans le futur?) la bonne taille.
   logic current_output_valid_q;
   logic [2**IDWidth-1:0] current_output_identifier_onehot_d;
   logic [2**IDWidth-1:0] current_output_identifier_onehot_q;
@@ -115,6 +116,7 @@ module simmem_write_resp_bank #(
   // logic [TotalCapacity-1:0] current_output_address_onehot_id[2**IDWidth-1:0];
   logic [TotalCapacity-1:0] current_output_address_onehot_d;
   logic [TotalCapacity-1:0] current_output_address_onehot_q;
+  logic is_fresh_output_request[2**IDWidth-1:0];
 
   // Valid bits and pointer to next arrays. Masks update the valid bits
   logic ram_valid_d[TotalCapacity-1:0];
@@ -363,8 +365,8 @@ module simmem_write_resp_bank #(
       actual_length_d[current_id] = actual_length_q[current_id];
       reservation_length_d[current_id] = reservation_length_q[current_id];
 
-      update_tails_from_ram_d[current_id] = 1'b0;
-      update_tails_from_actual_head[current_id] = 1'b0;
+      update_tail_from_ram_d[current_id] = 1'b0;
+      update_tail_from_actual_head[current_id] = 1'b0;
       update_actual_head_from_reservation_head[current_id] = 1'b0;
       update_actual_head_from_ram_d[current_id] = 1'b0;
       update_reservation_heads[current_id] = 1'b0;
@@ -382,6 +384,10 @@ module simmem_write_resp_bank #(
 
       // Handshakes
       if (next_id_to_release_onehot[current_id]) begin : out_preparation_handshake
+
+        // if (is_fresh_output_request_d) begin // TODO is_fresh_output_request purly combinatorial 
+        //   
+        // end
 
         req_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b1;
         write_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b0;
@@ -441,21 +447,28 @@ module simmem_write_resp_bank #(
       end
     
       if (current_output_valid_q && out_ready_i && current_output_identifier_onehot_q[current_id]) begin
+        
         actual_length_d[current_id] = actual_length_d[current_id] - 1;
-        reservation_length_d[current_id] = reservation_length_d[current_id] - 1;
-
-        if (|(actual_length_q[current_id][$clog2(TotalCapacity)-1:1])) begin
-          update_tails_from_ram_d[current_id] = 1'b0;
+        
+        if (actual_length_q[current_id] == 2) begin
+          update_tail_from_actual_head[current_id] = 1'b1;
         end else begin
-          update_tails_from_actual_head[current_id] = 1'b1;
+          update_tail_from_ram_d[current_id] = 1'b1;
         end
-
       end
     end
   end
 
   // Outputs
-  assign current_output_valid_d = |next_id_to_release_onehot || (current_output_valid_q && !out_ready_i);
+
+  for (genvar current_id = 0; current_id < 2**IDWidth; current_id = current_id + 1) begin
+      // Determines if a new output will be presented
+    assign is_fresh_output_request[current_id] = (out_ready_i || !current_output_valid_q) && next_id_to_release_onehot[current_id];
+
+    assign current_output_valid_d_id[current_id] = (|actual_length_q[current_id][$clog2(TotalCapacity-1):1] || (actual_length_q[current_id][0] && !is_fresh_output_request[current_id])) && release_en_i[current_id];
+  end
+
+  assign current_output_valid_d = |current_output_valid_d_id || (current_output_valid_q && !out_ready_i);
   assign current_output_identifier_onehot_d = next_id_to_release_onehot;
   assign data_o = data_out_struct_ram; // ImproveMe: Do not store identifiers in RAM
 
@@ -471,11 +484,13 @@ module simmem_write_resp_bank #(
         reservation_length_q[current_id] <= '0;
 
         update_actual_head_from_ram_q[current_id] <= '0;
-        update_tails_from_ram_q[current_id] <= '0;
+        update_tail_from_ram_q[current_id] <= '0;
 
         current_output_valid_q <= '0;
         current_output_identifier_onehot_q <= '0;
         current_output_address_onehot_q <= '0;
+
+        // is_fresh_output_request_q <= 1'b1;
       end else begin
         actual_heads_q[current_id] <= actual_heads_d[current_id];
         reservation_heads_q[current_id] <= reservation_heads_d[current_id];
@@ -485,12 +500,14 @@ module simmem_write_resp_bank #(
         actual_length_q[current_id] <= actual_length_d[current_id];
         reservation_length_q[current_id] <= reservation_length_d[current_id];
 
-        update_tails_from_ram_q[current_id] <= update_tails_from_ram_d[current_id];
+        update_tail_from_ram_q[current_id] <= update_tail_from_ram_d[current_id];
         update_actual_head_from_ram_q[current_id] <= update_actual_head_from_ram_d[current_id];
 
         current_output_valid_q <= current_output_valid_d;
         current_output_identifier_onehot_q <= current_output_identifier_onehot_d;
         current_output_address_onehot_q <= current_output_address_onehot_d;
+
+        // is_fresh_output_request_q <= is_fresh_output_request_d;
       end
     end
   end
