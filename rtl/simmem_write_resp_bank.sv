@@ -433,11 +433,11 @@ module simmem_write_resp_bank #(
           // Store the data
           req_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
           write_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-          addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = actual_heads_d[current_id];
+          addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = actual_heads[current_id];
   
           // Update the actual head position
           write_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
-          addr_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = actual_heads_d[current_id];
+          addr_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = actual_heads[current_id];
         end
         
       end

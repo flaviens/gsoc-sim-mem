@@ -136,7 +136,6 @@ struct WriteRespBankTestbench {
 void single_id_test(WriteRespBankTestbench* tb) {
   u_int32_t current_id = 4;
   int nb_iterations = 100;
-  int nb_inputs = 100;
 
   // Generate inputs
 
@@ -158,7 +157,7 @@ void single_id_test(WriteRespBankTestbench* tb) {
 
     reserve = (bool) (rand() & 1);
     apply_input = (bool) (rand() & 1);
-    request_output_data = (bool) (rand() & 1);
+    request_output_data = 0;//(bool) (rand() & 1);
 
     if (reserve)
       tb->reserve(current_id);
