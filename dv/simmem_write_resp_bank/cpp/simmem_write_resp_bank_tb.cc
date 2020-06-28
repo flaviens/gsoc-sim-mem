@@ -4,11 +4,17 @@
 
 #include <verilated_fst_c.h>
 
+#include <stdlib.h>
+#include <time.h>
+#include <iostream>
+#include <queue>
+
 #include "Vsimmem_write_resp_bank.h"
 #include "verilated.h"
 
 #define RESET_LENGTH 5
 #define TRACE_LEVEL 4
+#define MESSAGE_WIDTH 32
 
 #define ID_WIDTH 4
 
@@ -99,7 +105,10 @@ struct WriteRespBankTestbench {
     m_module->data_i = data_i;
     m_module->in_valid_i = 1;
   }
-
+  bool is_input_data_accepted() {
+    m_module->eval();
+    return (bool) (m_module->in_ready_o);
+  }
   void stop_input_data() {
     m_module->in_valid_i = 0;
   }
@@ -111,17 +120,88 @@ struct WriteRespBankTestbench {
     m_module->release_en_i = 0;
   }
 
-  void fetch_output_data() {
+  void request_output_data() {
     m_module->out_ready_i = 1;
+  }
+  bool fetch_output_data(u_int32_t& out_data) {
+    out_data = (u_int32_t) m_module->data_o;
+    return (bool) (m_module->out_valid_o);
   }
   void stop_output_data() {
     m_module->out_ready_i = 0;
   }
-
 };
 
 
+void single_id_test(WriteRespBankTestbench* tb) {
+  u_int32_t current_id = 4;
+  int nb_iterations = 100;
+  int nb_inputs = 100;
 
+  // Generate inputs
+
+  std::queue<u_int32_t> input_queue;
+  std::queue<u_int32_t> output_queue;
+
+  bool reserve;
+  bool apply_input;
+  bool request_output_data;
+
+  u_int32_t current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
+  u_int32_t current_output;
+
+  srand(42);
+  tb->reset();
+  tb->allow_output_data();
+
+  for (int i = 0; i < nb_iterations; i++) {
+
+    reserve = (bool) (rand() & 1);
+    apply_input = (bool) (rand() & 1);
+    request_output_data = (bool) (rand() & 1);
+
+    if (reserve)
+      tb->reserve(current_id);
+    if (apply_input) {
+      tb->apply_input_data(current_input);
+
+      if(tb->is_input_data_accepted()) {
+        input_queue.push(current_input);
+        current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
+      }
+    }
+    if (request_output_data) 
+      tb->request_output_data();
+
+    tb->tick();
+
+    if (reserve)
+      tb->stop_reserve();
+    if (apply_input)
+      tb->stop_input_data();
+    if (request_output_data) {
+      if(tb->fetch_output_data(current_output)) {
+        output_queue.push(current_input);
+      }
+      tb->stop_output_data();
+    }
+  }
+
+  while (!tb->is_done())
+  {		
+    tb->tick();
+  }
+
+  while(!input_queue.empty() && !output_queue.empty()) {
+    current_input = input_queue.front();
+    current_output = output_queue.front();
+
+    input_queue.pop();
+    output_queue.pop();
+
+    std::cout << current_input << " - " << current_output << std::endl;
+  }
+}
 
 int main(int argc, char **argv, char **env)
 {
@@ -130,35 +210,36 @@ int main(int argc, char **argv, char **env)
 
 	WriteRespBankTestbench* tb = new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
 
-  tb->reset();
-  tb->reserve(4);
+  single_id_test(tb);
+  // tb->reset();
+  // tb->reserve(4);
 
-  tb->tick(4);
+  // tb->tick(4);
 
-  tb->stop_reserve();
+  // tb->stop_reserve();
 
-  tb->tick(4);
+  // tb->tick(4);
 
-  tb->apply_input_data(4 | (9<<ID_WIDTH));
+  // tb->apply_input_data(4 | (9<<ID_WIDTH));
 
-  tb->tick(6);
+  // tb->tick(6);
 
-  tb->stop_input_data();
+  // tb->stop_input_data();
 
-  tb->tick(4);
+  // tb->tick(4);
 
-  tb->allow_output_data();
+  // tb->allow_output_data();
 
-  tb->tick(4);
+  // tb->tick(4);
 
-  tb->fetch_output_data();
-  tb->tick(10);
-  tb->stop_output_data();
+  // tb->request_output_data();
+  // tb->tick(10);
+  // tb->stop_output_data();
 
-	while (!tb->is_done())
-	{		
-    tb->tick();
-	}
+	// while (!tb->is_done())
+	// {		
+  //   tb->tick();
+	// }
 
 	tb->close_trace();
 
