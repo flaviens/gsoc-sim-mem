@@ -107,6 +107,7 @@ struct WriteRespBankTestbench {
   }
   bool is_input_data_accepted() {
     m_module->eval();
+
     return (bool) (m_module->in_ready_o);
   }
   void stop_input_data() {
@@ -157,14 +158,16 @@ void single_id_test(WriteRespBankTestbench* tb) {
 
     reserve = (bool) (rand() & 1);
     apply_input = (bool) (rand() & 1);
-    request_output_data = 0;//(bool) (rand() & 1);
+    request_output_data = (bool) (rand() & 1);
 
     if (reserve)
       tb->reserve(current_id);
     if (apply_input) {
       tb->apply_input_data(current_input);
+      std::cout << "Applied input: " << std::hex << current_input << std::endl;
 
       if(tb->is_input_data_accepted()) {
+        std::cout << "Input accepted: " << std::hex << current_input << std::endl;
         input_queue.push(current_input);
         current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
       }

@@ -10,6 +10,8 @@
 // FUTURE reserve some slots for each AXI ID to avoid deadlocks
 // FUTURE use mono-port struct RAM
 
+// TODO Predict the next output
+
 module simmem_write_resp_bank #(
     parameter int MessageWidth = 32,  // Width of the message including identifier
     parameter int TotalCapacity = 64,
@@ -70,10 +72,10 @@ module simmem_write_resp_bank #(
   logic [$clog2(TotalCapacity)-1:0] previous_reservation_heads_q[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] tails_d[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] tails_q[2**IDWidth-1:0];
-  logic [$clog2(TotalCapacity)-1:0] next_tail_d;
-  logic [$clog2(TotalCapacity)-1:0] next_tail_d_id[2**IDWidth-1:0];
-  logic [$clog2(TotalCapacity)-1:0][2**IDWidth-1:0] next_tail_d_id_rot90;
-  logic [$clog2(TotalCapacity)-1:0] next_tail_q;
+  // logic [$clog2(TotalCapacity)-1:0] next_tail_d;
+  // logic [$clog2(TotalCapacity)-1:0] next_tail_d_id[2**IDWidth-1:0];
+  // logic [$clog2(TotalCapacity)-1:0][2**IDWidth-1:0] next_tail_d_id_rot90;
+  // logic [$clog2(TotalCapacity)-1:0] next_tail_q;
   logic [$clog2(TotalCapacity)-1:0] tails[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] actual_length_d[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] actual_length_q[2**IDWidth-1:0];
@@ -82,36 +84,42 @@ module simmem_write_resp_bank #(
   logic [$clog2(TotalCapacity)-1:0] reservation_length_d[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] reservation_length_q[2**IDWidth-1:0];
 
-  logic initialize_actual_heads[2**IDWidth-1:0];
+  logic require_piggyback_actual_head_with_reservation_d[2**IDWidth-1:0];
+  logic require_piggyback_actual_head_with_reservation_q[2**IDWidth-1:0];
+  logic piggyback_actual_head_with_reservation[2**IDWidth-1:0];
+  logic piggyback_tail_with_reservation[2**IDWidth-1:0];
+  
   logic update_tail_from_ram_d[2**IDWidth-1:0];
   logic update_tail_from_ram_q[2**IDWidth-1:0];
   logic update_tail_from_actual_head[2**IDWidth-1:0];
   logic update_actual_head_from_ram_d[2**IDWidth-1:0];
   logic update_actual_head_from_ram_q[2**IDWidth-1:0];
   logic update_actual_head_from_reservation_head[2**IDWidth-1:0];
+  logic update_actual_head_from_previous_reservation_head[2**IDWidth-1:0];
   logic update_reservation_heads[2**IDWidth-1:0];
 
   // Update heads and tails
   for (genvar current_id = 0; current_id < 2**IDWidth; current_id = current_id + 1) begin
-    assign actual_heads_d[current_id] = update_actual_head_from_reservation_head[current_id] ? reservation_heads_q[current_id] : actual_heads[current_id];
-    assign actual_heads[current_id] = initialize_actual_heads[current_id] ? next_free_ram_entry_binary :
-        (update_actual_head_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id]);
+    assign actual_heads_d[current_id] = piggyback_actual_head_with_reservation[current_id] ? next_free_ram_entry_binary : (
+        update_actual_head_from_reservation_head[current_id] ? reservation_heads_q[current_id] : (
+        update_actual_head_from_previous_reservation_head[current_id] ? previous_reservation_heads_q[current_id] : actual_heads[current_id]));
+    assign actual_heads[current_id] = update_actual_head_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id];
 
-    assign tails_d[current_id] = update_tail_from_actual_head[current_id] ? actual_heads_q[current_id] : tails[current_id];
-    assign tails[current_id] = initialize_actual_heads[current_id] ? next_free_ram_entry_binary :
-        (update_tail_from_ram_q[current_id] ? next_tail_q : tails_q[current_id]);
+    assign tails_d[current_id] = piggyback_tail_with_reservation[current_id] ? next_free_ram_entry_binary : (
+        update_tail_from_actual_head[current_id] ? actual_heads_q[current_id] : tails[current_id]);
+    assign tails[current_id] = update_tail_from_ram_q[current_id] ? data_out_next_elem_ram : tails_q[current_id];
 
     assign reservation_heads_d[current_id] = update_reservation_heads[current_id] ? next_free_ram_entry_binary : reservation_heads_q[current_id]; 
     assign previous_reservation_heads_d[current_id] = update_reservation_heads[current_id] ? reservation_heads_q[current_id] : previous_reservation_heads_q[current_id]; 
     
-    // assign tails_d[current_id] = initialize_actual_heads[current_id] ? next_free_ram_entry_binary : 
+    // assign tails_d[current_id] = piggyback_actual_head_with_reservation[current_id] ? next_free_ram_entry_binary : 
     //     (current_output_valid_q && out_ready_i && current_output_identifier_onehot_q[current_id] ? 
     //     (update_tail_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id]) : tails_q[current_id]);
 
     assign reservation_heads[current_id] = reservation_heads_q[current_id];
   end
 
-  assign next_tail_d = is_fresh_output_request_q ? data_out_next_elem_ram : next_tail_q;
+  // assign next_tail_d = is_fresh_output_request_q ? data_out_next_elem_ram : next_tail_q;
 
   // Output valid and address
   logic current_output_valid_d;
@@ -234,8 +242,8 @@ module simmem_write_resp_bank #(
     ) begin
       assign write_next_elem_content_ram_masks_rot90[current_addr_bit][current_id] =
           write_next_elem_content_ram_id[current_id][current_addr_bit];
-      assign next_tail_d_id_rot90[current_addr_bit][current_id] =
-          next_tail_d_id[current_id][current_addr_bit];
+      // assign next_tail_d_id_rot90[current_addr_bit][current_id] =
+      //     next_tail_d_id[current_id][current_addr_bit];
     end
   end
   for (
@@ -245,8 +253,8 @@ module simmem_write_resp_bank #(
   ) begin
     assign write_next_elem_content_ram[current_addr_bit] =
         |write_next_elem_content_ram_masks_rot90[current_addr_bit];
-    assign write_next_elem_content_ram[current_addr_bit] =
-        |next_tail_d_id_rot90[current_addr_bit];
+    // assign next_tail_d[current_addr_bit] =
+    //     |next_tail_d_id_rot90[current_addr_bit];
   end
 
   assign wmask_struct_ram[RAM_IN] = {MessageWidth {1'b1}};
@@ -361,12 +369,14 @@ module simmem_write_resp_bank #(
   logic [2**IDWidth-1:0] is_id_reserved_filtered;
   for (genvar current_id = 0; current_id < 2**IDWidth; current_id = current_id + 1) begin
     assign is_id_reserved_filtered[current_id] = data_in_id_field == current_id && |(reservation_length_q[current_id]);
+    assign require_piggyback_actual_head_with_reservation_d[current_id] = |reservation_length_q[current_id] ? 1'b0 : require_piggyback_actual_head_with_reservation_q[current_id];
   end
 
   // Input is ready if there is room and data is not flowing out
-  assign in_ready_o = in_valid_i && |is_id_reserved_filtered; // AXI 4 allows ready to depend on the valid signal
+  assign in_ready_o = in_valid_i && |is_id_reserved_filtered && !(current_output_valid_q && out_ready_i); // AXI 4 allows ready to depend on the valid signal
   assign out_valid_o = current_output_valid_q;
   assign reservation_request_valid_o = |(~ram_valid_q_packed);
+
 
   for (
       genvar current_id = 0; current_id < 2**IDWidth; current_id = current_id + 1
@@ -380,11 +390,14 @@ module simmem_write_resp_bank #(
       update_tail_from_ram_d[current_id] = 1'b0;
       update_tail_from_actual_head[current_id] = 1'b0;
       update_actual_head_from_reservation_head[current_id] = 1'b0;
+      update_actual_head_from_previous_reservation_head[current_id] = 1'b0;
       update_actual_head_from_ram_d[current_id] = 1'b0;
       update_reservation_heads[current_id] = 1'b0;
-      initialize_actual_heads[current_id] = 1'b0;
 
-      next_tail_d_id[current_id] = '0;
+      // next_tail_d_id[current_id] = '0;
+      piggyback_actual_head_with_reservation[current_id] = 1'b0;
+      piggyback_tail_with_reservation[current_id] = 1'b0;
+      require_piggyback_actual_head_with_reservation_d[current_id] = 1'b0;
 
       // Default RAM signals
       for (int ram_bank = 0; ram_bank < 2; ram_bank = ram_bank + 1) begin
@@ -403,67 +416,80 @@ module simmem_write_resp_bank #(
         write_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b0;
         addr_ram_id[STRUCT_RAM][RAM_OUT][current_id] = tails[current_id];
         
-        // Update the actual head position
+        // Update the tail position
         req_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b1;
         write_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
         addr_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = tails[current_id];
-        write_next_elem_content_ram_id[current_id] = next_free_ram_entry_binary;
+        // write_next_elem_content_ram_id[current_id] = next_free_ram_entry_binary;
 
       end
       
-      // If there is a fresh output request running, input can momentarily not be accepted.
-      if (!(|is_fresh_output_request_d) && in_ready_o && in_valid_i && data_in_id_field == current_id) begin : in_handshake
+      // Input handshake
+      // If there is a fresh output request running, input can momentarily not be accepted
+      // if (!(|is_fresh_output_request_d) && in_ready_o && in_valid_i && data_in_id_field == current_id) begin : in_handshake
+      if (!(current_output_valid_q && out_ready_i) && in_ready_o && in_valid_i && data_in_id_field == current_id) begin : in_handshake
 
         // If the reservation head is just one pointer ahead of the actual head, then the next element RAM
         // is not up to date yet and the actual head will need to read directly from the reservation head address
-        // if ((reservation_length_q[current_id][$clog2(TotalCapacity)-1:1]) && reservation_length_q[current_id][0]) begin
         
         actual_length_d[current_id] = actual_length_d[current_id] + 1;
         reservation_length_d[current_id] = reservation_length_d[current_id] - 1;
 
-        if (|(actual_length_q[current_id])) begin
-          if (!|(reservation_length_q[current_id][$clog2(TotalCapacity)-1:1]) && reservation_length_q[current_id][0]) begin
-            req_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
-            update_actual_head_from_reservation_head[current_id] = 1'b1;
-          end else begin
-            req_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b1;
-            update_actual_head_from_ram_d[current_id] = 1'b1;
-          end
-  
-          // Store the data
-          req_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-          write_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-          addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = actual_heads[current_id];
-  
-          // Update the actual head position
-          write_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
-          addr_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = actual_heads[current_id];
+        // if (!|(reservation_length_q[current_id][$clog2(TotalCapacity)-1:1]) && reservation_length_q[current_id][0]) begin
+        if (reservation_length_q[current_id] == 2 && |(actual_length_q[current_id])) begin // TODO Merge conditions
+          req_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
+          update_actual_head_from_reservation_head[current_id] = 1'b1;
+        end else if (reservation_length_q[current_id] == 1 || reservation_length_q[current_id] == 2) begin
+          req_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
+          update_actual_head_from_reservation_head[current_id] = 1'b1;
+        end else begin
+          req_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b1;
+          update_actual_head_from_ram_d[current_id] = 1'b1;
+        end
+
+        // Store the data
+        req_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
+        write_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
+        addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = actual_heads[current_id];
+
+        // Update the actual head position
+        write_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
+        addr_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = actual_heads[current_id];
+
+        if (!|reservation_length_q[current_id] && !|actual_length_q[current_id]) begin
+          require_piggyback_actual_head_with_reservation_d[current_id] = 1'b1;
         end
         
       end
-
 
       if (reservation_request_ready_i && reservation_request_valid_o && reservation_request_id_i == current_id) begin : reservation
 
         reservation_length_d[current_id] = reservation_length_d[current_id] + 1;
         update_reservation_heads[current_id] = 1'b1;
 
-        if(|(reservation_length_q[current_id]) || |(actual_length_q[current_id])) begin
+        if(|(reservation_length_q[current_id][$clog2(TotalCapacity)-1:1]) || (|(actual_length_q[current_id]) && reservation_length_q[current_id][0])) begin
           // Update the reserved head position
           req_ram_id[NEXT_ELEM_RAM][RAM_IN][current_id] = 1'b1;
           write_ram_id[NEXT_ELEM_RAM][RAM_IN][current_id] = 1'b1;
           addr_ram_id[NEXT_ELEM_RAM][RAM_IN][current_id] = previous_reservation_heads_q[current_id];
           write_next_elem_content_ram_id[current_id] = reservation_heads_q[current_id];
-        end else if(!|(actual_length_q[current_id])) begin
-          initialize_actual_heads[current_id] = 1'b1;
+
+        // end else if((!|(actual_length_q[current_id]) && |(reservation_length_q[current_id])) || require_piggyback_actual_head_with_reservation_q[current_id]) begin
         end
+
+        if(!|(actual_length_q[current_id]) && !|(reservation_length_q[current_id])) begin
+          piggyback_actual_head_with_reservation[current_id] = 1'b1;
+          piggyback_tail_with_reservation[current_id] = 1'b1;
+        end
+
+        // TODO Implement requested piggybaccking
       end
     
       if (current_output_valid_q && out_ready_i && current_output_identifier_onehot_q[current_id]) begin
         
         actual_length_d[current_id] = actual_length_d[current_id] - 1;
         
-        if (actual_length_q[current_id] == 2) begin
+        if (actual_length_q[current_id] == 1 && !|reservation_length_q[current_id]) begin
           update_tail_from_actual_head[current_id] = 1'b1;
         end else begin
           update_tail_from_ram_d[current_id] = 1'b1;
@@ -480,7 +506,7 @@ module simmem_write_resp_bank #(
 
     // assign current_output_valid_d_id[current_id] = (|actual_length_q[current_id][$clog2(TotalCapacity-1):1] || (actual_length_q[current_id][0] && !is_fresh_output_request_d[current_id])) && release_en_i[current_id];
     // assign current_output_valid_d_id[current_id] = |actual_length_q[current_id][$clog2(TotalCapacity-1):0]  && release_en_i[current_id];
-    assign current_output_valid_d_id[current_id] = |actual_length_d[current_id];
+    assign current_output_valid_d_id[current_id] = |actual_length_q[current_id][$clog2(TotalCapacity)-1:1] || (actual_length_q[current_id][0] && !current_output_identifier_onehot_q[current_id]);
     
   end
 
@@ -502,12 +528,7 @@ module simmem_write_resp_bank #(
         update_actual_head_from_ram_q[current_id] <= '0;
         update_tail_from_ram_q[current_id] <= '0;
 
-        current_output_valid_q <= '0;
-        current_output_identifier_onehot_q <= '0;
-        current_output_address_onehot_q <= '0;
-
-        next_tail_q <= 1'b1;
-        is_fresh_output_request_q <= 1'b0;
+        require_piggyback_actual_head_with_reservation_q[current_id] <= 1'b0;
       end else begin
         actual_heads_q[current_id] <= actual_heads_d[current_id];
         reservation_heads_q[current_id] <= reservation_heads_d[current_id];
@@ -520,14 +541,25 @@ module simmem_write_resp_bank #(
         update_tail_from_ram_q[current_id] <= update_tail_from_ram_d[current_id];
         update_actual_head_from_ram_q[current_id] <= update_actual_head_from_ram_d[current_id];
 
-        current_output_valid_q <= current_output_valid_d;
-        current_output_identifier_onehot_q <= current_output_identifier_onehot_d;
-        current_output_address_onehot_q <= current_output_address_onehot_d;
-
-        next_tail_q <= next_tail_d;
-        is_fresh_output_request_q <= |is_fresh_output_request_d;
+        require_piggyback_actual_head_with_reservation_q[current_id] <= require_piggyback_actual_head_with_reservation_d[current_id];
       end
     end
+  end
+
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (~rst_ni) begin
+      current_output_valid_q <= '0;
+      current_output_identifier_onehot_q <= '0;
+      current_output_address_onehot_q <= '0;
+      // next_tail_q <= '0;
+      is_fresh_output_request_q <= 1'b0;
+    end else begin
+      current_output_valid_q <= current_output_valid_d;
+      current_output_identifier_onehot_q <= current_output_identifier_onehot_d;
+      current_output_address_onehot_q <= current_output_address_onehot_d;
+      // next_tail_q <= next_tail_d;
+      is_fresh_output_request_q <= |is_fresh_output_request_d;
+    end 
   end
 
   for (genvar current_addr = 0; current_addr < TotalCapacity; current_addr = current_addr + 1) begin
