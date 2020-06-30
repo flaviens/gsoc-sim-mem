@@ -158,7 +158,7 @@ void single_id_test(WriteRespBankTestbench* tb) {
 
     reserve = (bool) (rand() & 1);
     apply_input = (bool) (rand() & 1);
-    request_output_data = (bool) (rand() & 1);
+    request_output_data = 0;//(bool) (rand() & 1);
 
     if (reserve)
       tb->reserve(current_id);
