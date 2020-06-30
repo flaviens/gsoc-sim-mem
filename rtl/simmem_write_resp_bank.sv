@@ -74,6 +74,7 @@ module simmem_write_resp_bank #(
   logic [$clog2(TotalCapacity)-1:0] tails_q[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] previous_tails_d[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] previous_tails_q[2**IDWidth-1:0];
+  logic [$clog2(TotalCapacity)-1:0] previous_tails[2**IDWidth-1:0];
   // logic [$clog2(TotalCapacity)-1:0] next_tail_d;
   // logic [$clog2(TotalCapacity)-1:0] next_tail_d_id[2**IDWidth-1:0];
   // logic [$clog2(TotalCapacity)-1:0][2**IDWidth-1:0] next_tail_d_id_rot90;
@@ -81,6 +82,7 @@ module simmem_write_resp_bank #(
   logic [$clog2(TotalCapacity)-1:0] tails[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] actual_length_d[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] actual_length_q[2**IDWidth-1:0];
+  logic [$clog2(TotalCapacity)-1:0] actual_length[2**IDWidth-1:0];
 
   // Length reserved and not used yet
   logic [$clog2(TotalCapacity)-1:0] reservation_length_d[2**IDWidth-1:0];
@@ -110,7 +112,10 @@ module simmem_write_resp_bank #(
         update_actual_head_from_previous_reservation_head[current_id] ? previous_reservation_heads_q[current_id] : actual_heads[current_id]));
     assign actual_heads[current_id] = update_actual_head_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id];
 
-    assign previous_tails_d[current_id] = !piggyback_tail_with_actual_head_d[current_id] && !update_actual_head_from_ram_d[current_id] ? previous_tails_q[current_id] : tails_q[current_id];
+    // TODO Correct previous_tails
+    assign previous_tails_d[current_id] = update_tail_from_actual_head[current_id] ? tails_q[current_id] : previous_tails[current_id];
+    assign previous_tails[current_id] = piggyback_tail_with_actual_head_q[current_id] ? tails_q[current_id] : (
+        update_tail_from_ram_q[current_id] ? tails_q[current_id] : previous_tails_q[current_id]);
 
     assign tails_d[current_id] = update_tail_from_actual_head[current_id] ? actual_heads_q[current_id] : tails[current_id];
     assign tails[current_id] = piggyback_tail_with_actual_head_q[current_id] ? actual_heads[current_id] : (
@@ -349,7 +354,7 @@ module simmem_write_resp_bank #(
     end
 
     for (genvar current_addr = 0; current_addr < TotalCapacity; current_addr = current_addr + 1) begin
-      assign next_address_to_release_multihot_id[current_id][current_addr] = |(actual_length_d[current_id]) && tails[current_id] == current_addr && release_en_i[current_addr];
+      assign next_address_to_release_multihot_id[current_id][current_addr] = |(actual_length[current_id]) && tails[current_id] == current_addr && release_en_i[current_addr];
       if (current_addr == 0) begin
         assign next_address_to_release_onehot_id[current_id][current_addr] = next_address_to_release_multihot_id[current_id][current_addr];
       end else begin
@@ -383,7 +388,6 @@ module simmem_write_resp_bank #(
   assign in_ready_o = in_valid_i && |is_id_reserved_filtered && !(current_output_valid_q && out_ready_i); // AXI 4 allows ready to depend on the valid signal
   assign out_valid_o = current_output_valid_q;
   assign reservation_request_valid_o = |(~ram_valid_q_packed);
-
 
   for (
       genvar current_id = 0; current_id < 2**IDWidth; current_id = current_id + 1
@@ -421,8 +425,12 @@ module simmem_write_resp_bank #(
 
         req_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b1;
         write_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b0;
-        addr_ram_id[STRUCT_RAM][RAM_OUT][current_id] = tails[current_id];
-        
+        if (current_output_valid_q && out_ready_i) begin
+          addr_ram_id[STRUCT_RAM][RAM_OUT][current_id] = tails[current_id];
+        end else begin
+          addr_ram_id[STRUCT_RAM][RAM_OUT][current_id] = previous_tails[current_id];
+        end
+
         // Update the tail position
         req_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b1;
         write_ram_id[NEXT_ELEM_RAM][RAM_OUT][current_id] = 1'b0;
@@ -522,6 +530,7 @@ module simmem_write_resp_bank #(
     // assign current_output_valid_d_id[current_id] = |actual_length_q[current_id][$clog2(TotalCapacity-1):0]  && release_en_i[current_id];
     assign current_output_valid_d_id[current_id] = |actual_length_q[current_id][$clog2(TotalCapacity)-1:1] || (actual_length_q[current_id][0] && !current_output_identifier_onehot_q[current_id]);
     
+    assign actual_length[current_id] = current_output_valid_q && out_ready_i && current_output_identifier_onehot_q[current_id] ? actual_length_q[current_id]-1 : actual_length_q[current_id];
   end
 
   assign current_output_valid_d = |current_output_valid_d_id || (current_output_valid_q && !out_ready_i);

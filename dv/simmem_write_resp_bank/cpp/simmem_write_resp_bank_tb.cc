@@ -13,7 +13,7 @@
 #include "verilated.h"
 
 #define RESET_LENGTH 5
-#define TRACE_LEVEL 4
+#define TRACE_LEVEL 6
 #define MESSAGE_WIDTH 32
 
 #define ID_WIDTH 4
@@ -170,7 +170,6 @@ void single_id_test(WriteRespBankTestbench* tb) {
 
     // Important: apply all the input first, before any evaluation!
     if(tb->is_input_data_accepted()) {
-      std::cout << "Input accepted: " << std::hex << current_input << std::endl;
       input_queue.push(current_input);
       current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
     }
