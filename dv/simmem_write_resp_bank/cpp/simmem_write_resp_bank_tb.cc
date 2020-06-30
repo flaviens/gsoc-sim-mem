@@ -2,138 +2,136 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include <verilated_fst_c.h>
-
-#include <stdlib.h>
-#include <time.h>
-#include <iostream>
-#include <queue>
-
 #include "Vsimmem_write_resp_bank.h"
 #include "verilated.h"
+#include <iostream>
+#include <memory>
+#include <queue>
+#include <stdlib.h>
+#include <time.h>
+#include <verilated_fst_c.h>
 
-#define RESET_LENGTH 5
-#define TRACE_LEVEL 6
-#define MESSAGE_WIDTH 32
-
-#define ID_WIDTH 4
+const int kResetLength = 5;
+const int kTraceLevel = 6;
+const int kMessageWidth = 32;
+const int kIdWidth = 4;
 
 typedef Vsimmem_write_resp_bank Module;
 
-struct WriteRespBankTestbench {
-	
-	vluint32_t m_tick_count;
-  vluint32_t m_max_clock_cycles;
-  bool m_record_trace;
-	Module *m_module;
-  VerilatedFstC* m_trace;
+// TODO Correctly manage the output fetching
 
-  // @param max_clock_cycles set to 0 to disable interruption after a given number of clock cycles
+class WriteRespBankTestbench {
+ private:
+  vluint32_t tick_count_;
+  vluint32_t max_clock_cycles_;
+  bool record_trace_;
+  std::unique_ptr<Module> module_;
+  VerilatedFstC *trace_;
+
+ public:
+  // @param max_clock_cycles set to 0 to disable interruption after a given
+  // number of clock cycles
   // @param record_trace set to false to skip trace recording
-	WriteRespBankTestbench(vluint32_t max_clock_cycles = 0, bool record_trace = true, const std::string& trace_filename = "sim.fst") {
-		m_tick_count = 0l;
-    m_max_clock_cycles = max_clock_cycles;
-    m_record_trace = record_trace;
-		m_module = new Module;
-
+  WriteRespBankTestbench(vluint32_t max_clock_cycles = 0,
+                         bool record_trace = true,
+                         const std::string &trace_filename = "sim.fst")
+      : tick_count_(0l),
+        max_clock_cycles_(max_clock_cycles),
+        record_trace_(record_trace),
+        module_(new Module) {
     if (record_trace) {
-      m_trace = new VerilatedFstC;
-      m_module->trace(m_trace, TRACE_LEVEL);
-      m_trace->open(trace_filename.c_str());
+      trace_ = new VerilatedFstC;
+      module_->trace(trace_, kTraceLevel);
+      trace_->open(trace_filename.c_str());
     }
   }
 
-	void destruct(void) {
-		delete m_module;
-	}
+  ~WriteRespBankTestbench() { close_trace(); }
 
-	void reset(void) {
-		m_module->rst_ni = 0;
-    for (int i = 0; i < RESET_LENGTH; i++)
-		  this->tick();
-		m_module->rst_ni = 1;
-	}
+  void reset(void) {
+    module_->rst_ni = 0;
+    for (int i = 0; i < kResetLength; i++) {
+      this->tick();
+    }
+    module_->rst_ni = 1;
+  }
 
-  void close_trace(void) {
-		m_trace->close();
-	}
+  void close_trace(void) { trace_->close(); }
 
-	void tick(int nbTicks=1) {
+  void tick(int nbTicks = 1) {
     for (int i = 0; i < nbTicks; i++) {
+      std::cout << "Running iteration" << tick_count_ << std::endl;
 
-      printf("Running iteration %d.\n", m_tick_count);
+      tick_count_++;
 
-      m_tick_count++;
+      module_->clk_i = 0;
+      module_->eval();
 
-      m_module->clk_i = 0;
-      m_module->eval();
+      if (record_trace_) {
+        trace_->dump(5 * tick_count_ - 1);
+      }
+      module_->clk_i = 1;
+      module_->eval();
 
-      if(m_record_trace)
-        m_trace->dump(5*m_tick_count-1);
+      if (record_trace_) {
+        trace_->dump(5 * tick_count_);
+      }
+      module_->clk_i = 0;
+      module_->eval();
 
-      m_module->clk_i = 1;
-      m_module->eval();
-
-      if(m_record_trace)
-        m_trace->dump(5*m_tick_count);
-
-      m_module->clk_i = 0;
-      m_module->eval();
-
-      if(m_record_trace) {
-        m_trace->dump(5*m_tick_count+2);
-        m_trace->flush();
+      if (record_trace_) {
+        trace_->dump(5 * tick_count_ + 2);
+        trace_->flush();
       }
     }
-	}
+  }
 
-	bool is_done(void) {
-    printf("cnt: %u, max: %u\n", m_tick_count, m_max_clock_cycles);
-		return (Verilated::gotFinish() || (m_max_clock_cycles && (m_tick_count >= m_max_clock_cycles)));
-	}
+  bool is_done(void) {
+    printf("cnt: %u, max: %u\n", tick_count_, max_clock_cycles_);
+    return (Verilated::gotFinish() ||
+            (max_clock_cycles_ && (tick_count_ >= max_clock_cycles_)));
+  }
 
   void reserve(int axi_id) {
-    m_module->reservation_request_ready_i = 1;
-    m_module->reservation_request_id_i = axi_id;
+    module_->reservation_request_ready_i = 1;
+    module_->reservation_request_id_i = axi_id;
   }
 
-  void stop_reserve() {
-    m_module->reservation_request_ready_i = 0;
-  }
+  void stop_reserve() { module_->reservation_request_ready_i = 0; }
 
   void apply_input_data(int data_i) {
-    m_module->data_i = data_i;
-    m_module->in_valid_i = 1;
+    std::cout << "Applied input: " << std::hex << data_i << std::endl;
+
+    module_->data_i = data_i;
+    module_->in_valid_i = 1;
   }
   bool is_input_data_accepted() {
-    m_module->eval();
-    return (bool) (m_module->in_ready_o);
+    module_->eval();
+    return (bool)(module_->in_ready_o);
   }
-  void stop_input_data() {
-    m_module->in_valid_i = 0;
-  }
+  void stop_input_data() { module_->in_valid_i = 0; }
 
-  void allow_output_data() {
-    m_module->release_en_i = -1;
-  }
-  void forbid_output_data() {
-    m_module->release_en_i = 0;
-  }
+  void allow_output_data() { module_->release_en_i = -1; }
+  void forbid_output_data() { module_->release_en_i = 0; }
 
-  void request_output_data() {
-    m_module->out_ready_i = 1;
+  void request_output_data() { module_->out_ready_i = 1; }
+  bool fetch_output_data(u_int32_t &out_data) {
+    if (!(module_->out_ready_i)) {
+      std::cerr << "Fetching output data without manifesting ready signal."
+                << std::endl;
+      exit(1);
+    }
+
+    if ((bool)(module_->out_valid_o))
+      std::cout << "Fetching " << std::hex << module_->data_o << std::endl;
+
+    out_data = (u_int32_t)module_->data_o;
+    return (bool)(module_->out_valid_o);
   }
-  bool fetch_output_data(u_int32_t& out_data) {
-    out_data = (u_int32_t) m_module->data_o;
-    return (bool) (m_module->out_valid_o);
-  }
-  void stop_output_data() {
-    m_module->out_ready_i = 0;
-  }
+  void stop_output_data() { module_->out_ready_i = 0; }
 };
 
-
-void single_id_test(WriteRespBankTestbench* tb) {
+void single_id_test(WriteRespBankTestbench *tb) {
   u_int32_t current_id = 4;
   int nb_iterations = 100;
 
@@ -154,26 +152,23 @@ void single_id_test(WriteRespBankTestbench* tb) {
   tb->allow_output_data();
 
   for (int i = 0; i < nb_iterations; i++) {
-
-    reserve = (bool) (rand() & 1);
-    apply_input = (bool) (rand() & 1);
-    request_output_data = (bool) (rand() & 1);
+    reserve = (bool)(rand() & 1);
+    apply_input = (bool)(rand() & 1);
+    request_output_data = (bool)(rand() & 1);
 
     if (reserve)
       tb->reserve(current_id);
     if (apply_input) {
       tb->apply_input_data(current_input);
-      std::cout << "Applied input: " << std::hex << current_input << std::endl;
     }
-    if (request_output_data) 
+    if (request_output_data)
       tb->request_output_data();
 
     // Important: apply all the input first, before any evaluation!
-    if(tb->is_input_data_accepted()) {
+    if (tb->is_input_data_accepted()) {
       input_queue.push(current_input);
       current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
     }
-
 
     tb->tick();
 
@@ -182,19 +177,18 @@ void single_id_test(WriteRespBankTestbench* tb) {
     if (apply_input)
       tb->stop_input_data();
     if (request_output_data) {
-      if(tb->fetch_output_data(current_output)) {
-        output_queue.push(current_input);
+      if (tb->fetch_output_data(current_output)) {
+        output_queue.push(current_output);
       }
       tb->stop_output_data();
     }
   }
 
-  while (!tb->is_done())
-  {		
+  while (!tb->is_done()) {
     tb->tick();
   }
 
-  while(!input_queue.empty() && !output_queue.empty()) {
+  while (!input_queue.empty() && !output_queue.empty()) {
     current_input = input_queue.front();
     current_output = output_queue.front();
 
@@ -205,12 +199,12 @@ void single_id_test(WriteRespBankTestbench* tb) {
   }
 }
 
-int main(int argc, char **argv, char **env)
-{
-	Verilated::commandArgs(argc, argv);
+int main(int argc, char **argv, char **env) {
+  Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
 
-	WriteRespBankTestbench* tb = new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
+  WriteRespBankTestbench *tb =
+      new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
 
   single_id_test(tb);
   // tb->reset();
@@ -238,15 +232,15 @@ int main(int argc, char **argv, char **env)
   // tb->tick(10);
   // tb->stop_output_data();
 
-	// while (!tb->is_done())
-	// {		
+  // while (!tb->is_done())
+  // {
   //   tb->tick();
-	// }
+  // }
 
-	tb->close_trace();
+  tb->close_trace();
 
-	printf("Complete!\n");
+  printf("Complete!\n");
 
-	delete tb;
-	exit(0);
+  delete tb;
+  exit(0);
 }

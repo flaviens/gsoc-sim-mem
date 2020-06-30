@@ -41,8 +41,6 @@ module simmem_write_resp_bank #(
     output logic out_valid_o
   );
 
-  // TODO next_id_to_release_d and _q.
-
   // import simmem_pkg::ram_bank_e;
   // import simmem_pkg::ram_port_e;
 
@@ -143,8 +141,8 @@ module simmem_write_resp_bank #(
   // logic [TotalCapacity-1:0] current_output_address_onehot_id[2**IDWidth-1:0];
   logic [TotalCapacity-1:0] current_output_address_onehot_d;
   logic [TotalCapacity-1:0] current_output_address_onehot_q;
-  logic [2**IDWidth-1:0] is_fresh_output_request_d;
-  logic is_fresh_output_request_q;
+  // logic [2**IDWidth-1:0] is_fresh_output_request_d;
+  // logic is_fresh_output_request_q;
 
   // Valid bits and pointer to next arrays. Masks update the valid bits
   logic ram_valid_d[TotalCapacity-1:0];
@@ -524,7 +522,7 @@ module simmem_write_resp_bank #(
 
   for (genvar current_id = 0; current_id < 2**IDWidth; current_id = current_id + 1) begin
     // Determines if a new output will be presented
-    assign is_fresh_output_request_d[current_id] = (out_ready_i || !current_output_valid_q) && next_id_to_release_onehot[current_id];
+    // assign is_fresh_output_request_d[current_id] = (out_ready_i || !current_output_valid_q) && next_id_to_release_onehot[current_id];
 
     // assign current_output_valid_d_id[current_id] = (|actual_length_q[current_id][$clog2(TotalCapacity-1):1] || (actual_length_q[current_id][0] && !is_fresh_output_request_d[current_id])) && release_en_i[current_id];
     // assign current_output_valid_d_id[current_id] = |actual_length_q[current_id][$clog2(TotalCapacity-1):0]  && release_en_i[current_id];
@@ -580,13 +578,13 @@ module simmem_write_resp_bank #(
       current_output_identifier_onehot_q <= '0;
       current_output_address_onehot_q <= '0;
       // next_tail_q <= '0;
-      is_fresh_output_request_q <= 1'b0;
+      // is_fresh_output_request_q <= 1'b0;
     end else begin
       current_output_valid_q <= current_output_valid_d;
       current_output_identifier_onehot_q <= current_output_identifier_onehot_d;
       current_output_address_onehot_q <= current_output_address_onehot_d;
       // next_tail_q <= next_tail_d;
-      is_fresh_output_request_q <= |is_fresh_output_request_d;
+      // is_fresh_output_request_q <= |is_fresh_output_request_d;
     end 
   end
 
