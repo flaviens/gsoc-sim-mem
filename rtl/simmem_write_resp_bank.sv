@@ -91,7 +91,8 @@ module simmem_write_resp_bank #(
   logic require_piggyback_tail_with_reservation_d[2**IDWidth-1:0];
   logic require_piggyback_tail_with_reservation_q[2**IDWidth-1:0];
   logic piggyback_actual_head_with_reservation[2**IDWidth-1:0];
-  logic piggyback_tail_with_actual_head[2**IDWidth-1:0];
+  logic piggyback_tail_with_actual_head_d[2**IDWidth-1:0];
+  logic piggyback_tail_with_actual_head_q[2**IDWidth-1:0];
   
   logic update_tail_from_ram_d[2**IDWidth-1:0];
   logic update_tail_from_ram_q[2**IDWidth-1:0];
@@ -109,11 +110,11 @@ module simmem_write_resp_bank #(
         update_actual_head_from_previous_reservation_head[current_id] ? previous_reservation_heads_q[current_id] : actual_heads[current_id]));
     assign actual_heads[current_id] = update_actual_head_from_ram_q[current_id] ? data_out_next_elem_ram : actual_heads_q[current_id];
 
-    assign previous_tails_d[current_id] = !piggyback_tail_with_actual_head[current_id] && !update_actual_head_from_ram_d[current_id] ? previous_tails_q[current_id] : tails_q[current_id];
+    assign previous_tails_d[current_id] = !piggyback_tail_with_actual_head_d[current_id] && !update_actual_head_from_ram_d[current_id] ? previous_tails_q[current_id] : tails_q[current_id];
 
-    assign tails_d[current_id] = piggyback_tail_with_actual_head[current_id] ? actual_heads_d[current_id] : (
-        update_tail_from_actual_head[current_id] ? actual_heads_q[current_id] : tails[current_id]);
-    assign tails[current_id] = update_tail_from_ram_q[current_id] ? data_out_next_elem_ram : tails_q[current_id];
+    assign tails_d[current_id] = update_tail_from_actual_head[current_id] ? actual_heads_q[current_id] : tails[current_id];
+    assign tails[current_id] = piggyback_tail_with_actual_head_q[current_id] ? actual_heads[current_id] : (
+        update_tail_from_ram_q[current_id] ? data_out_next_elem_ram : tails_q[current_id]);
 
     assign previous_reservation_heads_d[current_id] = update_reservation_heads[current_id] ? reservation_heads_q[current_id] : previous_reservation_heads_q[current_id]; 
     assign reservation_heads_d[current_id] = update_reservation_heads[current_id] ? next_free_ram_entry_binary : reservation_heads_q[current_id]; 
@@ -402,7 +403,7 @@ module simmem_write_resp_bank #(
 
       // next_tail_d_id[current_id] = '0;
       piggyback_actual_head_with_reservation[current_id] = 1'b0;
-      piggyback_tail_with_actual_head[current_id] = 1'b0;
+      piggyback_tail_with_actual_head_d[current_id] = 1'b0;
       // require_piggyback_actual_head_with_reservation_d[current_id] = 1'b0;
 
       // Default RAM signals
@@ -468,7 +469,7 @@ module simmem_write_resp_bank #(
         // end
 
         if (!|(actual_length_q[current_id])) begin
-          piggyback_tail_with_actual_head[current_id] = 1'b1;
+          piggyback_tail_with_actual_head_d[current_id] = 1'b1;
         end
         
       end
@@ -492,7 +493,7 @@ module simmem_write_resp_bank #(
         if(!|(reservation_length_q[current_id])) begin
           piggyback_actual_head_with_reservation[current_id] = 1'b1;
           if(!|(actual_length_q[current_id])) begin
-            piggyback_tail_with_actual_head[current_id] = 1'b1;
+            piggyback_tail_with_actual_head_d[current_id] = 1'b1;
           end
         end
 
@@ -541,6 +542,8 @@ module simmem_write_resp_bank #(
         update_actual_head_from_ram_q[current_id] <= '0;
         update_tail_from_ram_q[current_id] <= '0;
 
+        piggyback_tail_with_actual_head_q[current_id] <= '0;
+
         // require_piggyback_actual_head_with_reservation_q[current_id] <= 1'b0;
         // require_piggyback_tail_with_reservation_q[current_id] <= 1'b0;
       end else begin
@@ -554,7 +557,8 @@ module simmem_write_resp_bank #(
 
         update_tail_from_ram_q[current_id] <= update_tail_from_ram_d[current_id];
         update_actual_head_from_ram_q[current_id] <= update_actual_head_from_ram_d[current_id];
-
+        
+        piggyback_tail_with_actual_head_q[current_id] <= piggyback_tail_with_actual_head_d[current_id];
         // require_piggyback_actual_head_with_reservation_q[current_id] <= require_piggyback_actual_head_with_reservation_d[current_id];
         // require_piggyback_tail_with_reservation_q[current_id] <= require_piggyback_tail_with_reservation_d[current_id];
       end
