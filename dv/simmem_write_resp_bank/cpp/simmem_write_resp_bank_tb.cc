@@ -4,11 +4,12 @@
 
 #include "Vsimmem_write_resp_bank.h"
 #include "verilated.h"
+#include <cassert>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <queue>
 #include <stdlib.h>
-#include <time.h>
 #include <verilated_fst_c.h>
 
 const int kResetLength = 5;
@@ -17,6 +18,7 @@ const int kMessageWidth = 32;
 const int kIdWidth = 4;
 
 typedef Vsimmem_write_resp_bank Module;
+typedef std::map<u_int32_t, std::queue<u_int32_t>> queue_map_t;
 
 // TODO Correctly manage the output fetching
 
@@ -50,7 +52,7 @@ class WriteRespBankTestbench {
 
   void reset(void) {
     module_->rst_ni = 0;
-    for (int i = 0; i < kResetLength; i++) {
+    for (size_t i = 0; i < kResetLength; i++) {
       this->tick();
     }
     module_->rst_ni = 1;
@@ -59,7 +61,7 @@ class WriteRespBankTestbench {
   void close_trace(void) { trace_->close(); }
 
   void tick(int nbTicks = 1) {
-    for (int i = 0; i < nbTicks; i++) {
+    for (size_t i = 0; i < nbTicks; i++) {
       std::cout << "Running iteration" << tick_count_ << std::endl;
 
       tick_count_++;
@@ -109,6 +111,10 @@ class WriteRespBankTestbench {
     module_->eval();
     return (bool)(module_->in_ready_o);
   }
+  bool is_reservation_accepted() {
+    module_->eval();
+    return (bool)(module_->reservation_request_valid_o);
+  }
   void stop_input_data() { module_->in_valid_i = 0; }
 
   void allow_output_data() { module_->release_en_i = -1; }
@@ -119,11 +125,7 @@ class WriteRespBankTestbench {
 
   bool fetch_output_data(u_int32_t &out_data) {
     module_->eval();
-    if (!(module_->out_ready_i)) {
-      std::cerr << "Fetching output data without manifesting ready signal."
-                << std::endl;
-      exit(1);
-    }
+    assert(module_->out_ready_i);
 
     if ((bool)(module_->out_valid_o))
       std::cout << "Fetching " << std::hex << module_->data_o << std::endl;
@@ -148,30 +150,32 @@ void single_id_test(WriteRespBankTestbench *tb) {
   bool apply_input;
   bool request_output_data;
 
-  u_int32_t current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
+  u_int32_t current_input = current_id | (u_int32_t)(rand() & 0xFFFFFFF0);
   u_int32_t current_output;
 
-  srand(42);
+  srand(3);
   tb->reset();
   tb->allow_output_data();
 
-  for (int i = 0; i < nb_iterations; i++) {
+  for (size_t i = 0; i < nb_iterations; i++) {
     reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
 
-    if (reserve)
+    if (reserve) {
       tb->reserve(current_id);
+    }
     if (apply_input) {
       tb->apply_input_data(current_input);
     }
-    if (request_output_data)
+    if (request_output_data) {
       tb->request_output_data();
+    }
 
     // Important: apply all the input first, before any evaluation
     if (tb->is_input_data_accepted()) {
       input_queue.push(current_input);
-      current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
+      current_input = current_id | (u_int32_t)(rand() & 0xFFFFFFF0);
     }
     if (request_output_data) {
       if (tb->fetch_output_data(current_output)) {
@@ -204,6 +208,98 @@ void single_id_test(WriteRespBankTestbench *tb) {
     output_queue.pop();
 
     std::cout << current_input << " - " << current_output << std::endl;
+  }
+}
+
+void two_ids_test(WriteRespBankTestbench *tb) {
+  srand(42);
+
+  const int kNumIdentifiers = 2;
+
+  int nb_iterations = 100;
+  u_int32_t identifiers[]{1, 4};
+
+  queue_map_t input_queues;
+  queue_map_t output_queues;
+
+  for (size_t i = 0; i < kNumIdentifiers; i++) {
+    input_queues.insert(std::pair<u_int32_t, std::queue<u_int32_t>>(
+        identifiers[i], std::queue<u_int32_t>()));
+    output_queues.insert(std::pair<u_int32_t, std::queue<u_int32_t>>(
+        identifiers[i], std::queue<u_int32_t>()));
+  }
+
+  bool reserve;
+  bool apply_input;
+  bool request_output_data;
+
+  u_int32_t current_input_id = identifiers[rand() % kNumIdentifiers];
+  u_int32_t current_input = current_input_id | (u_int32_t)(rand() & 0xFFFFFFF0);
+  u_int32_t current_reservation_id = identifiers[rand() % kNumIdentifiers];
+  u_int32_t current_output;
+
+  tb->reset();
+  tb->allow_output_data();
+
+  for (size_t i = 0; i < nb_iterations; i++) {
+    reserve = (bool)(rand() & 1);
+    apply_input = (bool)(rand() & 1);
+    request_output_data = (bool)(rand() & 1);
+
+    if (reserve) {
+      tb->reserve(current_reservation_id);
+    }
+    if (apply_input) {
+      tb->apply_input_data(current_input);
+    }
+    if (request_output_data) {
+      tb->request_output_data();
+    }
+
+    // Important: apply all the input first, before any evaluation
+    if (reserve && tb->is_reservation_accepted()) {
+      current_reservation_id = identifiers[rand() % kNumIdentifiers];
+    }
+    if (tb->is_input_data_accepted()) {
+      input_queues[current_input_id].push(current_input);
+      current_input_id = identifiers[rand() % kNumIdentifiers];
+      current_input = current_input_id | (u_int32_t)(rand() & 0xFFFFFFF0);
+    }
+    if (request_output_data) {
+      if (tb->fetch_output_data(current_output)) {
+        output_queues[identifiers[current_output & 0xF]].push(current_output);
+      }
+    }
+
+    tb->tick();
+
+    if (reserve) {
+      tb->stop_reserve();
+    }
+    if (apply_input) {
+      tb->stop_input_data();
+    }
+    if (request_output_data) {
+      tb->stop_output_data();
+    }
+  }
+
+  while (!tb->is_done()) {
+    tb->tick();
+  }
+
+  for (size_t i = 0; i < kNumIdentifiers; i++) {
+    while (!input_queues[i].empty() && !output_queues[i].empty()) {
+      current_input = input_queues[i].front();
+      current_output = output_queues[i].front();
+
+      input_queues[i].pop();
+      output_queues[i].pop();
+
+      std::cout << current_input << " - " << current_output << std::endl;
+    }
+
+    std::cout << std::endl << std::endl << std::endl << std::endl;
   }
 }
 

@@ -42,7 +42,7 @@ package simmem_pkg;
     logic [AxCacheWidth-1:0] memory_type;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxQoSWidth-1:0] qos;
-    logic [AwUserWidth-1:0] user_signal;
+    // logic [AwUserWidth-1:0] user_signal;
   } write_addr_req_t;
 
   typedef struct packed {
@@ -55,7 +55,7 @@ package simmem_pkg;
     logic [AxCacheWidth-1:0] memory_type;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxQoSWidth-1:0] qos;
-    logic [ArUserWidth-1:0] user_signal;
+    // logic [ArUserWidth-1:0] user_signal;
   } read_addr_req_t;
 
   typedef struct packed {
@@ -63,7 +63,7 @@ package simmem_pkg;
     logic [XDataWidth-1:0] data;
     logic [WStrbWidth-1:0] strobes;
     logic [XLastWidth-1:0] last;
-    logic [WUserWidth-1:0] user_signal;
+    // logic [WUserWidth-1:0] user_signal;
   } write_data_req_t;
 
   typedef struct packed {
@@ -71,13 +71,13 @@ package simmem_pkg;
     logic [XDataWidth-1:0] data;
     logic [WStrbWidth-1:0] response;
     logic [XLastWidth-1:0] last;
-    logic [RUserWidth-1:0] user_signal;
+    // logic [RUserWidth-1:0] user_signal;
   } read_data_resp_t;
 
   typedef struct packed {
     logic [IDWidth-1:0] id;
     logic [XRespWidth-1:0] response;
-    logic [BUserWidth-1:0] user_signal;
+    // logic [BUserWidth-1:0] user_signal;
   } write_resp_t;
 
 
