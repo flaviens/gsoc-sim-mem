@@ -10,26 +10,20 @@
 #include <memory>
 #include <queue>
 #include <stdlib.h>
+#include <vector>
 #include <verilated_fst_c.h>
+
+const bool kIterationVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kMessageWidth = 32;
 const int kIdWidth = 4;
 
 typedef Vsimmem_write_resp_bank Module;
 typedef std::map<u_int32_t, std::queue<u_int32_t>> queue_map_t;
 
-// TODO Correctly manage the output fetching
-
+// This class implements elementary operations for the testbench
 class WriteRespBankTestbench {
- private:
-  vluint32_t tick_count_;
-  vluint32_t max_clock_cycles_;
-  bool record_trace_;
-  std::unique_ptr<Module> module_;
-  VerilatedFstC *trace_;
-
  public:
   // @param max_clock_cycles set to 0 to disable interruption after a given
   // number of clock cycles
@@ -46,6 +40,8 @@ class WriteRespBankTestbench {
       module_->trace(trace_, kTraceLevel);
       trace_->open(trace_filename.c_str());
     }
+
+    identifier_mask_ = (1 << 31) >> (31 - kIdWidth);
   }
 
   ~WriteRespBankTestbench() { close_trace(); }
@@ -62,7 +58,9 @@ class WriteRespBankTestbench {
 
   void tick(int nbTicks = 1) {
     for (size_t i = 0; i < nbTicks; i++) {
-      std::cout << "Running iteration" << tick_count_ << std::endl;
+      if (kIterationVerbose) {
+        std::cout << "Running iteration" << tick_count_ << std::endl;
+      }
 
       tick_count_++;
 
@@ -89,7 +87,6 @@ class WriteRespBankTestbench {
   }
 
   bool is_done(void) {
-    printf("cnt: %u, max: %u\n", tick_count_, max_clock_cycles_);
     return (Verilated::gotFinish() ||
             (max_clock_cycles_ && (tick_count_ >= max_clock_cycles_)));
   }
@@ -135,14 +132,56 @@ class WriteRespBankTestbench {
   }
 
   void stop_output_data() { module_->out_ready_i = 0; }
+
+  unsigned long get_identifier_mask() { return identifier_mask_; }
+
+ private:
+  vluint32_t tick_count_;
+  vluint32_t max_clock_cycles_;
+  bool record_trace_;
+  std::unique_ptr<Module> module_;
+  u_int32_t identifier_mask_;
+  VerilatedFstC *trace_;
 };
 
-void single_id_test(WriteRespBankTestbench *tb) {
+void sequential_test(WriteRespBankTestbench *tb) {
+  tb->reset();
+
+  // Apply reservation requests for 4 ticks
+  tb->reserve(4);  // Start issuing reservation requests for AXI ID 4
+  tb->tick(4);
+  tb->stop_reserve();  // Stop issuing reservation requests
+
+  tb->tick(4);
+
+  // Apply inputs for 6 ticks
+  tb->apply_input_data(4 | (9 << kIdWidth));
+  tb->tick(6);
+  tb->stop_input_data();
+
+  tb->tick(4);
+
+  // Enable data toutput
+  tb->allow_output_data();
+  tb->tick(4);
+
+  // Express readiness for output data
+  tb->request_output_data();
+  tb->tick(10);
+  tb->stop_output_data();
+
+  while (!tb->is_done()) {
+    tb->tick();
+  }
+}
+
+void single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
+  srand(seed);
+
   u_int32_t current_id = 4;
   int nb_iterations = 100;
 
   // Generate inputs
-
   std::queue<u_int32_t> input_queue;
   std::queue<u_int32_t> output_queue;
 
@@ -150,10 +189,10 @@ void single_id_test(WriteRespBankTestbench *tb) {
   bool apply_input;
   bool request_output_data;
 
-  u_int32_t current_input = current_id | (u_int32_t)(rand() & 0xFFFFFFF0);
+  u_int32_t current_input =
+      current_id | (u_int32_t)(rand() & tb->get_identifier_mask());
   u_int32_t current_output;
 
-  srand(3);
   tb->reset();
   tb->allow_output_data();
 
@@ -175,7 +214,8 @@ void single_id_test(WriteRespBankTestbench *tb) {
     // Important: apply all the input first, before any evaluation
     if (tb->is_input_data_accepted()) {
       input_queue.push(current_input);
-      current_input = current_id | (u_int32_t)(rand() & 0xFFFFFFF0);
+      current_input =
+          current_id | (u_int32_t)(rand() & tb->get_identifier_mask());
     }
     if (request_output_data) {
       if (tb->fetch_output_data(current_output)) {
@@ -211,18 +251,22 @@ void single_id_test(WriteRespBankTestbench *tb) {
   }
 }
 
-void two_ids_test(WriteRespBankTestbench *tb) {
-  srand(42);
-
-  const int kNumIdentifiers = 2;
+void multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
+                       unsigned int seed) {
+  srand(seed);
 
   int nb_iterations = 100;
-  u_int32_t identifiers[]{1, 4};
+
+  std::vector<u_int32_t> identifiers;
+
+  for (size_t i = 0; i < num_identifiers; i++) {
+    identifiers.push_back(i);
+  }
 
   queue_map_t input_queues;
   queue_map_t output_queues;
 
-  for (size_t i = 0; i < kNumIdentifiers; i++) {
+  for (size_t i = 0; i < num_identifiers; i++) {
     input_queues.insert(std::pair<u_int32_t, std::queue<u_int32_t>>(
         identifiers[i], std::queue<u_int32_t>()));
     output_queues.insert(std::pair<u_int32_t, std::queue<u_int32_t>>(
@@ -233,9 +277,10 @@ void two_ids_test(WriteRespBankTestbench *tb) {
   bool apply_input;
   bool request_output_data;
 
-  u_int32_t current_input_id = identifiers[rand() % kNumIdentifiers];
-  u_int32_t current_input = current_input_id | (u_int32_t)(rand() & 0xFFFFFFF0);
-  u_int32_t current_reservation_id = identifiers[rand() % kNumIdentifiers];
+  u_int32_t current_input_id = identifiers[rand() % num_identifiers];
+  u_int32_t current_input =
+      current_input_id | (u_int32_t)(rand() & tb->get_identifier_mask());
+  u_int32_t current_reservation_id = identifiers[rand() % num_identifiers];
   u_int32_t current_output;
 
   tb->reset();
@@ -258,16 +303,18 @@ void two_ids_test(WriteRespBankTestbench *tb) {
 
     // Important: apply all the input first, before any evaluation
     if (reserve && tb->is_reservation_accepted()) {
-      current_reservation_id = identifiers[rand() % kNumIdentifiers];
+      current_reservation_id = identifiers[rand() % num_identifiers];
     }
     if (tb->is_input_data_accepted()) {
       input_queues[current_input_id].push(current_input);
-      current_input_id = identifiers[rand() % kNumIdentifiers];
-      current_input = current_input_id | (u_int32_t)(rand() & 0xFFFFFFF0);
+      current_input_id = identifiers[rand() % num_identifiers];
+      current_input =
+          current_input_id | (u_int32_t)(rand() & tb->get_identifier_mask());
     }
     if (request_output_data) {
       if (tb->fetch_output_data(current_output)) {
-        output_queues[identifiers[current_output & 0xF]].push(current_output);
+        output_queues[identifiers[current_output & ~tb->get_identifier_mask()]]
+            .push(current_output);
       }
     }
 
@@ -288,7 +335,9 @@ void two_ids_test(WriteRespBankTestbench *tb) {
     tb->tick();
   }
 
-  for (size_t i = 0; i < kNumIdentifiers; i++) {
+  std::cout << std::endl << std::endl << std::endl;
+
+  for (size_t i = 0; i < num_identifiers; i++) {
     while (!input_queues[i].empty() && !output_queues[i].empty()) {
       current_input = input_queues[i].front();
       current_output = output_queues[i].front();
@@ -299,7 +348,7 @@ void two_ids_test(WriteRespBankTestbench *tb) {
       std::cout << current_input << " - " << current_output << std::endl;
     }
 
-    std::cout << std::endl << std::endl << std::endl << std::endl;
+    std::cout << std::endl << std::endl << std::endl;
   }
 }
 
@@ -310,40 +359,12 @@ int main(int argc, char **argv, char **env) {
   WriteRespBankTestbench *tb =
       new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
 
-  single_id_test(tb);
-  // tb->reset();
-  // tb->reserve(4);
+  // Choose testbench type
+  sequential_test(tb);
+  single_id_test(tb, 3);
+  multiple_ids_test(tb, 4, 3);
 
-  // tb->tick(4);
-
-  // tb->stop_reserve();
-
-  // tb->tick(4);
-
-  // tb->apply_input_data(4 | (9<<ID_WIDTH));
-
-  // tb->tick(6);
-
-  // tb->stop_input_data();
-
-  // tb->tick(4);
-
-  // tb->allow_output_data();
-
-  // tb->tick(4);
-
-  // tb->request_output_data();
-  // tb->tick(10);
-  // tb->stop_output_data();
-
-  // while (!tb->is_done())
-  // {
-  //   tb->tick();
-  // }
-
-  tb->close_trace();
-
-  printf("Complete!\n");
+  std::cout << "Testbench complete!" << std::endl;
 
   delete tb;
   exit(0);
