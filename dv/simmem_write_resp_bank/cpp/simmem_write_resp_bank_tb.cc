@@ -93,7 +93,7 @@ class WriteRespBankTestbench {
 
   void reserve(int axi_id) {
     module_->reservation_request_ready_i = 1;
-    module_->reservation_request_id_i = axi_id;
+    module_->reservation_request_id_onehot_i = 1 << axi_id;
   }
 
   void stop_reserve() { module_->reservation_request_ready_i = 0; }
