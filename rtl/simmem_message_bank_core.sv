@@ -171,9 +171,9 @@ module simmem_linkedlist_bank_core #(
           update_heads_from_ram_d[current_id] = 1'b1;
           update_out_buf_from_ram_d[current_id] = 1'b1;
 
-          req_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b1;
-          write_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b0;
-          addr_ram_id[STRUCT_RAM][RAM_OUT][current_id] = heads_actual[current_id];
+          req_ram_id[MESSAGE_RAM][RAM_OUT][current_id] = 1'b1;
+          write_ram_id[MESSAGE_RAM][RAM_OUT][current_id] = 1'b0;
+          addr_ram_id[MESSAGE_RAM][RAM_OUT][current_id] = heads_actual[current_id];
 
           // Free the head entry in the RAM using a XOR mask
           ram_valid_apply_out_mask_id[current_id] = 1'b1;
@@ -222,18 +222,18 @@ module simmem_linkedlist_bank_core #(
             addr_ram_id[NEXT_ELEM_RAM][RAM_IN][current_id] = tails_q[current_id];
 
             // Store into struct RAM
-            req_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            write_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
+            req_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            write_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            addr_ram_id[MESSAGE_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
 
           end else begin : in_handshake_initiate_ram_linkedlist
             heads_d[current_id] = next_free_ram_entry_binary;
             tails_d[current_id] = next_free_ram_entry_binary;
 
             // Store into struct RAM and mark address as taken
-            req_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            write_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
+            req_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            write_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            addr_ram_id[MESSAGE_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
 
           end
         end

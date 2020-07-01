@@ -83,7 +83,7 @@ package simmem_pkg;
 
 
   typedef enum logic {
-    STRUCT_RAM = 1'b0,
+    MESSAGE_RAM = 1'b0,
     NEXT_ELEM_RAM = 1'b1
   } ram_bank_e;
 

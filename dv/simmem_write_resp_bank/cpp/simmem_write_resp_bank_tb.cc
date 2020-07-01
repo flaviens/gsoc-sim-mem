@@ -360,9 +360,9 @@ int main(int argc, char **argv, char **env) {
       new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
 
   // Choose testbench type
-  sequential_test(tb);
+  // sequential_test(tb);
   single_id_test(tb, 3);
-  multiple_ids_test(tb, 4, 3);
+  // multiple_ids_test(tb, 4, 3);
 
   std::cout << "Testbench complete!" << std::endl;
 

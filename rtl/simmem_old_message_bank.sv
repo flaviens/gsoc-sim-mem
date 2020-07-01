@@ -220,17 +220,17 @@ module simmem_linkedlist_message_bank #(
     .clk_a_i     (clk_i),
     .clk_b_i     (clk_i),
     
-    .a_req_i     (req_ram[STRUCT_RAM][RAM_IN]),
-    .a_write_i   (write_ram[STRUCT_RAM][RAM_IN]),
+    .a_req_i     (req_ram[MESSAGE_RAM][RAM_IN]),
+    .a_write_i   (write_ram[MESSAGE_RAM][RAM_IN]),
     .a_wmask_i   (wmask_struct_ram),
-    .a_addr_i    (addr_ram[STRUCT_RAM][RAM_IN]),
+    .a_addr_i    (addr_ram[MESSAGE_RAM][RAM_IN]),
     .a_wdata_i   (data_in_noid),
     .a_rdata_o   (),
     
-    .b_req_i     (req_ram[STRUCT_RAM][RAM_OUT]),
-    .b_write_i   (write_ram[STRUCT_RAM][RAM_OUT]),
+    .b_req_i     (req_ram[MESSAGE_RAM][RAM_OUT]),
+    .b_write_i   (write_ram[MESSAGE_RAM][RAM_OUT]),
     .b_wmask_i   (wmask_struct_ram),
-    .b_addr_i    (addr_ram[STRUCT_RAM][RAM_OUT]),
+    .b_addr_i    (addr_ram[MESSAGE_RAM][RAM_OUT]),
     .b_wdata_i   (),
     .b_rdata_o   (data_out_struct_ram)
   );
@@ -351,9 +351,9 @@ module simmem_linkedlist_message_bank #(
             update_heads_from_ram_d[current_id] = 1'b1;
             update_out_buf_from_ram_d[current_id] = 1'b1;
 
-            req_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b1;
-            write_ram_id[STRUCT_RAM][RAM_OUT][current_id] = 1'b0;
-            addr_ram_id[STRUCT_RAM][RAM_OUT][current_id] = heads_actual[current_id];
+            req_ram_id[MESSAGE_RAM][RAM_OUT][current_id] = 1'b1;
+            write_ram_id[MESSAGE_RAM][RAM_OUT][current_id] = 1'b0;
+            addr_ram_id[MESSAGE_RAM][RAM_OUT][current_id] = heads_actual[current_id];
 
             // Free the head entry in the RAM using a XOR mask
             ram_valid_apply_out_mask_id[current_id] = 1'b1;
@@ -407,18 +407,18 @@ module simmem_linkedlist_message_bank #(
             addr_ram_id[NEXT_ELEM_RAM][RAM_IN][current_id] = tails_q[current_id];
 
             // Store into struct RAM
-            req_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            write_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
+            req_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            write_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            addr_ram_id[MESSAGE_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
 
           end else begin : in_handshake_initiate_ram_linkedlist
             heads_d[current_id] = next_free_ram_entry_binary;
             tails_d[current_id] = next_free_ram_entry_binary;
 
             // Store into struct RAM and mark address as taken
-            req_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            write_ram_id[STRUCT_RAM][RAM_IN][current_id] = 1'b1;
-            addr_ram_id[STRUCT_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
+            req_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            write_ram_id[MESSAGE_RAM][RAM_IN][current_id] = 1'b1;
+            addr_ram_id[MESSAGE_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
 
           end
         end
