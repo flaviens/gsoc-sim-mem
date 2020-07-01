@@ -4,22 +4,17 @@
 //
 // Simulated memory controller top-level
 
+import simmem_pkg::*;
+
 module simmem #(
   // Width of the messages, including identifier
-  parameter int ReadAddressStructWidth  = 64,
-  parameter int WriteAddressStructWidth = 64,
-  parameter int WriteDataStructWidth    = 64,
-  parameter int ReadDataStructWidth     = 64,
-  parameter int WriteRespStructWidth    = 64,
-
   parameter int ReadDataBanksCapacity   = 64,
   parameter int WriteRespBanksCapacity  = 64,
   parameter int ReadDataDelayBanksCapacity   = 64,
   parameter int WriteRespDelayBanksCapacity  = 64,
-
-  parameter int IDWidth                 = 8,
-  parameter int CounterWidth            = 8
-)(
+  
+  parameter int CounterWidth            = 8,
+  )(
   input logic   clk_i,
   input logic   rst_ni,
 
@@ -48,31 +43,32 @@ module simmem #(
   output logic  write_resp_in_ready_o,
   output logic  write_resp_out_valid_o,
 
-  input logic [ReadAddressStructWidth-1:0]  read_addr_i,
-  input logic [WriteAddressStructWidth-1:0] write_addr_i,
-  input logic [WriteDataStructWidth-1:0]    write_data_i,
-  input logic [ReadDataStructWidth-1:0]     read_data_i,
-  input logic [WriteRespStructWidth-1:0]    write_resp_i,
+  input read_addr_req_t read_addr_req_i,
+  input write_addr_req_t write_addr_req_i,
+  input write_data_req_t write_data_req_i,
+  input read_data_resp_t read_data_resp_i,
+  input write_resp_t write_resp_i,
 
-  output logic [ReadAddressStructWidth-1:0]  read_addr_o,
-  output logic [WriteAddressStructWidth-1:0] write_addr_o,
-  output logic [WriteDataStructWidth-1:0]    write_data_o,
-  output logic [ReadDataStructWidth-1:0]     read_data_o,
-  output logic [WriteRespStructWidth-1:0]    write_resp_o
+  output read_addr_req_t read_addr_req_o,
+  output write_addr_req_t write_addr_req_o,
+  output write_data_req_t write_data_req_o,
+  output read_data_resp_t read_data_resp_o,
+  output write_resp_t write_resp_o
 );
 
   // Releaser instance
 
-  logic [1:0][2**IDWidth-1] release_en;
+  logic [WriteRespBanksCapacity-1:0] write_resp_release_en;
+  logic [ReadDataBanksCapacity-1:0] read_data_release_en;
 
   // Blocks the transactions if the releaser is not ready
   // logic releaser_read_data_ready;
   // logic releaser_write_resp_ready;
 
   simmem_releaser #(
-    .ReadAddressStructWidth,
-    .WriteAddressStructWidth,
-    .WriteDataStructWidth,
+    // .ReadAddressStructWidth,
+    // .WriteAddressStructWidth,
+    // .WriteDataStructWidth,
     .ReadDataBanksCapacity,
     .WriteRespBanksCapacity,
     .IDWidth,
@@ -104,7 +100,8 @@ module simmem #(
     .write_addr_i,
     .write_data_i,
 
-    .release_en_o(release_en)
+    .write_resp_release_en_o(write_resp_release_en),
+    .read_data_release_en_o(read_data_release_en)
     // .read_data_ready_o(releaser_read_data_ready)
     // .releaser_write_resp_ready_o(releaser_write_resp_ready)
   );
@@ -113,8 +110,8 @@ module simmem #(
   // Linkedlist banks instance
 
   simmem_message_banks #(
-    .ReadDataStructWidth,
-    .WriteRespStructWidth,
+    // .ReadDataStructWidth,
+    // .WriteRespStructWidth,
     .ReadDataBanksCapacity,
     .WriteRespBanksCapacity,
     .IDWidth
@@ -122,7 +119,8 @@ module simmem #(
     .clk_i,
     .rst_ni,
   
-    .release_en_i(release_en),
+    .write_resp_release_en_i(write_resp_release_en),
+    .read_data_release_en_i(read_data_release_en)
   
     .read_data_i,
     .write_resp_i,

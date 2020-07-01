@@ -112,10 +112,13 @@ class WriteRespBankTestbench {
   void stop_input_data() { module_->in_valid_i = 0; }
 
   void allow_output_data() { module_->release_en_i = -1; }
+
   void forbid_output_data() { module_->release_en_i = 0; }
 
   void request_output_data() { module_->out_ready_i = 1; }
+
   bool fetch_output_data(u_int32_t &out_data) {
+    module_->eval();
     if (!(module_->out_ready_i)) {
       std::cerr << "Fetching output data without manifesting ready signal."
                 << std::endl;
@@ -128,6 +131,7 @@ class WriteRespBankTestbench {
     out_data = (u_int32_t)module_->data_o;
     return (bool)(module_->out_valid_o);
   }
+
   void stop_output_data() { module_->out_ready_i = 0; }
 };
 
@@ -164,22 +168,26 @@ void single_id_test(WriteRespBankTestbench *tb) {
     if (request_output_data)
       tb->request_output_data();
 
-    // Important: apply all the input first, before any evaluation!
+    // Important: apply all the input first, before any evaluation
     if (tb->is_input_data_accepted()) {
       input_queue.push(current_input);
       current_input = current_id | (u_int32_t)(rand() & 0xFFFFFF00);
     }
-
-    tb->tick();
-
-    if (reserve)
-      tb->stop_reserve();
-    if (apply_input)
-      tb->stop_input_data();
     if (request_output_data) {
       if (tb->fetch_output_data(current_output)) {
         output_queue.push(current_output);
       }
+    }
+
+    tb->tick();
+
+    if (reserve) {
+      tb->stop_reserve();
+    }
+    if (apply_input) {
+      tb->stop_input_data();
+    }
+    if (request_output_data) {
       tb->stop_output_data();
     }
   }
