@@ -416,9 +416,6 @@ module simmem_write_resp_bank #(
         end else begin
           addr_message_ram_out_id[current_id] = previous_tails_d[current_id];
         end
-
-        // Update the tail position
-        addr_metadata_ram_out_id[current_id] = tails[current_id];
       end
 
       // Input handshake
@@ -432,11 +429,10 @@ module simmem_write_resp_bank #(
           update_middle_from_ram_d[current_id] = 1'b1;
         end else begin
           piggyback_middle_with_reservation[current_id] = 1'b1;
+        end
 
-          // Piggyback the tail if necessary
-          if (!|(middle_length_q[current_id])) begin
-            piggyback_tail_with_middle_d[current_id] = 1'b1;
-          end
+        if (!|(middle_length_q[current_id])) begin
+          piggyback_tail_with_middle_d[current_id] = 1'b1;
         end
 
         // Store the data
@@ -470,6 +466,7 @@ module simmem_write_resp_bank #(
         middle_length_d[current_id] = middle_length_d[current_id] - 1;
         if (middles[current_id] != tails_q[current_id]) begin
           update_tail_from_ram_d[current_id] = 1'b1;
+          addr_metadata_ram_out_id[current_id] = tails[current_id];
         end
       end
     end
