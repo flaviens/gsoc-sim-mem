@@ -105,8 +105,9 @@ module simmem_write_resp_bank #(
     assign middles[current_id] =
         update_middle_from_ram_q[current_id] ? data_metadata_ram_out : middles_q[current_id];
 
-    assign previous_tails_d[current_id] = tails_d[current_id] == tails_q[current_id] ?
-        previous_tails_q[current_id] : tails_q[current_id];
+    assign previous_tails_d[current_id] = piggyback_tail_with_reservation[current_id] ?
+        heads_d[current_id] : (tails_d[current_id] == tails_q[current_id] ?
+                               previous_tails_q[current_id] : tails_q[current_id]);
 
     assign tails_d[current_id] =
         piggyback_tail_with_reservation[current_id] ? heads_d[current_id] : tails[current_id];
