@@ -361,8 +361,8 @@ int main(int argc, char **argv, char **env) {
 
   // Choose testbench type
   // sequential_test(tb);
-  // single_id_test(tb, 3);
-  multiple_ids_test(tb, 2, 3);
+  single_id_test(tb, 3);
+  // multiple_ids_test(tb, 2, 3);
 
   std::cout << "Testbench complete!" << std::endl;
 

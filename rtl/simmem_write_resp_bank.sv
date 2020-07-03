@@ -81,12 +81,18 @@ module simmem_write_resp_bank #(
 
   logic [BankAddrWidth-1:0] previous_tails_d[NumIds];
   logic [BankAddrWidth-1:0] previous_tails_q[NumIds];
+  logic [BankAddrWidth-1:0] previous_tails[NumIds];
 
   // Piggyback signals translate the request that if the piggybacker gets updated in the next cycle, then follow it
   logic piggyback_middle_with_reservation[NumIds];
+  logic piggyback_previous_tail_with_reservation[NumIds];
   logic piggyback_tail_with_reservation[NumIds];
+  logic piggyback_previous_tail_with_middle_d[NumIds];
+  logic piggyback_previous_tail_with_middle_q[NumIds];
   logic piggyback_tail_with_middle_d[NumIds];
   logic piggyback_tail_with_middle_q[NumIds];
+
+  logic update_previous_tail_from_tail[NumIds];
 
   logic update_tail_from_ram_d[NumIds];
   logic update_tail_from_ram_q[NumIds];
@@ -105,18 +111,18 @@ module simmem_write_resp_bank #(
     assign middles[current_id] =
         update_middle_from_ram_q[current_id] ? data_metadata_ram_out : middles_q[current_id];
 
-    always_comb begin : previous_tail_assignment
-      if (piggyback_tail_with_reservation[current_id]) begin
-        previous_tails_d[current_id] = heads_d[current_id];
-        // end else if (piggyback_tail_with_middle_q[current_id] &&
-        //              !|(middle_length_q[current_id][BankAddrWidth - 1:1])) begin
-        //   previous_tails_d[current_id] = middles[current_id];
-      end else if (tails_d[current_id] == tails_q[current_id]) begin
-        previous_tails_d[current_id] = previous_tails_q[current_id];
-      end else begin
+    always_comb begin : previous_tail_d_assignment
+      if (piggyback_previous_tail_with_reservation[current_id]) begin
+        previous_tails_d[current_id] = next_free_ram_entry_binary;
+      end else if (update_previous_tail_from_tail[current_id]) begin
         previous_tails_d[current_id] = tails_q[current_id];
+      end else begin
+        previous_tails_d[current_id] = previous_tails_q[current_id];
       end
-    end : previous_tail_assignment
+    end : previous_tail_d_assignment
+
+    assign previous_tails[current_id] = piggyback_previous_tail_with_middle_q[current_id] ?
+        middles[current_id] : previous_tails_q[current_id];
 
     assign tails_d[current_id] =
         piggyback_tail_with_reservation[current_id] ? heads_d[current_id] : tails[current_id];
@@ -325,7 +331,7 @@ module simmem_write_resp_bank #(
               tails[current_id] == current_addr;
         end else begin
           next_address_to_release_multihot_id[current_id][current_addr] &=
-              previous_tails_d[current_id] == current_addr;
+              previous_tails[current_id] == current_addr;
         end
       end : next_address_to_release_multihot_id_assignment
       if (current_addr == 0) begin
@@ -372,10 +378,6 @@ module simmem_write_resp_bank #(
   /////////////
 
   // Output valid and address
-  // logic current_output_valid_d;
-  // logic [NumIds-1:0] current_output_valid_d_id;
-  // logic current_output_valid_q;
-
   logic [NumIds-1:0] current_output_identifier_onehot_d;
   logic [NumIds-1:0] current_output_identifier_onehot_q;
 
@@ -386,13 +388,8 @@ module simmem_write_resp_bank #(
     assign middle_length_after_output[current_id] =
         out_valid_o && out_ready_i && current_output_identifier_onehot_q[current_id] ?
         middle_length_q[current_id] - 1 : middle_length_q[current_id];
-
-    // assign current_output_valid_d_id[current_id] = |middle_length_after_output[current_id];
   end
 
-  // assign current_output_valid_d =
-  //     |next_id_to_release_onehot || (current_output_valid_q && !out_ready_i);
-  // |current_output_valid_d_id || (current_output_valid_q && !out_ready_i);
   assign current_output_identifier_onehot_d = next_id_to_release_onehot;
   assign out_valid_o = |current_output_identifier_onehot_q;
   assign data_o = data_message_ram_out;
@@ -409,7 +406,10 @@ module simmem_write_resp_bank #(
       update_tail_from_ram_d[current_id] = 1'b0;
       update_middle_from_ram_d[current_id] = 1'b0;
       update_heads[current_id] = 1'b0;
+      update_previous_tail_from_tail[current_id] = 1'b1;
       piggyback_middle_with_reservation[current_id] = 1'b0;
+      piggyback_previous_tail_with_reservation[current_id] = 1'b0;
+      piggyback_previous_tail_with_middle_d[current_id] = 1'b0;
       piggyback_tail_with_reservation[current_id] = 1'b0;
       piggyback_tail_with_middle_d[current_id] = 1'b0;
       addr_message_ram_in_id[current_id] = '0;
@@ -425,7 +425,7 @@ module simmem_write_resp_bank #(
         if (out_valid_o && out_ready_i && current_output_identifier_onehot_q[current_id]) begin
           addr_message_ram_out_id[current_id] = tails[current_id];
         end else begin
-          addr_message_ram_out_id[current_id] = previous_tails_d[current_id];
+          addr_message_ram_out_id[current_id] = previous_tails[current_id];
         end
       end
 
@@ -436,14 +436,20 @@ module simmem_write_resp_bank #(
         middle_length_d[current_id] = middle_length_d[current_id] + 1;
         reservation_length_d[current_id] = reservation_length_d[current_id] - 1;
 
-        if (|reservation_length_q[current_id][BankAddrWidth - 1:1]) begin
-          update_middle_from_ram_d[current_id] = 1'b1;
-        end else begin
+        if (middles[current_id] == heads_q[current_id]) begin
           piggyback_middle_with_reservation[current_id] = 1'b1;
+        end else begin
+          update_middle_from_ram_d[current_id] = 1'b1;
         end
 
-        if (!|(middle_length_q[current_id][BankAddrWidth - 1:0])) begin
-          piggyback_tail_with_middle_d[current_id] = 1'b1;
+        if (tails[current_id] == middles[current_id]) begin
+          if (middle_length_q[current_id] == 0) begin
+            piggyback_tail_with_middle_d[current_id] = 1'b1;
+            piggyback_previous_tail_with_middle_d[current_id] = 1'b1;
+          end else if (middle_length_q[current_id] == 1 &&
+                       previous_tails[current_id] == tails[current_id]) begin
+            piggyback_tail_with_middle_d[current_id] = 1'b1;
+          end
         end
 
         // Store the data
@@ -463,18 +469,45 @@ module simmem_write_resp_bank #(
         if (|reservation_length_q[current_id] || |middle_length_q[current_id]) begin
           addr_metadata_ram_in_id[current_id] = heads_q[current_id];
           write_metadata_content_ram_id[current_id] = next_free_ram_entry_binary;
+
+          if (heads_q[current_id] == middles[current_id]) begin
+            if (reservation_length_q[current_id] == 0 && middle_length_q[current_id] == 0) begin
+              piggyback_middle_with_reservation[current_id] = 1'b1;
+              piggyback_previous_tail_with_reservation[current_id] = 1'b1;
+              piggyback_tail_with_reservation[current_id] = 1'b1;
+            end else
+                if (reservation_length_q[current_id] == 0 && middle_length_q[current_id] == 1) begin
+              piggyback_middle_with_reservation[current_id] = 1'b1;
+              piggyback_tail_with_reservation[current_id] = 1'b1;
+            end else
+                if (reservation_length_q[current_id] == 1 && middle_length_q[current_id] == 0) begin
+              // Do nothing
+            end else
+                if (reservation_length_q[current_id] == 1 && middle_length_q[current_id] == 1) begin
+              piggyback_middle_with_reservation[current_id] = 1'b1;
+            end
+          end
+        end else begin
+          piggyback_middle_with_reservation[current_id] = 1'b1;
+          piggyback_previous_tail_with_reservation[current_id] = 1'b1;
+          piggyback_tail_with_reservation[current_id] = 1'b1;
         end
 
-        if (!|(reservation_length_q[current_id])) begin
-          piggyback_middle_with_reservation[current_id] = 1'b1;
-          if (!|(middle_length_q[current_id])) begin
-            piggyback_tail_with_reservation[current_id] = 1'b1;
-          end
-        end
+
+        // if (!|(reservation_length_q[current_id])) begin
+        //   piggyback_middle_with_reservation[current_id] = 1'b1;
+        //   if (!|(middle_length_q[current_id])) begin
+        //     piggyback_tail_with_reservation[current_id] = 1'b1;
+        //     piggyback_previous_tail_with_reservation[current_id] = 1'b1;
+        //   end else if (middle_length_q[current_id] == 1) begin
+        //     piggyback_tail_with_reservation[current_id] = 1'b1;
+        //   end
+        // end
       end
 
       if (out_valid_o && out_ready_i && current_output_identifier_onehot_q[current_id]) begin
         middle_length_d[current_id] = middle_length_d[current_id] - 1;
+        update_previous_tail_from_tail[current_id] = 1'b1;
         if (middles[current_id] != tails_q[current_id]) begin
           update_tail_from_ram_d[current_id] = 1'b1;
           addr_metadata_ram_out_id[current_id] = tails[current_id];
@@ -496,6 +529,7 @@ module simmem_write_resp_bank #(
         update_middle_from_ram_q[current_id] <= '0;
         update_tail_from_ram_q[current_id] <= '0;
 
+        piggyback_previous_tail_with_middle_q[current_id] <= '0;
         piggyback_tail_with_middle_q[current_id] <= '0;
       end else begin
         middles_q[current_id] <= middles_d[current_id];
@@ -508,6 +542,8 @@ module simmem_write_resp_bank #(
         update_tail_from_ram_q[current_id] <= update_tail_from_ram_d[current_id];
         update_middle_from_ram_q[current_id] <= update_middle_from_ram_d[current_id];
 
+        piggyback_previous_tail_with_middle_q[current_id] <=
+            piggyback_previous_tail_with_middle_d[current_id];
         piggyback_tail_with_middle_q[current_id] <= piggyback_tail_with_middle_d[current_id];
       end
     end
