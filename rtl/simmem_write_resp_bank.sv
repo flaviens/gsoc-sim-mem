@@ -105,9 +105,18 @@ module simmem_write_resp_bank #(
     assign middles[current_id] =
         update_middle_from_ram_q[current_id] ? data_metadata_ram_out : middles_q[current_id];
 
-    assign previous_tails_d[current_id] = piggyback_tail_with_reservation[current_id] ?
-        heads_d[current_id] : (tails_d[current_id] == tails_q[current_id] ?
-                               previous_tails_q[current_id] : tails_q[current_id]);
+    always_comb begin : previous_tail_assignment
+      if (piggyback_tail_with_reservation[current_id]) begin
+        previous_tails_d[current_id] = heads_d[current_id];
+        // end else if (piggyback_tail_with_middle_q[current_id] &&
+        //              !|(middle_length_q[current_id][BankAddrWidth - 1:1])) begin
+        //   previous_tails_d[current_id] = middles[current_id];
+      end else if (tails_d[current_id] == tails_q[current_id]) begin
+        previous_tails_d[current_id] = previous_tails_q[current_id];
+      end else begin
+        previous_tails_d[current_id] = tails_q[current_id];
+      end
+    end : previous_tail_assignment
 
     assign tails_d[current_id] =
         piggyback_tail_with_reservation[current_id] ? heads_d[current_id] : tails[current_id];
@@ -348,7 +357,6 @@ module simmem_write_resp_bank #(
   // Input is ready if there is room and data is not flowing out
   assign in_ready_o = in_valid_i && |is_id_reserved_filtered &&
       !(out_valid_o && out_ready_i);  // AXI 4 allows ready to depend on the valid signal
-  assign out_valid_o = current_output_valid_q;
   assign reservation_request_valid_o = |(~ram_valid_q);
 
   logic [BankAddrWidth-1:0] middle_length_d[NumIds];
@@ -364,9 +372,9 @@ module simmem_write_resp_bank #(
   /////////////
 
   // Output valid and address
-  logic current_output_valid_d;
-  logic [NumIds-1:0] current_output_valid_d_id;
-  logic current_output_valid_q;
+  // logic current_output_valid_d;
+  // logic [NumIds-1:0] current_output_valid_d_id;
+  // logic current_output_valid_q;
 
   logic [NumIds-1:0] current_output_identifier_onehot_d;
   logic [NumIds-1:0] current_output_identifier_onehot_q;
@@ -379,12 +387,14 @@ module simmem_write_resp_bank #(
         out_valid_o && out_ready_i && current_output_identifier_onehot_q[current_id] ?
         middle_length_q[current_id] - 1 : middle_length_q[current_id];
 
-    assign current_output_valid_d_id[current_id] = |middle_length_after_output[current_id];
+    // assign current_output_valid_d_id[current_id] = |middle_length_after_output[current_id];
   end
 
-  assign current_output_valid_d =
-      |current_output_valid_d_id || (current_output_valid_q && !out_ready_i);
+  // assign current_output_valid_d =
+  //     |next_id_to_release_onehot || (current_output_valid_q && !out_ready_i);
+  // |current_output_valid_d_id || (current_output_valid_q && !out_ready_i);
   assign current_output_identifier_onehot_d = next_id_to_release_onehot;
+  assign out_valid_o = |current_output_identifier_onehot_q;
   assign data_o = data_message_ram_out;
 
   for (
@@ -412,7 +422,7 @@ module simmem_write_resp_bank #(
       if (next_id_to_release_onehot[current_id]) begin : out_preparation_handshake
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
-        if (out_valid_o && out_ready_i) begin
+        if (out_valid_o && out_ready_i && current_output_identifier_onehot_q[current_id]) begin
           addr_message_ram_out_id[current_id] = tails[current_id];
         end else begin
           addr_message_ram_out_id[current_id] = previous_tails_d[current_id];
@@ -432,7 +442,7 @@ module simmem_write_resp_bank #(
           piggyback_middle_with_reservation[current_id] = 1'b1;
         end
 
-        if (!|(middle_length_q[current_id])) begin
+        if (!|(middle_length_q[current_id][BankAddrWidth - 1:0])) begin
           piggyback_tail_with_middle_d[current_id] = 1'b1;
         end
 
@@ -505,11 +515,11 @@ module simmem_write_resp_bank #(
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
-      current_output_valid_q <= '0;
+      // current_output_valid_q <= '0;
       current_output_identifier_onehot_q <= '0;
       current_output_address_onehot_q <= '0;
     end else begin
-      current_output_valid_q <= current_output_valid_d;
+      // current_output_valid_q <= current_output_valid_d;
       current_output_identifier_onehot_q <= current_output_identifier_onehot_d;
       current_output_address_onehot_q <= current_output_address_onehot_d;
     end
