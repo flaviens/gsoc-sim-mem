@@ -101,6 +101,8 @@ module simmem_write_resp_bank #(
   logic update_middle_from_ram_q[NumIds];
 
   logic update_heads[NumIds];
+  logic is_middle_emptybox_d[NumIds];
+  logic is_middle_emptybox_q[NumIds];
 
   // Update reservation and actual heads, and tails
   for (
@@ -115,9 +117,9 @@ module simmem_write_resp_bank #(
       if (piggyback_previous_tail_with_reservation[current_id]) begin
         previous_tails_d[current_id] = next_free_ram_entry_binary;
       end else if (update_previous_tail_from_tail[current_id]) begin
-        previous_tails_d[current_id] = tails_q[current_id];
+        previous_tails_d[current_id] = tails[current_id];
       end else begin
-        previous_tails_d[current_id] = previous_tails_q[current_id];
+        previous_tails_d[current_id] = previous_tails[current_id];
       end
     end : previous_tail_d_assignment
 
@@ -403,10 +405,11 @@ module simmem_write_resp_bank #(
       middle_length_d[current_id] = middle_length_q[current_id];
       reservation_length_d[current_id] = reservation_length_q[current_id];
 
+      is_middle_emptybox_d[current_id] = is_middle_emptybox_q[current_id];
       update_tail_from_ram_d[current_id] = 1'b0;
       update_middle_from_ram_d[current_id] = 1'b0;
       update_heads[current_id] = 1'b0;
-      update_previous_tail_from_tail[current_id] = 1'b1;
+      update_previous_tail_from_tail[current_id] = 1'b0;
       piggyback_middle_with_reservation[current_id] = 1'b0;
       piggyback_previous_tail_with_reservation[current_id] = 1'b0;
       piggyback_previous_tail_with_middle_d[current_id] = 1'b0;
@@ -437,16 +440,21 @@ module simmem_write_resp_bank #(
         reservation_length_d[current_id] = reservation_length_d[current_id] - 1;
 
         if (middles[current_id] == heads_q[current_id]) begin
-          piggyback_middle_with_reservation[current_id] = 1'b1;
+          piggyback_middle_with_reservation[current_id] = 1'b1;  // TODO Possibly redundant
+          // Fullbox if could not move forward
+          is_middle_emptybox_d[current_id] = heads_d[current_id] != heads_q[current_id];
         end else begin
           update_middle_from_ram_d[current_id] = 1'b1;
         end
 
         if (tails[current_id] == middles[current_id]) begin
-          if (middle_length_q[current_id] == 0) begin
+          if (middle_length_after_output[current_id] == 0) begin
             piggyback_tail_with_middle_d[current_id] = 1'b1;
-            piggyback_previous_tail_with_middle_d[current_id] = 1'b1;
-          end else if (middle_length_q[current_id] == 1 &&
+
+            if (!is_middle_emptybox_q[current_id]) begin
+              piggyback_previous_tail_with_middle_d[current_id] = 1'b1;
+            end
+          end else if (middle_length_after_output[current_id] == 1 &&
                        previous_tails[current_id] == tails[current_id]) begin
             piggyback_tail_with_middle_d[current_id] = 1'b1;
           end
@@ -466,31 +474,33 @@ module simmem_write_resp_bank #(
         update_heads[current_id] = 1'b1;
 
         // If the queue is already initiated, then update the head position
-        if (|reservation_length_q[current_id] || |middle_length_q[current_id]) begin
+        if (|reservation_length_q[current_id] || |middle_length_after_output[current_id]) begin
           addr_metadata_ram_in_id[current_id] = heads_q[current_id];
           write_metadata_content_ram_id[current_id] = next_free_ram_entry_binary;
 
           if (heads_q[current_id] == middles[current_id]) begin
-            if (reservation_length_q[current_id] == 0 && middle_length_q[current_id] == 0) begin
-              piggyback_middle_with_reservation[current_id] = 1'b1;
-              piggyback_previous_tail_with_reservation[current_id] = 1'b1;
-              piggyback_tail_with_reservation[current_id] = 1'b1;
-            end else
-                if (reservation_length_q[current_id] == 0 && middle_length_q[current_id] == 1) begin
-              piggyback_middle_with_reservation[current_id] = 1'b1;
-              piggyback_tail_with_reservation[current_id] = 1'b1;
-            end else
-                if (reservation_length_q[current_id] == 1 && middle_length_q[current_id] == 0) begin
-              // Do nothing
-            end else
-                if (reservation_length_q[current_id] == 1 && middle_length_q[current_id] == 1) begin
-              piggyback_middle_with_reservation[current_id] = 1'b1;
+            if (reservation_length_q[current_id] == 0) begin
+              if (middle_length_after_output[current_id] == 0) begin
+                piggyback_middle_with_reservation[current_id] = 1'b1;
+                piggyback_previous_tail_with_reservation[current_id] = 1'b1;
+                piggyback_tail_with_reservation[current_id] = 1'b1;
+                is_middle_emptybox_d[current_id] = 1'b1;
+              end else if (middle_length_after_output[current_id] == 1) begin
+                piggyback_middle_with_reservation[current_id] = 1'b1;
+                piggyback_tail_with_reservation[current_id] = 1'b1;
+                is_middle_emptybox_d[current_id] = 1'b1;
+              end else begin
+                piggyback_middle_with_reservation[current_id] = 1'b1;
+                is_middle_emptybox_d[current_id] = 1'b1;
+              end
+
             end
           end
         end else begin
           piggyback_middle_with_reservation[current_id] = 1'b1;
           piggyback_previous_tail_with_reservation[current_id] = 1'b1;
           piggyback_tail_with_reservation[current_id] = 1'b1;
+          is_middle_emptybox_d[current_id] = 1'b1;
         end
 
 
@@ -508,10 +518,13 @@ module simmem_write_resp_bank #(
       if (out_valid_o && out_ready_i && current_output_identifier_onehot_q[current_id]) begin
         middle_length_d[current_id] = middle_length_d[current_id] - 1;
         update_previous_tail_from_tail[current_id] = 1'b1;
-        if (middles[current_id] != tails_q[current_id]) begin
+        if (middles[current_id] != tails[current_id]) begin
           update_tail_from_ram_d[current_id] = 1'b1;
           addr_metadata_ram_out_id[current_id] = tails[current_id];
+        end else begin
+          piggyback_tail_with_middle_d[current_id] = 1'b1;
         end
+
       end
     end
   end
@@ -529,6 +542,8 @@ module simmem_write_resp_bank #(
         update_middle_from_ram_q[current_id] <= '0;
         update_tail_from_ram_q[current_id] <= '0;
 
+        is_middle_emptybox_q[current_id] <= 1'b1;
+
         piggyback_previous_tail_with_middle_q[current_id] <= '0;
         piggyback_tail_with_middle_q[current_id] <= '0;
       end else begin
@@ -541,6 +556,8 @@ module simmem_write_resp_bank #(
 
         update_tail_from_ram_q[current_id] <= update_tail_from_ram_d[current_id];
         update_middle_from_ram_q[current_id] <= update_middle_from_ram_d[current_id];
+
+        is_middle_emptybox_q[current_id] <= is_middle_emptybox_d[current_id];
 
         piggyback_previous_tail_with_middle_q[current_id] <=
             piggyback_previous_tail_with_middle_d[current_id];

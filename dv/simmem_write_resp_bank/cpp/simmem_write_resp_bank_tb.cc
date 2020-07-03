@@ -14,6 +14,7 @@
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
+const bool kPairsVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -99,8 +100,6 @@ class WriteRespBankTestbench {
   void stop_reserve() { module_->reservation_request_ready_i = 0; }
 
   void apply_input_data(int data_i) {
-    std::cout << "Applied input: " << std::hex << data_i << std::endl;
-
     module_->data_i = data_i;
     module_->in_valid_i = 1;
   }
@@ -123,9 +122,6 @@ class WriteRespBankTestbench {
   bool fetch_output_data(u_int32_t &out_data) {
     module_->eval();
     assert(module_->out_ready_i);
-
-    if ((bool)(module_->out_valid_o))
-      std::cout << "Fetching " << std::hex << module_->data_o << std::endl;
 
     out_data = (u_int32_t)module_->data_o;
     return (bool)(module_->out_valid_o);
@@ -175,11 +171,11 @@ void sequential_test(WriteRespBankTestbench *tb) {
   }
 }
 
-void single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
+size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   srand(seed);
 
   u_int32_t current_id = 4;
-  int nb_iterations = 100;
+  int nb_iterations = 1000;
 
   // Generate inputs
   std::queue<u_int32_t> input_queue;
@@ -240,6 +236,7 @@ void single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     tb->tick();
   }
 
+  size_t nb_mismatches = 0;
   while (!input_queue.empty() && !output_queue.empty()) {
     current_input = input_queue.front();
     current_output = output_queue.front();
@@ -247,12 +244,23 @@ void single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     input_queue.pop();
     output_queue.pop();
 
-    std::cout << current_input << " - " << current_output << std::endl;
+    if (kPairsVerbose) {
+      std::cout << std::hex << current_input << " - " << current_output
+                << std::endl;
+    }
+    nb_mismatches += (size_t)(current_input != current_output);
   }
+  if (kPairsVerbose) {
+    std::cout << std::endl
+              << "Mismatches: " << std::dec << nb_mismatches << std::endl
+              << std::endl;
+  }
+
+  return nb_mismatches;
 }
 
-void multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
-                       unsigned int seed) {
+size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
+                         unsigned int seed) {
   srand(seed);
 
   int nb_iterations = 100;
@@ -337,6 +345,7 @@ void multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
   std::cout << std::endl << std::endl << std::endl;
 
+  size_t nb_mismatches = 0;
   for (size_t i = 0; i < num_identifiers; i++) {
     while (!input_queues[i].empty() && !output_queues[i].empty()) {
       current_input = input_queues[i].front();
@@ -344,28 +353,59 @@ void multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
       input_queues[i].pop();
       output_queues[i].pop();
-
-      std::cout << current_input << " - " << current_output << std::endl;
+      if (kPairsVerbose) {
+        std::cout << std::hex << current_input << " - " << current_output
+                  << std::endl;
+      }
+      nb_mismatches += (size_t)(current_input != current_output);
     }
-
-    std::cout << std::endl << std::endl << std::endl;
   }
+  if (kPairsVerbose) {
+    std::cout << std::endl
+              << "Mismatches: " << std::dec << nb_mismatches << std::endl
+              << std::endl;
+  }
+
+  return nb_mismatches;
 }
 
 int main(int argc, char **argv, char **env) {
   Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
 
-  WriteRespBankTestbench *tb =
-      new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
+  size_t total_nb_mismatches = 0;
 
-  // Choose testbench type
-  // sequential_test(tb);
-  single_id_test(tb, 3);
-  // multiple_ids_test(tb, 2, 3);
+  for (int i = 0; i < 10; i++) {
+    size_t local_nb_mismatches;
+
+    WriteRespBankTestbench *tb =
+        new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
+
+    // Choose testbench type
+    // sequential_test(tb);
+    // local_nb_mismatches = single_id_test(tb, i);
+    local_nb_mismatches = multiple_ids_test(tb, 2, 4);
+    total_nb_mismatches += local_nb_mismatches;
+    std::cout << "Mismatches for seed " << std::dec << i << ": "
+              << local_nb_mismatches << std::hex << std::endl;
+    delete tb;
+  }
+
+  std::cout << "Total mismatches:  " << std::dec << total_nb_mismatches << ":"
+            << std::hex << std::endl;
+
+  // WriteRespBankTestbench *tb =
+  //     new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
+
+  // // Choose testbench type
+  // // sequential_test(tb);
+  // single_id_test(tb, 53);
+  // // multiple_ids_test(tb, 2, 4);
+
+  // std::cout << std::endl << std::endl << std::endl;
+  // delete tb;
 
   std::cout << "Testbench complete!" << std::endl;
 
-  delete tb;
   exit(0);
 }
