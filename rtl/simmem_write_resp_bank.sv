@@ -35,6 +35,8 @@ module simmem_write_resp_bank #(
     input  logic [TotalCapacity-1:0] release_en_i,  // multi-hot signal
     output logic [TotalCapacity-1:0] address_released_onehot_o,
 
+    output logic [BankAddrWidth-1:0] addr_message_ram_in_o,
+
     input  logic in_valid_i,
     output logic in_ready_o,
 
@@ -238,6 +240,8 @@ module simmem_write_resp_bank #(
   logic [BankAddrWidth-1:0][NumIds-1:0] addr_metadata_ram_in_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] addr_metadata_ram_out_rot90;
 
+  assign addr_message_ram_in_o = addr_message_ram_in;
+
   for (
       genvar current_id = 0; current_id < NumIds; current_id = current_id + 1
   ) begin : rotate_ram_addresses
@@ -282,15 +286,15 @@ module simmem_write_resp_bank #(
 
   assign req_metadata_ram_in =
       reservation_request_ready_i && reservation_request_valid_o && |queue_initiated_id;
-  assign req_metadata_ram_out = |next_id_to_release_onehot ||
-      |queue_initiated_id;  // Could be more fine-grained, would require aggregation from IDs
+  assign req_metadata_ram_out =
+      |next_id_to_release_onehot || (!(out_valid_o && out_ready_i) && in_ready_o && in_valid_i);
   // assign req_metadata_ram_out = 1'b1; is also valid, but makes debugging trickier
 
   for (
       genvar current_id = 0; current_id < NumIds; current_id = current_id + 1
   ) begin : req_metadata_in_id_assignment
-    assign queue_initiated_id[current_id] = reservation_request_id_onehot_i[current_id] &&
-        |reservation_length_q[current_id] || |middle_length_q[current_id];
+    assign queue_initiated_id[current_id] = reservation_request_id_onehot_i[current_id] && (
+        |reservation_length_q[current_id] || |middle_length_after_output[current_id]);
   end : req_metadata_in_id_assignment
 
   assign write_message_ram_in = 1'b1;
@@ -328,7 +332,7 @@ module simmem_write_resp_bank #(
         next_address_to_release_multihot_id[current_id][current_addr] =
             |(middle_length_after_output[current_id]) && release_en_i[current_addr];
 
-        if (out_ready_i && out_valid_o) begin
+        if (out_ready_i && out_valid_o && current_output_identifier_onehot_q[current_id]) begin
           next_address_to_release_multihot_id[current_id][current_addr] &=
               tails[current_id] == current_addr;
         end else begin
@@ -503,16 +507,6 @@ module simmem_write_resp_bank #(
           is_middle_emptybox_d[current_id] = 1'b1;
         end
 
-
-        // if (!|(reservation_length_q[current_id])) begin
-        //   piggyback_middle_with_reservation[current_id] = 1'b1;
-        //   if (!|(middle_length_q[current_id])) begin
-        //     piggyback_tail_with_reservation[current_id] = 1'b1;
-        //     piggyback_previous_tail_with_reservation[current_id] = 1'b1;
-        //   end else if (middle_length_q[current_id] == 1) begin
-        //     piggyback_tail_with_reservation[current_id] = 1'b1;
-        //   end
-        // end
       end
 
       if (out_valid_o && out_ready_i && current_output_identifier_onehot_q[current_id]) begin

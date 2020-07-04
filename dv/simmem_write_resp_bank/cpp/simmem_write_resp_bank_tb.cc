@@ -14,7 +14,8 @@
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
-const bool kPairsVerbose = true;
+const bool kTransactionsVerbose = false;
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -128,6 +129,9 @@ class WriteRespBankTestbench {
   }
 
   void stop_output_data() { module_->out_ready_i = 0; }
+
+  u_int32_t get_reserved_address() { return module_->new_reserved_address_o; }
+  u_int32_t get_in_addr() { return module_->addr_message_ram_in_o; }
 
   unsigned long get_identifier_mask() { return identifier_mask_; }
 
@@ -263,7 +267,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
                          unsigned int seed) {
   srand(seed);
 
-  int nb_iterations = 100;
+  int nb_iterations = 1000;
 
   std::vector<u_int32_t> identifiers;
 
@@ -284,6 +288,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   bool reserve;
   bool apply_input;
   bool request_output_data;
+  bool iteration_announced;
 
   u_int32_t current_input_id = identifiers[rand() % num_identifiers];
   u_int32_t current_input =
@@ -295,6 +300,8 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   tb->allow_output_data();
 
   for (size_t i = 0; i < nb_iterations; i++) {
+    iteration_announced = false;
+
     reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
@@ -311,10 +318,27 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
     // Important: apply all the input first, before any evaluation
     if (reserve && tb->is_reservation_accepted()) {
+      if (kTransactionsVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl << "Step " << std::dec << i << std::endl;
+        }
+        std::cout << current_reservation_id << " reserves "
+                  << tb->get_reserved_address() << std::endl;
+      }
       current_reservation_id = identifiers[rand() % num_identifiers];
     }
     if (tb->is_input_data_accepted()) {
       input_queues[current_input_id].push(current_input);
+      if (kTransactionsVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl << "Step " << std::dec << i << std::endl;
+        }
+        std::cout << std::dec << current_input_id << " inputs " << std::hex
+                  << current_input << " in " << std::dec << tb->get_in_addr()
+                  << std::endl;
+      }
       current_input_id = identifiers[rand() % num_identifiers];
       current_input =
           current_input_id | (u_int32_t)(rand() & tb->get_identifier_mask());
@@ -323,6 +347,16 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
       if (tb->fetch_output_data(current_output)) {
         output_queues[identifiers[current_output & ~tb->get_identifier_mask()]]
             .push(current_output);
+
+        if (kTransactionsVerbose) {
+          if (!iteration_announced) {
+            iteration_announced = true;
+            std::cout << std::endl << "Step " << std::dec << i << std::endl;
+          }
+          std::cout << std::dec
+                    << (u_int32_t)(current_output & ~tb->get_identifier_mask())
+                    << " outputs " << std::hex << current_output << std::endl;
+        }
       }
     }
 
@@ -337,13 +371,11 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
     if (request_output_data) {
       tb->stop_output_data();
     }
-  }
 
-  while (!tb->is_done()) {
-    tb->tick();
+    while (!tb->is_done()) {
+      tb->tick();
+    }
   }
-
-  std::cout << std::endl << std::endl << std::endl;
 
   size_t nb_mismatches = 0;
   for (size_t i = 0; i < num_identifiers; i++) {
@@ -375,7 +407,7 @@ int main(int argc, char **argv, char **env) {
 
   size_t total_nb_mismatches = 0;
 
-  for (int i = 0; i < 10; i++) {
+  for (int i = 100; i < 1000; i++) {
     size_t local_nb_mismatches;
 
     WriteRespBankTestbench *tb =
@@ -384,26 +416,12 @@ int main(int argc, char **argv, char **env) {
     // Choose testbench type
     // sequential_test(tb);
     // local_nb_mismatches = single_id_test(tb, i);
-    local_nb_mismatches = multiple_ids_test(tb, 2, 4);
+    local_nb_mismatches = multiple_ids_test(tb, 5, i);
     total_nb_mismatches += local_nb_mismatches;
     std::cout << "Mismatches for seed " << std::dec << i << ": "
               << local_nb_mismatches << std::hex << std::endl;
     delete tb;
   }
-
-  std::cout << "Total mismatches:  " << std::dec << total_nb_mismatches << ":"
-            << std::hex << std::endl;
-
-  // WriteRespBankTestbench *tb =
-  //     new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
-
-  // // Choose testbench type
-  // // sequential_test(tb);
-  // single_id_test(tb, 53);
-  // // multiple_ids_test(tb, 2, 4);
-
-  // std::cout << std::endl << std::endl << std::endl;
-  // delete tb;
 
   std::cout << "Testbench complete!" << std::endl;
 
