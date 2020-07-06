@@ -94,11 +94,11 @@ class WriteRespBankTestbench {
   }
 
   void reserve(int axi_id) {
-    module_->reservation_request_ready_i = 1;
-    module_->reservation_request_id_onehot_i = 1 << axi_id;
+    module_->reservation_req_ready_i = 1;
+    module_->reservation_req_id_onehot_i = 1 << axi_id;
   }
 
-  void stop_reserve() { module_->reservation_request_ready_i = 0; }
+  void stop_reserve() { module_->reservation_req_ready_i = 0; }
 
   void apply_input_data(int data_i) {
     module_->data_i = data_i;
@@ -110,7 +110,7 @@ class WriteRespBankTestbench {
   }
   bool is_reservation_accepted() {
     module_->eval();
-    return (bool)(module_->reservation_request_valid_o);
+    return (bool)(module_->reservation_req_valid_o);
   }
   void stop_input_data() { module_->in_valid_i = 0; }
 
@@ -130,8 +130,7 @@ class WriteRespBankTestbench {
 
   void stop_output_data() { module_->out_ready_i = 0; }
 
-  u_int32_t get_reserved_address() { return module_->new_reserved_address_o; }
-  u_int32_t get_in_addr() { return module_->addr_message_ram_in_o; }
+  u_int32_t get_reserved_address() { return module_->new_reserved_addr_o; }
 
   unsigned long get_identifier_mask() { return identifier_mask_; }
 
@@ -336,8 +335,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
           std::cout << std::endl << "Step " << std::dec << i << std::endl;
         }
         std::cout << std::dec << current_input_id << " inputs " << std::hex
-                  << current_input << " in " << std::dec << tb->get_in_addr()
-                  << std::endl;
+                  << current_input << std::endl;
       }
       current_input_id = identifiers[rand() % num_identifiers];
       current_input =
