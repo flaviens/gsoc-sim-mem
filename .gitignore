@@ -42,6 +42,7 @@ ascentlint.rpt
 # verilator/gtkwave waveforms and wave lists
 *.fst
 *.gtkw
+*.hier
 
 # Foundry library
 hw/foundry/
