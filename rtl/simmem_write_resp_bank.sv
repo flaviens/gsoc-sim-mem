@@ -5,7 +5,6 @@
 // Linkedlist bank for messages in the simulated memory controller 
 
 // Does not support direct replacement (simultaneous write and read in the RAM)
-// Assumes that a message is received by the message bank before it should be released
 
 // FUTURE Reserve some slots for each AXI ID to avoid deadlocks
 // FUTURE Name all the generate blocks
@@ -46,19 +45,6 @@ module simmem_write_resp_bank #(
 
   localparam BankAddrWidth = $clog2(TotalCapacity);
   localparam NumIds = 2 ** IDWidth;  // FUTURE Move to package
-
-  // import simmem_pkg::ram_bank_e;
-  // import simmem_pkg::ram_port_e;
-
-  typedef enum logic {
-    MESSAGE_RAM = 1'b0,
-    METADATA_RAM = 1'b1
-  } ram_bank_e;
-
-  typedef enum logic {
-    RAM_IN = 1'b0,
-    RAM_OUT = 1'b1
-  } ram_port_e;
 
   // Read the data ID
   logic [IDWidth-1:0]
