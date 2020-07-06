@@ -7,8 +7,6 @@
 // Does not support direct replacement (simultaneous write and read in the RAM)
 
 // FUTURE Reserve some slots for each AXI ID to avoid deadlocks
-// FUTURE Name all the generate blocks
-// FUTURE Use single port RAMs when possible
 // FUTURE Do not store identifiers in RAM
 
 module simmem_write_resp_bank #(
@@ -100,37 +98,45 @@ module simmem_write_resp_bank #(
   // Determines, for each AXI identifier, whether the queue already exists in RAM
   logic [NumIds-1:0] queue_initiated_id;
 
+  // Lengths of reservation and effective lengths
+  logic [BankAddrWidth-1:0] rsrvn_len_d[NumIds];
+  logic [BankAddrWidth-1:0] rsrvn_len_q[NumIds];
+
+  logic [BankAddrWidth-1:0] mid_len_d[NumIds];
+  logic [BankAddrWidth-1:0] mid_len_q[NumIds];
+  // Length after the potential output
+  logic [BankAddrWidth-1:0] mid_len_after_out[NumIds];
 
   // Update reservation and actual heads, and tails according to the piggyback and update signals
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin : pointers_update
-    assign mids_d[curr_id] = pgbk_m_with_h[curr_id] ? heads_d[curr_id] : mids[curr_id];
-    assign mids[curr_id] = update_m_from_ram_q[curr_id] ? data_meta_ram_out : mids_q[curr_id];
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : pointers_update
+    assign mids_d[i_id] = pgbk_m_with_h[i_id] ? heads_d[i_id] : mids[i_id];
+    assign mids[i_id] = update_m_from_ram_q[i_id] ? data_meta_ram_out : mids_q[i_id];
 
     always_comb begin : prev_tail_d_assignment
       // The next previous tail is either piggybacked with the head, or follows the tail, or keeps
       // its value. If it is piggybacked by the middle pointer, the update is done in the next cycle
-      if (pgbk_pt_with_h[curr_id]) begin
-        prev_tails_d[curr_id] = nxt_free_addr;
-      end else if (update_pt_from_t[curr_id]) begin
-        prev_tails_d[curr_id] = tails[curr_id];
+      if (pgbk_pt_with_h[i_id]) begin
+        prev_tails_d[i_id] = nxt_free_addr;
+      end else if (update_pt_from_t[i_id]) begin
+        prev_tails_d[i_id] = tails[i_id];
       end else begin
-        prev_tails_d[curr_id] = prev_tails[curr_id];
+        prev_tails_d[i_id] = prev_tails[i_id];
       end
     end : prev_tail_d_assignment
-    assign prev_tails[curr_id] = pgbk_pt_with_m_q[curr_id] ? mids[curr_id] : prev_tails_q[curr_id];
+    assign prev_tails[i_id] = pgbk_pt_with_m_q[i_id] ? mids[i_id] : prev_tails_q[i_id];
 
-    assign tails_d[curr_id] = pgbk_t_w_r[curr_id] ? heads_d[curr_id] : tails[curr_id];
+    assign tails_d[i_id] = pgbk_t_w_r[i_id] ? heads_d[i_id] : tails[i_id];
     always_comb begin : tail_assignment
-      if (pgbk_t_with_m_q[curr_id]) begin
-        tails[curr_id] = mids[curr_id];
-      end else if (update_t_from_ram_q[curr_id]) begin
-        tails[curr_id] = data_meta_ram_out;
+      if (pgbk_t_with_m_q[i_id]) begin
+        tails[i_id] = mids[i_id];
+      end else if (update_t_from_ram_q[i_id]) begin
+        tails[i_id] = data_meta_ram_out;
       end else begin
-        tails[curr_id] = tails_q[curr_id];
+        tails[i_id] = tails_q[i_id];
       end
     end : tail_assignment
 
-    assign heads_d[curr_id] = update_heads[curr_id] ? nxt_free_addr : heads_q[curr_id];
+    assign heads_d[i_id] = update_heads[i_id] ? nxt_free_addr : heads_q[i_id];
   end
 
 
@@ -145,19 +151,19 @@ module simmem_write_resp_bank #(
   logic [TotCapa-1:0] ram_v_out_mask;
 
   // Prepare the next RAM valid bit array
-  for (genvar cur_addr = 0; cur_addr < TotCapa; cur_addr = cur_addr + 1) begin : ram_v_update
+  for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : ram_v_update
 
     // Generate the ram valid masks
-    assign ram_v_rsrvn_mask[cur_addr] =
-        nxt_free_addr == cur_addr && reservation_req_valid_o && reservation_req_ready_i;
-    assign ram_v_out_mask[cur_addr] = cur_out_addr_onehot_q[cur_addr] && out_valid_o && out_ready_i;
+    assign ram_v_rsrvn_mask[i_addr] =
+        nxt_free_addr == i_addr && reservation_req_valid_o && reservation_req_ready_i;
+    assign ram_v_out_mask[i_addr] = cur_out_addr_onehot_q[i_addr] && out_valid_o && out_ready_i;
 
     always_comb begin
-      ram_v_d[cur_addr] = ram_v_q[cur_addr];
+      ram_v_d[i_addr] = ram_v_q[i_addr];
       // Mark the newly reserved addressed as valid, if applicable
-      ram_v_d[cur_addr] ^= ram_v_rsrvn_mask[cur_addr];
+      ram_v_d[i_addr] ^= ram_v_rsrvn_mask[i_addr];
       // Mark the newly released addressed as invalid, if applicable
-      ram_v_d[cur_addr] ^= ram_v_out_mask[cur_addr];
+      ram_v_d[i_addr] ^= ram_v_out_mask[i_addr];
     end
   end
   assign addr_released_onehot_o = ram_v_out_mask;
@@ -175,24 +181,24 @@ module simmem_write_resp_bank #(
   logic [TotCapa-1:0] nxt_free_addr_bin_msk_rot90[BankAddrWidth];
   logic [BankAddrWidth-1:0] nxt_free_addr;
 
-  for (genvar cur_addr = 0; cur_addr < TotCapa; cur_addr = cur_addr + 1) begin : gen_nxt_free_addr
+  for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_nxt_free_addr
     // Generate next free address
-    if (cur_addr == 0) begin
+    if (i_addr == 0) begin
       assign nxt_free_addr_onehot[0] = !ram_v_q[0];
     end else begin
-      assign nxt_free_addr_onehot[cur_addr] = !ram_v_q[cur_addr] && &ram_v_q[cur_addr - 1:0];
+      assign nxt_free_addr_onehot[i_addr] = !ram_v_q[i_addr] && &ram_v_q[i_addr - 1:0];
     end
 
     // Aggregate next free address
-    assign nxt_free_addr_bin_msk[cur_addr] = nxt_free_addr_onehot[cur_addr] ? cur_addr : '0;
+    assign nxt_free_addr_bin_msk[i_addr] = nxt_free_addr_onehot[i_addr] ? i_addr : '0;
 
-    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin
-      assign nxt_free_addr_bin_msk_rot90[i_bit][cur_addr] = nxt_free_addr_bin_msk[cur_addr][i_bit];
-    end
+    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : rot_next_addr
+      assign nxt_free_addr_bin_msk_rot90[i_bit][i_addr] = nxt_free_addr_bin_msk[i_addr][i_bit];
+    end : rot_next_addr
   end : gen_nxt_free_addr
-  for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin
+  for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_next_addr
     assign nxt_free_addr[i_bit] = |nxt_free_addr_bin_msk_rot90[i_bit];
-  end
+  end : aggregate_next_addr
 
   assign new_reserved_addr_o = nxt_free_addr;
 
@@ -232,30 +238,30 @@ module simmem_write_resp_bank #(
   logic [BankAddrWidth-1:0][NumIds-1:0] addr_meta_out_rot90;
 
   // RAM address aggregation
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin : rotate_ram_addres
-    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin
-      assign addr_msg_in_rot90[i_bit][curr_id] = addr_msg_in_id[curr_id][i_bit];
-      assign addr_msg_out_rot90[i_bit][curr_id] = addr_msg_out_id[curr_id][i_bit];
-      assign addr_meta_in_rot90[i_bit][curr_id] = addr_meta_in_id[curr_id][i_bit];
-      assign addr_meta_out_rot90[i_bit][curr_id] = addr_meta_out_id[curr_id][i_bit];
-    end
-  end
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_addres
+    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : rotate_ram_addres_inner
+      assign addr_msg_in_rot90[i_bit][i_id] = addr_msg_in_id[i_id][i_bit];
+      assign addr_msg_out_rot90[i_bit][i_id] = addr_msg_out_id[i_id][i_bit];
+      assign addr_meta_in_rot90[i_bit][i_id] = addr_meta_in_id[i_id][i_bit];
+      assign addr_meta_out_rot90[i_bit][i_id] = addr_meta_out_id[i_id][i_bit];
+    end : rotate_ram_addres_inner
+  end : rotate_ram_addres
   for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_addres
     assign addr_msg_in[i_bit] = |addr_msg_in_rot90[i_bit];
     assign addr_msg_out[i_bit] = |addr_msg_out_rot90[i_bit];
     assign addr_meta_in[i_bit] = |addr_meta_in_rot90[i_bit];
     assign addr_meta_out[i_bit] = |addr_meta_out_rot90[i_bit];
-  end
+  end : aggregate_ram_addres
 
   // RAM address aggregation
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin : rotate_meta_in
-    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin
-      assign write_meta_content_msk_rot90[i_bit][curr_id] = write_meta_content_id[curr_id][i_bit];
-    end
-  end
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_meta_in
+    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : rotate_meta_in_inner
+      assign write_meta_content_msk_rot90[i_bit][i_id] = write_meta_content_id[i_id][i_bit];
+    end : rotate_meta_in_inner
+  end : rotate_meta_in
   for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_meta_in
     assign write_meta_content[i_bit] = |write_meta_content_msk_rot90[i_bit];
-  end
+  end : aggregate_meta_in
 
   // RAM write masks, filled with ones
   assign wmask_msg_ram_in = {MessageWidth{1'b1}};
@@ -268,16 +274,15 @@ module simmem_write_resp_bank #(
   assign req_msg_ram_in = in_ready_o && in_valid_i;
   assign req_msg_ram_out = |nxt_id_to_release_onehot;
 
+  // Assign the queue_initiated signal, to compute whether the metadata RAM should be requested
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : req_meta_in_id_assignment
+    assign queue_initiated_id[i_id] =
+        reservation_req_id_onehot_i[i_id] && (|rsrvn_len_q[i_id] || |mid_len_after_out[i_id]);
+  end : req_meta_in_id_assignment
+
   assign
       req_meta_ram_in = reservation_req_ready_i && reservation_req_valid_o && |queue_initiated_id;
   assign req_meta_ram_out = |nxt_id_to_release_onehot || (in_ready_o && in_valid_i);
-
-  for (
-      genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1
-  ) begin : req_meta_in_id_assignment
-    assign queue_initiated_id[curr_id] = reservation_req_id_onehot_i[curr_id] && (
-        |rsrvn_length_q[curr_id] || |middle_length_after_output[curr_id]);
-  end : req_meta_in_id_assignment
 
   assign write_msg_ram_in = 1'b1;
   assign write_msg_ram_out = 1'b0;
@@ -289,69 +294,73 @@ module simmem_write_resp_bank #(
   // Next AXI identifier to release //
   ////////////////////////////////////
 
-  logic [NumIds-1:0] nxt_id_to_release_multihot;
+  // Next address to release, and intermediate annex signals to compute it
+  // Next address to release, multihot and by AXI identifier
+  logic [NumIds-1:0][TotCapa-1:0] nxt_addr_mhot_id;
+  // Next address to release, multihot, rotated and filtered by next it to release
+  logic [TotCapa-1:0][NumIds-1:0] nxt_addr_1hot_rot;
+  // Next address to release, onehot and by AXI identifier
+  logic [TotCapa-1:0] nxt_addr_1hot_id[NumIds];
+  // Next address to release, multihot
+  logic [NumIds-1:0] nxt_id_mhot;
   logic [NumIds-1:0] nxt_id_to_release_onehot;
-  logic [NumIds-1:0][TotCapa-1:0] nxt_addr_to_release_multihot_id;
-  logic [TotCapa-1:0] nxt_addr_to_release_onehot_id[NumIds];
-  logic [TotCapa-1:0][NumIds-1:0] nxt_addr_to_release_onehot_rot90_filtered;
 
   // Next id and address to release from RAM
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_next_id
 
-    assign nxt_id_to_release_multihot[curr_id] = |nxt_addr_to_release_onehot_id[curr_id];
+    // Calculation of the next address to release
+    for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_next_addr
+      always_comb begin : nxt_addr_mhot_assignment
+        // Fundamentally, the next address to release needs to belong to a non-empty AXI
+        // identifier and must be enabled for release
+        nxt_addr_mhot_id[i_id][i_addr] = |(mid_len_after_out[i_id]) && release_en_i[i_addr];
 
-    if (curr_id == 0) begin
-      assign nxt_id_to_release_onehot[curr_id] = nxt_id_to_release_multihot[curr_id];
-    end else begin
-      assign nxt_id_to_release_onehot[curr_id] =
-          nxt_id_to_release_multihot[curr_id] && !|(nxt_id_to_release_multihot[curr_id - 1:0]);
-    end
-
-    for (genvar cur_addr = 0; cur_addr < TotCapa; cur_addr = cur_addr + 1) begin
-      always_comb begin : nxt_addr_to_release_multihot_id_assignment
-        nxt_addr_to_release_multihot_id[curr_id][cur_addr] =
-            |(middle_length_after_output[curr_id]) && release_en_i[cur_addr];
-
-        if (out_ready_i && out_valid_o && cur_output_identifier_onehot_q[curr_id]) begin
-          nxt_addr_to_release_multihot_id[curr_id][cur_addr] &= tails[curr_id] == cur_addr;
+        // The address must additionally be, depending on the situation, the previous tail or the
+        // tail of the corresponding queue
+        if (out_ready_i && out_valid_o && cur_out_id_onehot_q[i_id]) begin
+          nxt_addr_mhot_id[i_id][i_addr] &= tails[i_id] == i_addr;
         end else begin
-          nxt_addr_to_release_multihot_id[curr_id][cur_addr] &= prev_tails[curr_id] == cur_addr;
+          nxt_addr_mhot_id[i_id][i_addr] &= prev_tails[i_id] == i_addr;
         end
-      end : nxt_addr_to_release_multihot_id_assignment
-      if (cur_addr == 0) begin
-        assign nxt_addr_to_release_onehot_id[curr_id][cur_addr] =
-            nxt_addr_to_release_multihot_id[curr_id][cur_addr];
+      end : nxt_addr_mhot_assignment
+
+      // Derive onehot from multihot signal
+      if (i_addr == 0) begin
+        assign nxt_addr_1hot_id[i_id][i_addr] = nxt_addr_mhot_id[i_id][i_addr];
       end else begin
-        assign nxt_addr_to_release_onehot_id[curr_id][cur_addr] = nxt_addr_to_release_multihot_id[
-            curr_id][cur_addr] && !|(nxt_addr_to_release_multihot_id[curr_id][cur_addr - 1:0]);
+        assign nxt_addr_1hot_id[i_id][i_addr] =
+            nxt_addr_mhot_id[i_id][i_addr] && !|(nxt_addr_mhot_id[i_id][i_addr - 1:0]);
       end
-      assign nxt_addr_to_release_onehot_rot90_filtered[cur_addr][curr_id] =
-          nxt_addr_to_release_onehot_id[curr_id][cur_addr] && nxt_id_to_release_onehot[curr_id];
+      assign nxt_addr_1hot_rot[i_addr][i_id] =
+          nxt_addr_1hot_id[i_id][i_addr] && nxt_id_to_release_onehot[i_id];
+    end : gen_next_addr
+
+    // Derive multihot next id to release from next address to release
+    assign nxt_id_mhot[i_id] = |nxt_addr_1hot_id[i_id];
+
+    // Derive onehot from multihot signal
+    if (i_id == 0) begin
+      assign nxt_id_to_release_onehot[i_id] = nxt_id_mhot[i_id];
+    end else begin
+      assign nxt_id_to_release_onehot[i_id] = nxt_id_mhot[i_id] && !|(nxt_id_mhot[i_id - 1:0]);
     end
-  end
+  end : gen_next_id
 
-  for (genvar cur_addr = 0; cur_addr < TotCapa; cur_addr = cur_addr + 1) begin
-    assign cur_out_addr_onehot_d[cur_addr] = |nxt_addr_to_release_onehot_rot90_filtered[cur_addr];
-  end
+  // Store the next address to be released
+  for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_next_addr_out
+    assign cur_out_addr_onehot_d[i_addr] = |nxt_addr_1hot_rot[i_addr];
+  end : gen_next_addr_out
 
-  // Signals for input ready calculation
-  logic [NumIds-1:0] is_id_rsrvd_filtered;
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin
-    assign
-        is_id_rsrvd_filtered[curr_id] = data_in_id_field == curr_id && |(rsrvn_length_q[curr_id]);
-  end
+  // Signals indicating if there is reserved space for a given AXI identifier
+  logic [NumIds-1:0] is_id_rsrvd;
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
+    assign is_id_rsrvd[i_id] = data_in_id_field == i_id && |(rsrvn_len_q[i_id]);
+  end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
-  assign in_ready_o = in_valid_i && |is_id_rsrvd_filtered &&
+  assign in_ready_o = in_valid_i && |is_id_rsrvd &&
       !(out_valid_o && out_ready_i);  // AXI 4 allows ready to depend on the valid signal
   assign reservation_req_valid_o = |(~ram_v_q);
-
-  logic [BankAddrWidth-1:0] middle_length_d[NumIds];
-  logic [BankAddrWidth-1:0] middle_length_q[NumIds];
-  logic [BankAddrWidth-1:0] middle_length_after_output[NumIds];
-
-  logic [BankAddrWidth-1:0] rsrvn_length_d[NumIds];
-  logic [BankAddrWidth-1:0] rsrvn_length_q[NumIds];
 
 
   /////////////
@@ -359,200 +368,206 @@ module simmem_write_resp_bank #(
   /////////////
 
   // Output valid and address
-  logic [NumIds-1:0] cur_output_identifier_onehot_d;
-  logic [NumIds-1:0] cur_output_identifier_onehot_q;
+  logic [NumIds-1:0] cur_out_id_onehot_d;
+  logic [NumIds-1:0] cur_out_id_onehot_q;
 
   logic [TotCapa-1:0] cur_out_addr_onehot_d;
   logic [TotCapa-1:0] cur_out_addr_onehot_q;
 
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin
-    assign middle_length_after_output[curr_id] =
-        out_valid_o && out_ready_i && cur_output_identifier_onehot_q[curr_id] ?
-        middle_length_q[curr_id] - 1 : middle_length_q[curr_id];
-  end
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
+    assign mid_len_after_out[i_id] = out_valid_o && out_ready_i && cur_out_id_onehot_q[i_id] ?
+        mid_len_q[i_id] - 1 : mid_len_q[i_id];
+  end : gen_len_after_output
 
-  assign cur_output_identifier_onehot_d = nxt_id_to_release_onehot;
-  assign out_valid_o = |cur_output_identifier_onehot_q;
+  assign cur_out_id_onehot_d = nxt_id_to_release_onehot;
+  assign out_valid_o = |cur_out_id_onehot_q;
   assign data_o = data_msg_ram_out;
 
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin : id_isolated_comb
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
 
     always_comb begin
       // Default assignments
-      middle_length_d[curr_id] = middle_length_q[curr_id];
-      rsrvn_length_d[curr_id] = rsrvn_length_q[curr_id];
+      mid_len_d[i_id] = mid_len_q[i_id];
+      rsrvn_len_d[i_id] = rsrvn_len_q[i_id];
+      is_middle_emptybox_d[i_id] = is_middle_emptybox_q[i_id];
 
-      is_middle_emptybox_d[curr_id] = is_middle_emptybox_q[curr_id];
-      update_t_from_ram_d[curr_id] = 1'b0;
-      update_m_from_ram_d[curr_id] = 1'b0;
-      update_heads[curr_id] = 1'b0;
-      update_pt_from_t[curr_id] = 1'b0;
-      pgbk_m_with_h[curr_id] = 1'b0;
-      pgbk_pt_with_h[curr_id] = 1'b0;
-      pgbk_pt_with_m_d[curr_id] = 1'b0;
-      pgbk_t_w_r[curr_id] = 1'b0;
-      pgbk_t_with_m_d[curr_id] = 1'b0;
-      addr_msg_in_id[curr_id] = '0;
-      addr_msg_out_id[curr_id] = '0;
-      addr_meta_in_id[curr_id] = '0;
-      addr_meta_out_id[curr_id] = '0;
-      write_meta_content_id[curr_id] = '0;
+      update_t_from_ram_d[i_id] = 1'b0;
+      update_m_from_ram_d[i_id] = 1'b0;
+      update_heads[i_id] = 1'b0;
+      update_pt_from_t[i_id] = 1'b0;
+
+      pgbk_m_with_h[i_id] = 1'b0;
+      pgbk_pt_with_h[i_id] = 1'b0;
+      pgbk_pt_with_m_d[i_id] = 1'b0;
+      pgbk_t_w_r[i_id] = 1'b0;
+      pgbk_t_with_m_d[i_id] = 1'b0;
+
+      addr_msg_in_id[i_id] = '0;
+      addr_msg_out_id[i_id] = '0;
+      addr_meta_in_id[i_id] = '0;
+      addr_meta_out_id[i_id] = '0;
+
+      write_meta_content_id[i_id] = '0;
 
       // Handshakes
-      if (nxt_id_to_release_onehot[curr_id]) begin : out_preparation_handshake
+      if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
-        if (out_valid_o && out_ready_i && cur_output_identifier_onehot_q[curr_id]) begin
-          addr_msg_out_id[curr_id] = tails[curr_id];
+        if (out_valid_o && out_ready_i && cur_out_id_onehot_q[i_id]) begin
+          addr_msg_out_id[i_id] = tails[i_id];
         end else begin
-          addr_msg_out_id[curr_id] = prev_tails[curr_id];
+          addr_msg_out_id[i_id] = prev_tails[i_id];
         end
       end
 
       // Input handshake
-      if (in_ready_o && in_valid_i && data_in_id_field == curr_id) begin : in_handshake
+      if (in_ready_o && in_valid_i && data_in_id_field == i_id) begin : in_handshake
 
-        middle_length_d[curr_id] = middle_length_d[curr_id] + 1;
-        rsrvn_length_d[curr_id] = rsrvn_length_d[curr_id] - 1;
+        mid_len_d[i_id] = mid_len_d[i_id] + 1;
+        rsrvn_len_d[i_id] = rsrvn_len_d[i_id] - 1;
 
-        if (mids[curr_id] == heads_q[curr_id]) begin
-          pgbk_m_with_h[curr_id] = 1'b1;  // TODO Possibly redundant
+        if (mids[i_id] == heads_q[i_id]) begin
+          pgbk_m_with_h[i_id] = 1'b1;
           // Fullbox if could not move forward
-          is_middle_emptybox_d[curr_id] = heads_d[curr_id] != heads_q[curr_id];
+          is_middle_emptybox_d[i_id] = heads_d[i_id] != heads_q[i_id];
         end else begin
-          update_m_from_ram_d[curr_id] = 1'b1;
+          // If the reservation head is ahead of the middle pointer, then one can follow the
+          // pointer from the metadata RAM
+          update_m_from_ram_d[i_id] = 1'b1;
         end
 
-        if (tails[curr_id] == mids[curr_id]) begin
-          if (middle_length_after_output[curr_id] == 0) begin
-            pgbk_t_with_m_d[curr_id] = 1'b1;
-
-            if (!is_middle_emptybox_q[curr_id]) begin
-              pgbk_pt_with_m_d[curr_id] = 1'b1;
+        // Manage more piggybacking on input acquisition
+        if (tails[i_id] == mids[i_id]) begin
+          if (mid_len_after_out[i_id] == 0) begin
+            pgbk_t_with_m_d[i_id] = 1'b1;
+            if (!is_middle_emptybox_q[i_id]) begin
+              pgbk_pt_with_m_d[i_id] = 1'b1;
             end
-          end else if (middle_length_after_output[curr_id] == 1 &&
-                       prev_tails[curr_id] == tails[curr_id]) begin
-            pgbk_t_with_m_d[curr_id] = 1'b1;
+          end else if (mid_len_after_out[i_id] == 1 && prev_tails[i_id] == tails[i_id]) begin
+            pgbk_t_with_m_d[i_id] = 1'b1;
           end
         end
 
         // Store the data
-        addr_msg_in_id[curr_id] = mids[curr_id];
+        addr_msg_in_id[i_id] = mids[i_id];
 
-        // Update the actual head position
-        addr_meta_out_id[curr_id] = mids[curr_id];
+        // Update the middle pointer position
+        addr_meta_out_id[i_id] = mids[i_id];
       end
 
-      if (reservation_req_ready_i && reservation_req_valid_o && reservation_req_id_onehot_i[curr_id]
-          ) begin : reservation
+      if (reservation_req_ready_i && reservation_req_valid_o && reservation_req_id_onehot_i[i_id]
+          ) begin : reservation_handshake
 
-        rsrvn_length_d[curr_id] = rsrvn_length_d[curr_id] + 1;
-        update_heads[curr_id] = 1'b1;
+        rsrvn_len_d[i_id] = rsrvn_len_d[i_id] + 1;
+        update_heads[i_id] = 1'b1;
 
-        // If the queue is already initiated, then update the head position
-        if (|rsrvn_length_q[curr_id] || |middle_length_after_output[curr_id]) begin
-          addr_meta_in_id[curr_id] = heads_q[curr_id];
-          write_meta_content_id[curr_id] = nxt_free_addr;
+        // If the queue is already initiated, then update the head position in the RAM and manage
+        // the piggybacking properly
+        if (|rsrvn_len_q[i_id] || |mid_len_after_out[i_id]) begin : reservation_initiated_queue
+          addr_meta_in_id[i_id] = heads_q[i_id];
+          write_meta_content_id[i_id] = nxt_free_addr;
 
-          if (heads_q[curr_id] == mids[curr_id]) begin
-            if (rsrvn_length_q[curr_id] == 0) begin
-              if (middle_length_after_output[curr_id] == 0) begin
-                pgbk_m_with_h[curr_id] = 1'b1;
-                pgbk_pt_with_h[curr_id] = 1'b1;
-                pgbk_t_w_r[curr_id] = 1'b1;
-                is_middle_emptybox_d[curr_id] = 1'b1;
-              end else if (middle_length_after_output[curr_id] == 1) begin
-                pgbk_m_with_h[curr_id] = 1'b1;
-                pgbk_t_w_r[curr_id] = 1'b1;
-                is_middle_emptybox_d[curr_id] = 1'b1;
+          if (heads_q[i_id] == mids[i_id]) begin
+            if (rsrvn_len_q[i_id] == 0) begin
+              if (mid_len_after_out[i_id] == 0) begin
+                pgbk_m_with_h[i_id] = 1'b1;
+                pgbk_pt_with_h[i_id] = 1'b1;
+                pgbk_t_w_r[i_id] = 1'b1;
+                is_middle_emptybox_d[i_id] = 1'b1;
+              end else if (mid_len_after_out[i_id] == 1) begin
+                pgbk_m_with_h[i_id] = 1'b1;
+                pgbk_t_w_r[i_id] = 1'b1;
+                is_middle_emptybox_d[i_id] = 1'b1;
               end else begin
-                pgbk_m_with_h[curr_id] = 1'b1;
-                is_middle_emptybox_d[curr_id] = 1'b1;
+                pgbk_m_with_h[i_id] = 1'b1;
+                is_middle_emptybox_d[i_id] = 1'b1;
               end
-
             end
           end
         end else begin
-          pgbk_m_with_h[curr_id] = 1'b1;
-          pgbk_pt_with_h[curr_id] = 1'b1;
-          pgbk_t_w_r[curr_id] = 1'b1;
-          is_middle_emptybox_d[curr_id] = 1'b1;
+          // Else, piggyback everything as a new queue is created from scratch, with no memoryof
+          // the past
+          pgbk_m_with_h[i_id] = 1'b1;
+          pgbk_pt_with_h[i_id] = 1'b1;
+          pgbk_t_w_r[i_id] = 1'b1;
+          is_middle_emptybox_d[i_id] = 1'b1;
         end
+      end : reservation_handshake
 
-      end
-
-      if (out_valid_o && out_ready_i && cur_output_identifier_onehot_q[curr_id]) begin
-        middle_length_d[curr_id] = middle_length_d[curr_id] - 1;
-        update_pt_from_t[curr_id] = 1'b1;
-        if (mids[curr_id] != tails[curr_id]) begin
-          update_t_from_ram_d[curr_id] = 1'b1;
-          addr_meta_out_id[curr_id] = tails[curr_id];
+      if (out_valid_o && out_ready_i && cur_out_id_onehot_q[i_id]) begin : ouptut_handshake
+        mid_len_d[i_id] = mid_len_d[i_id] - 1;
+        update_pt_from_t[i_id] = 1'b1;  // Update the previous tail
+        if (mids[i_id] != tails[i_id]) begin
+          // If possible, read the next tail address from RAM
+          update_t_from_ram_d[i_id] = 1'b1;
+          addr_meta_out_id[i_id] = tails[i_id];
         end else begin
-          pgbk_t_with_m_d[curr_id] = 1'b1;
+          // Else, piggyback
+          pgbk_t_with_m_d[i_id] = 1'b1;
         end
-
-      end
+      end : ouptut_handshake
     end
   end
 
-  for (genvar curr_id = 0; curr_id < NumIds; curr_id = curr_id + 1) begin
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_seq_by_id
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (~rst_ni) begin
-        mids_q[curr_id] <= '0;
-        heads_q[curr_id] <= '0;
-        prev_tails_q[curr_id] <= '0;
-        tails_q[curr_id] <= '0;
-        middle_length_q[curr_id] <= '0;
-        rsrvn_length_q[curr_id] <= '0;
+        mids_q[i_id] <= '0;
+        heads_q[i_id] <= '0;
+        prev_tails_q[i_id] <= '0;
+        tails_q[i_id] <= '0;
+        mid_len_q[i_id] <= '0;
+        rsrvn_len_q[i_id] <= '0;
 
-        update_m_from_ram_q[curr_id] <= '0;
-        update_t_from_ram_q[curr_id] <= '0;
+        update_m_from_ram_q[i_id] <= '0;
+        update_t_from_ram_q[i_id] <= '0;
 
-        is_middle_emptybox_q[curr_id] <= 1'b1;
+        is_middle_emptybox_q[i_id] <= 1'b1;
 
-        pgbk_pt_with_m_q[curr_id] <= '0;
-        pgbk_t_with_m_q[curr_id] <= '0;
+        pgbk_pt_with_m_q[i_id] <= '0;
+        pgbk_t_with_m_q[i_id] <= '0;
       end else begin
-        mids_q[curr_id] <= mids_d[curr_id];
-        heads_q[curr_id] <= heads_d[curr_id];
-        prev_tails_q[curr_id] <= prev_tails_d[curr_id];
-        tails_q[curr_id] <= tails_d[curr_id];
-        middle_length_q[curr_id] <= middle_length_d[curr_id];
-        rsrvn_length_q[curr_id] <= rsrvn_length_d[curr_id];
+        mids_q[i_id] <= mids_d[i_id];
+        heads_q[i_id] <= heads_d[i_id];
+        prev_tails_q[i_id] <= prev_tails_d[i_id];
+        tails_q[i_id] <= tails_d[i_id];
+        mid_len_q[i_id] <= mid_len_d[i_id];
+        rsrvn_len_q[i_id] <= rsrvn_len_d[i_id];
 
-        update_t_from_ram_q[curr_id] <= update_t_from_ram_d[curr_id];
-        update_m_from_ram_q[curr_id] <= update_m_from_ram_d[curr_id];
+        update_t_from_ram_q[i_id] <= update_t_from_ram_d[i_id];
+        update_m_from_ram_q[i_id] <= update_m_from_ram_d[i_id];
 
-        is_middle_emptybox_q[curr_id] <= is_middle_emptybox_d[curr_id];
+        is_middle_emptybox_q[i_id] <= is_middle_emptybox_d[i_id];
 
-        pgbk_pt_with_m_q[curr_id] <= pgbk_pt_with_m_d[curr_id];
-        pgbk_t_with_m_q[curr_id] <= pgbk_t_with_m_d[curr_id];
+        pgbk_pt_with_m_q[i_id] <= pgbk_pt_with_m_d[i_id];
+        pgbk_t_with_m_q[i_id] <= pgbk_t_with_m_d[i_id];
       end
     end
-  end
+  end : gen_seq_by_id
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
       // cur_output_valid_q <= '0;
-      cur_output_identifier_onehot_q <= '0;
+      cur_out_id_onehot_q <= '0;
       cur_out_addr_onehot_q <= '0;
     end else begin
       // cur_output_valid_q <= cur_output_valid_d;
-      cur_output_identifier_onehot_q <= cur_output_identifier_onehot_d;
+      cur_out_id_onehot_q <= cur_out_id_onehot_d;
       cur_out_addr_onehot_q <= cur_out_addr_onehot_d;
     end
   end
 
-  for (genvar cur_addr = 0; cur_addr < TotCapa; cur_addr = cur_addr + 1) begin
+  for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_seq_ram_v_by_id
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (~rst_ni) begin
-        ram_v_q[cur_addr] <= 1'b0;
+        ram_v_q[i_addr] <= 1'b0;
       end else begin
-        ram_v_q[cur_addr] <= ram_v_d[cur_addr];
+        ram_v_q[i_addr] <= ram_v_d[i_addr];
       end
     end
-  end
+  end : gen_seq_ram_v_by_id
 
+  // Message RAM instance
   prim_generic_ram_2p #(
     .Width(MessageWidth),
     .DataBitsPerMask(1),
@@ -576,6 +591,7 @@ module simmem_write_resp_bank #(
     .b_rdata_o   (data_msg_ram_out)
   );
 
+  // Metadata RAM instance
   prim_generic_ram_2p #(
     .Width(BankAddrWidth),
     .DataBitsPerMask(1),
