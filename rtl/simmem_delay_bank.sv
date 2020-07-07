@@ -208,11 +208,8 @@ module simmem_delay_bank #(
       curr_address < DelayBankTotalCapacity;
       curr_address = curr_address + 1
   ) begin : current_local_identifier_to_invalidate_onehot_assignment
-    always_comb begin
-      current_local_identifier_to_invalidate_onehot[curr_address] = 1'b0;
-      assign current_local_identifier_to_invalidate_onehot[curr_address] =
-          curr_address == current_local_identifier_to_invalidate_binary;
-    end
+    assign current_local_identifier_to_invalidate_onehot[curr_address] =
+        curr_address == current_local_identifier_to_invalidate_binary;
   end : current_local_identifier_to_invalidate_onehot_assignment
 
 

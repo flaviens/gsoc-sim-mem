@@ -93,9 +93,9 @@ class WriteRespBankTestbench {
             (max_clock_cycles_ && (tick_count_ >= max_clock_cycles_)));
   }
 
-  void reserve(int axi_id) {
+  void reserve(u_int32_t axi_id) {
     module_->reservation_req_ready_i = 1;
-    module_->reservation_req_id_onehot_i = 1 << axi_id;
+    module_->reservation_req_id_onehot_i = 1;  // TODO;
   }
 
   void stop_reserve() { module_->reservation_req_ready_i = 0; }

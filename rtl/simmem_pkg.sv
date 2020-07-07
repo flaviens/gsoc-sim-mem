@@ -11,6 +11,7 @@ package simmem_pkg;
   /////////////////
 
   localparam IDWidth = 8;
+  localparam NumIds = 2 ** IDWidth;
 
   // Address field widths
   localparam AxAddrWidth = 8;
@@ -34,7 +35,6 @@ package simmem_pkg;
   localparam BUserWidth = 0;
 
   localparam WStrbWidth = XDataWidth / 8;
-
 
   typedef struct packed {
     logic [IDWidth-1:0] id;
@@ -78,27 +78,27 @@ package simmem_pkg;
   // logic [RUserWidth-1:0] user_signal;
   } read_data_resp_t;
 
+  localparam ReadDataRespWidth = IDWidth + XDataWidth + WStrbWidth + XLastWidth;
+
   typedef struct packed {
     logic [IDWidth-1:0] id;
     logic [XRespWidth-1:0] response;
   // logic [BUserWidth-1:0] user_signal;
   } write_resp_t;
 
-
-  //////////////////////
-  // Internal signals //
-  //////////////////////
+  localparam WriteRespWidth = IDWidth + XRespWidth;
 
 
+  ////////////////////////////
+  // Dimensions for modules //
+  ////////////////////////////
 
-  typedef enum logic {
-    MESSAGE_RAM = 1'b0,
-    NEXT_ELEM_RAM = 1'b1
-  } ram_bank_e;
+  localparam WriteRespBankTotalCapacity = 32;
+  localparam ReadDataBankTotalCapacity = 32;
 
-  typedef enum logic {
-    RAM_IN = 1'b0,
-    RAM_OUT = 1'b1
-  } ram_port_e;
+  localparam WriteRespBankAddrWidth = $clog2(WriteRespBankTotalCapacity);
+  localparam ReadDataBankAddrWidth = $clog2(ReadDataBankTotalCapacity);
+
+  localparam MaxBurstLength = 4;
 
 endpackage

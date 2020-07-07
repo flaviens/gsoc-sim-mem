@@ -9,12 +9,7 @@
 // FUTURE Reserve some slots for each AXI ID to avoid deadlocks
 // FUTURE Do not store identifiers in RAM
 
-module simmem_write_resp_bank #(
-    parameter int MessageWidth = 32,  // FUTURE Refer to package
-    parameter int TotCapa = 64,
-    parameter int IDWidth = 4  // FUTURE Refer to package
-
-) (
+module simmem_write_resp_bank (
     input logic clk_i,
     input logic rst_ni,
 
@@ -26,8 +21,8 @@ module simmem_write_resp_bank #(
     output logic reservation_req_valid_o, 
 
     // Bank I/O signals
-    input  logic [MessageWidth-1:0] data_i,
-    output logic [MessageWidth-1:0] data_o,
+    input  simmem_pkg::write_resp_t data_i,
+    output simmem_pkg::write_resp_t data_o,
 
     input  logic [TotCapa-1:0] release_en_i,  // Multi-hot signal
     output logic [TotCapa-1:0] addr_released_onehot_o,
@@ -39,13 +34,12 @@ module simmem_write_resp_bank #(
     output logic out_valid_o
 );
 
-  localparam BankAddrWidth = $clog2(TotCapa);
-  localparam NumIds = 2 ** IDWidth;  // FUTURE Move to package
+  import simmem_pkg::*;
 
-  // Read the data ID
-  logic [IDWidth-1:0]
-      data_in_id_field;  // FUTURE will be unnecessary when using packed strructures as I/O
-  assign data_in_id_field = data_i[IDWidth - 1:0];
+  localparam TotCapa = WriteRespBankTotalCapacity;
+  localparam BankAddrWidth = WriteRespBankAddrWidth;
+
+  localparam MsgWidth = WriteRespWidth - IDWidth;
 
   //////////////////
   // RAM pointers //
@@ -213,10 +207,10 @@ module simmem_write_resp_bank #(
   logic write_msg_ram_in, write_msg_ram_out;
   logic write_meta_ram_in, write_meta_ram_out;
 
-  logic [MessageWidth-1:0] wmask_msg_ram_in, wmask_msg_ram_out;
+  logic [MsgWidth-1:0] wmask_msg_ram_in, wmask_msg_ram_out;
   logic [BankAddrWidth-1:0] wmask_meta_ram_in, wmask_meta_ram_out;
 
-  logic [MessageWidth-1:0] data_msg_ram_out;
+  logic [MsgWidth-1:0] data_msg_ram_out;
   logic [BankAddrWidth-1:0] data_meta_ram_out;
 
   logic [BankAddrWidth-1:0] write_meta_content;
@@ -264,8 +258,8 @@ module simmem_write_resp_bank #(
   end : aggregate_meta_in
 
   // RAM write masks, filled with ones
-  assign wmask_msg_ram_in = {MessageWidth{1'b1}};
-  assign wmask_msg_ram_out = {MessageWidth{1'b1}};
+  assign wmask_msg_ram_in = {MsgWidth{1'b1}};
+  assign wmask_msg_ram_out = {MsgWidth{1'b1}};
   assign wmask_meta_ram_in = {BankAddrWidth{1'b1}};
   assign wmask_meta_ram_out = {BankAddrWidth{1'b1}};
 
@@ -317,7 +311,7 @@ module simmem_write_resp_bank #(
 
         // The address must additionally be, depending on the situation, the previous tail or the
         // tail of the corresponding queue
-        if (out_ready_i && out_valid_o && cur_out_id_onehot_q[i_id]) begin
+        if (out_ready_i && out_valid_o && cur_out_id_onehot[i_id]) begin
           nxt_addr_mhot_id[i_id][i_addr] &= tails[i_id] == i_addr;
         end else begin
           nxt_addr_mhot_id[i_id][i_addr] &= prev_tails[i_id] == i_addr;
@@ -354,7 +348,7 @@ module simmem_write_resp_bank #(
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsrvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsrvd[i_id] = data_in_id_field == i_id && |(rsrvn_len_q[i_id]);
+    assign is_id_rsrvd[i_id] = data_i.id == i_id && |(rsrvn_len_q[i_id]);
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
@@ -367,21 +361,43 @@ module simmem_write_resp_bank #(
   // Outputs //
   /////////////
 
-  // Output valid and address
-  logic [NumIds-1:0] cur_out_id_onehot_d;
-  logic [NumIds-1:0] cur_out_id_onehot_q;
+  // Output identifier and address
+  logic [IDWidth-1:0] cur_out_id_bin_d;
+  logic [IDWidth-1:0] cur_out_id_bin_q;
+  logic [NumIds-1:0] cur_out_id_onehot;
 
   logic [TotCapa-1:0] cur_out_addr_onehot_d;
   logic [TotCapa-1:0] cur_out_addr_onehot_q;
 
+  // Output identifier from binary to one-hot
+  for (genvar i_bit = 0; i_bit < NumIds; i_bit = i_bit + 1) begin : cur_out_bin_to_onehot
+    assign cur_out_id_onehot[i_bit] = i_bit == cur_out_id_bin_q;
+  end : cur_out_bin_to_onehot
+
+  // Transform next id to release to binary representation for more compact storage
+  logic [IDWidth-1:0] nxt_id_to_release_bin_msk[TotCapa];
+  logic [TotCapa-1:0] nxt_id_to_release_bin_msk_rot90[IDWidth];
+  logic [IDWidth-1:0] nxt_id_to_release_bin;
+  for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_nxt_id_to_release_masks
+    assign nxt_id_to_release_bin_msk[i_addr] = nxt_id_to_release_onehot[i_addr] ? i_addr : '0;
+    for (genvar i_bit = 0; i_bit < IDWidth; i_bit = i_bit + 1) begin : rot_next_addr
+      assign
+          nxt_id_to_release_bin_msk_rot90[i_bit][i_addr] = nxt_id_to_release_bin_msk[i_addr][i_bit];
+    end : rot_next_addr
+  end : gen_nxt_id_to_release_masks
+  for (genvar i_bit = 0; i_bit < IDWidth; i_bit = i_bit + 1) begin : aggregate_next_id
+    assign nxt_id_to_release_bin[i_bit] = |nxt_id_to_release_bin_msk_rot90[i_bit];
+  end : aggregate_next_id
+
+  // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign mid_len_after_out[i_id] = out_valid_o && out_ready_i && cur_out_id_onehot_q[i_id] ?
+    assign mid_len_after_out[i_id] = out_valid_o && out_ready_i && cur_out_id_onehot[i_id] ?
         mid_len_q[i_id] - 1 : mid_len_q[i_id];
   end : gen_len_after_output
 
-  assign cur_out_id_onehot_d = nxt_id_to_release_onehot;
-  assign out_valid_o = |cur_out_id_onehot_q;
-  assign data_o = data_msg_ram_out;
+  assign cur_out_id_bin_d = nxt_id_to_release_bin;
+  assign out_valid_o = |cur_out_id_onehot;
+  assign data_o = {data_msg_ram_out, cur_out_id_bin_q};
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
 
@@ -413,7 +429,7 @@ module simmem_write_resp_bank #(
       if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
-        if (out_valid_o && out_ready_i && cur_out_id_onehot_q[i_id]) begin
+        if (out_valid_o && out_ready_i && cur_out_id_onehot[i_id]) begin
           addr_msg_out_id[i_id] = tails[i_id];
         end else begin
           addr_msg_out_id[i_id] = prev_tails[i_id];
@@ -421,7 +437,7 @@ module simmem_write_resp_bank #(
       end
 
       // Input handshake
-      if (in_ready_o && in_valid_i && data_in_id_field == i_id) begin : in_handshake
+      if (in_ready_o && in_valid_i && data_i.id == i_id) begin : in_handshake
 
         mid_len_d[i_id] = mid_len_d[i_id] + 1;
         rsrvn_len_d[i_id] = rsrvn_len_d[i_id] - 1;
@@ -494,7 +510,7 @@ module simmem_write_resp_bank #(
         end
       end : reservation_handshake
 
-      if (out_valid_o && out_ready_i && cur_out_id_onehot_q[i_id]) begin : ouptut_handshake
+      if (out_valid_o && out_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
         mid_len_d[i_id] = mid_len_d[i_id] - 1;
         update_pt_from_t[i_id] = 1'b1;  // Update the previous tail
         if (mids[i_id] != tails[i_id]) begin
@@ -548,11 +564,11 @@ module simmem_write_resp_bank #(
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
       // cur_output_valid_q <= '0;
-      cur_out_id_onehot_q <= '0;
+      cur_out_id_bin_q <= '0;
       cur_out_addr_onehot_q <= '0;
     end else begin
       // cur_output_valid_q <= cur_output_valid_d;
-      cur_out_id_onehot_q <= cur_out_id_onehot_d;
+      cur_out_id_bin_q <= cur_out_id_bin_d;
       cur_out_addr_onehot_q <= cur_out_addr_onehot_d;
     end
   end
@@ -569,7 +585,7 @@ module simmem_write_resp_bank #(
 
   // Message RAM instance
   prim_generic_ram_2p #(
-    .Width(MessageWidth),
+    .Width(MsgWidth),
     .DataBitsPerMask(1),
     .Depth(TotCapa)
   ) i_msg_ram (
@@ -580,7 +596,7 @@ module simmem_write_resp_bank #(
     .a_write_i   (write_msg_ram_in),
     .a_wmask_i   (wmask_msg_ram_in),
     .a_addr_i    (addr_msg_in),
-    .a_wdata_i   (data_i),
+    .a_wdata_i   (data_i.response),
     .a_rdata_o   (),
     
     .b_req_i     (req_msg_ram_out),
