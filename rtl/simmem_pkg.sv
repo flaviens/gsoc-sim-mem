@@ -82,7 +82,7 @@ package simmem_pkg;
 
   typedef struct packed {
     logic [IDWidth-1:0] id;
-    logic [XRespWidth-1:0] response;
+    logic [XRespWidth-1:0] content;
   // logic [BUserWidth-1:0] user_signal;
   } write_resp_t;
 

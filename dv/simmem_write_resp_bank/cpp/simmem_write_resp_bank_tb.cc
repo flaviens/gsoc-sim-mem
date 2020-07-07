@@ -13,31 +13,39 @@
 #include <vector>
 #include <verilated_fst_c.h>
 
-// TODO Improve identifier mask
-
 const bool kIterationVerbose = false;
 const bool kTransactionsVerbose = false;
 const bool kPairsVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kkMsgWidth = 3;
+const int kMsgWidth = 3;
 const int kIdWidth = 4;
+
+typedef enum {
+  SEQUENTIAL_TEST,
+  SINGLE_ID_TEST,
+  MULTIPLE_ID_TEST
+} test_strategy_e;
 
 typedef Vsimmem_write_resp_bank Module;
 typedef std::map<u_int32_t, std::queue<u_int32_t>> queue_map_t;
 
+const int kTestStrategy = MULTIPLE_ID_TEST;
+
 // This class implements elementary operations for the testbench
 class WriteRespBankTestbench {
  public:
-  // @param max_clock_cycles set to 0 to disable interruption after a given
-  // number of clock cycles
-  // @param record_trace set to false to skip trace recording
-  WriteRespBankTestbench(vluint32_t max_clock_cycles = 0,
+  /**
+   * @param trailing_clock_cycles number of ticks to perform after all the
+   * requests have been performed
+   * @param record_trace set to false to skip trace recording
+   */
+  WriteRespBankTestbench(vluint32_t trailing_clock_cycles = 0,
                          bool record_trace = true,
                          const std::string &trace_filename = "sim.fst")
       : tick_count_(0l),
-        max_clock_cycles_(max_clock_cycles),
+        trailing_clock_cycles_(trailing_clock_cycles),
         record_trace_(record_trace),
         module_(new Module) {
     if (record_trace) {
@@ -46,23 +54,30 @@ class WriteRespBankTestbench {
       trace_->open(trace_filename.c_str());
     }
 
-    identifier_mask_ = (1 << 31) >> (31 - kIdWidth);
+    content_mask_ = ~((1 << 31) >> (31 - kMsgWidth));
+    identifier_mask_ =
+        ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~content_mask_;
   }
 
-  ~WriteRespBankTestbench() { close_trace(); }
+  ~WriteRespBankTestbench() { simmem_close_trace(); }
 
-  void reset(void) {
+  void simmem_reset(void) {
     module_->rst_ni = 0;
     for (size_t i = 0; i < kResetLength; i++) {
-      this->tick();
+      this->simmem_tick();
     }
     module_->rst_ni = 1;
   }
 
-  void close_trace(void) { trace_->close(); }
+  void simmem_close_trace(void) { trace_->close(); }
 
-  void tick(int nbTicks = 1) {
-    for (size_t i = 0; i < nbTicks; i++) {
+  /**
+   * Performs one or multiple clock cycles.
+   *
+   * @param nb_ticks the number of ticks to perform at once
+   */
+  void simmem_tick(int nb_ticls = 1) {
+    for (size_t i = 0; i < nb_ticls; i++) {
       if (kIterationVerbose) {
         std::cout << "Running iteration" << tick_count_ << std::endl;
       }
@@ -91,39 +106,92 @@ class WriteRespBankTestbench {
     }
   }
 
-  bool is_done(void) {
-    return (Verilated::gotFinish() ||
-            (max_clock_cycles_ && (tick_count_ >= max_clock_cycles_)));
+  /**
+   * Sets the reservation request signal to one and the reservation request
+   * identifier to the right value.
+   *
+   * @param axi_id the AXI identifier to reserve
+   */
+  void simmem_reservation_start(u_int32_t axi_id) {
+    module_->res_req_valid_i = 1;
+    module_->res_req_id_onehot_i = 1 << axi_id;
   }
 
-  void reserve(u_int32_t axi_id) {
-    module_->reservation_req_ready_i = 1;
-    module_->reservation_req_id_onehot_i = 1 << axi_id;
+  /**
+   * Sets the reservation request signal to zero.
+   */
+  void simmem_reservation_stop() { module_->res_req_valid_i = 0; }
+
+  /**
+   * Applies valid input data.
+   *
+   * @param identifier the AXI identifier of the incoming data
+   * @param content the rest (payload) of the incoming data
+   *
+   * @return the data as seen by the design under test instance
+   */
+  u_int32_t simmem_input_data_apply(u_int32_t identifier, u_int32_t content) {
+    // Checks if the given values are not too big
+    assert(!(content >> kMsgWidth));
+    assert(!(identifier >> kIdWidth));
+
+    u_int32_t in_data = identifier << kMsgWidth | content;
+    module_->data_i = in_data;
+    module_->in_data_valid_i = 1;
+    return in_data;
   }
 
-  void stop_reserve() { module_->reservation_req_ready_i = 0; }
+  /**
+   * Gets the newly reserved address as offered by the DUT.
+   */
+  u_int32_t simmem_reservation_get_address() { return module_->res_addr_o; }
 
-  u_int32_t apply_input_data(u_int32_t data_i) {
-    module_->data_i = content | id << kMsgWidth;
-    module_->in_valid_i = 1;
-  }
-  bool is_input_data_accepted() {
+  /**
+   * Checks whether the input data has been accepted by checking the ready
+   * output signal.
+   */
+  bool simmem_input_data_check() {
     module_->eval();
-    return (bool)(module_->in_ready_o);
+    return (bool)(module_->in_data_ready_o);
   }
-  bool is_reservation_accepted() {
+
+  /**
+   * Checks whether the reservation request has been accepted.
+   */
+  bool simmem_reservation_check() {
     module_->eval();
-    return (bool)(module_->reservation_req_valid_o);
+    return (bool)(module_->res_req_ready_o);
   }
-  void stop_input_data() { module_->in_valid_i = 0; }
 
-  void allow_output_data() { module_->release_en_i = -1; }
+  /**
+   * Stops feeding data to the DUT instance.
+   */
+  void simmem_input_data_stop() { module_->in_data_valid_i = 0; }
 
-  void forbid_output_data() { module_->release_en_i = 0; }
+  /**
+   * Allows all the data output from a releaser module standpoint.
+   */
+  void simmem_output_data_allow() { module_->release_en_i = -1; }
 
-  void request_output_data() { module_->out_ready_i = 1; }
+  /**
+   * Forbids all the data output from a releaser module standpoint.
+   */
+  void simmem_output_data_forbid() { module_->release_en_i = 0; }
 
-  bool fetch_output_data(u_int32_t &out_data) {
+  /**
+   * Sets the ready signal to one on the output side.
+   */
+  void simmem_output_data_request() { module_->out_ready_i = 1; }
+
+  /**
+   * Tries to fetch output data. Requires the ready signal to be one at the
+   * output.
+   *
+   * @param out_data the output data from the DUT
+   *
+   * @return true iff the data is valid
+   */
+  bool simmem_output_data_fetch(u_int32_t &out_data) {
     module_->eval();
     assert(module_->out_ready_i);
 
@@ -131,56 +199,97 @@ class WriteRespBankTestbench {
     return (bool)(module_->out_valid_o);
   }
 
-  void stop_output_data() { module_->out_ready_i = 0; }
+  /**
+   * Sets the ready signal to zero on the output side.
+   */
+  void simmem_output_data_stop() { module_->out_ready_i = 0; }
 
-  u_int32_t get_reserved_address() { return module_->new_reserved_addr_o; }
+  /**
+   * Informs the testbench that all the requests hav been performed and
+   * therefore that the trailing cycles phase should start.
+   */
+  void simmem_requests_complete() { tick_count_ = 0; }
 
-  unsigned long get_identifier_mask() { return identifier_mask_; }
+  /**
+   * Checks whether the testbench completed the trailing cycles phase.
+   */
+  bool simmem_is_done(void) {
+    return (
+        Verilated::gotFinish() ||
+        (trailing_clock_cycles_ && (tick_count_ >= trailing_clock_cycles_)));
+  }
+
+  /**
+   * Getters.
+   */
+  u_int32_t simmem_get_content_mask() { return content_mask_; }
+  u_int32_t simmem_get_identifier_mask() { return identifier_mask_; }
 
  private:
   vluint32_t tick_count_;
-  vluint32_t max_clock_cycles_;
+  vluint32_t trailing_clock_cycles_;
   bool record_trace_;
   std::unique_ptr<Module> module_;
+
+  // Masks that contain ones in the corresponding fields
   u_int32_t identifier_mask_;
+  u_int32_t content_mask_;
   VerilatedFstC *trace_;
 };
 
+/**
+ * Performs a basic test as a temporally disjoint sequence of reservation, data
+ * input and data output.
+ *
+ * @param tb a pointer to a fresh testbench instance
+ */
 void sequential_test(WriteRespBankTestbench *tb) {
-  tb->reset();
+  tb->simmem_reset();
 
   // Apply reservation requests for 4 ticks
-  tb->reserve(4);  // Start issuing reservation requests for AXI ID 4
-  tb->tick(4);
-  tb->stop_reserve();  // Stop issuing reservation requests
+  tb->simmem_reservation_start(
+      4);  // Start issuing reservation requests for AXI ID 4
+  tb->simmem_tick(4);
+  tb->simmem_reservation_stop();  // Stop issuing reservation requests
 
-  tb->tick(4);
+  tb->simmem_tick(4);
 
   // Apply inputs for 6 ticks
-  tb->apply_input_data(4 | (9 << kIdWidth));
-  tb->tick(6);
-  tb->stop_input_data();
+  tb->simmem_input_data_apply(4, 3);
+  tb->simmem_tick(6);
+  tb->simmem_input_data_stop();
 
-  tb->tick(4);
+  tb->simmem_tick(4);
 
   // Enable data toutput
-  tb->allow_output_data();
-  tb->tick(4);
+  tb->simmem_output_data_allow();
+  tb->simmem_tick(4);
 
   // Express readiness for output data
-  tb->request_output_data();
-  tb->tick(10);
-  tb->stop_output_data();
+  tb->simmem_output_data_request();
+  tb->simmem_tick(10);
+  tb->simmem_output_data_stop();
 
-  while (!tb->is_done()) {
-    tb->tick();
+  tb->simmem_requests_complete();
+  while (!tb->simmem_is_done()) {
+    tb->simmem_tick();
   }
 }
 
+/**
+ * Performs a complete test for a single AXI identifier. Reservation, input and
+ * output requests, as well as the data content (except for the AXI identifier)
+ * are randomized.
+ *
+ * @param tb a pointer to a fresh testbench instance
+ * @param seed the seed used for the random request generation
+ *
+ * @return the number of mismatched between the expected and acquired outputs
+ */
 size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   srand(seed);
 
-  u_int32_t current_id = 4;
+  u_int32_t current_input_id = 4;
   int nb_iterations = 1000;
 
   // Generate inputs
@@ -191,12 +300,13 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   bool apply_input;
   bool request_output_data;
 
-  u_int32_t current_input =
-      current_id | (u_int32_t)(rand() & tb->get_identifier_mask());
+  u_int32_t current_content =
+      (u_int32_t)(rand() & tb->simmem_get_content_mask());
+  u_int32_t current_input;
   u_int32_t current_output;
 
-  tb->reset();
-  tb->allow_output_data();
+  tb->simmem_reset();
+  tb->simmem_output_data_allow();
 
   for (size_t i = 0; i < nb_iterations; i++) {
     reserve = (bool)(rand() & 1);
@@ -204,42 +314,43 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     request_output_data = (bool)(rand() & 1);
 
     if (reserve) {
-      tb->reserve(current_id);
+      tb->simmem_reservation_start(current_input_id);
     }
     if (apply_input) {
-      tb->apply_input_data(current_input);
+      current_input =
+          tb->simmem_input_data_apply(current_input_id, current_content);
     }
     if (request_output_data) {
-      tb->request_output_data();
+      tb->simmem_output_data_request();
     }
 
-    // Important: apply all the input first, before any evaluation
-    if (tb->is_input_data_accepted()) {
+    // Only perform the evaluation once all the inputs have been applied
+    if (tb->simmem_input_data_check()) {
       input_queue.push(current_input);
-      current_input =
-          current_id | (u_int32_t)(rand() & tb->get_identifier_mask());
+      current_content = (u_int32_t)(rand() & tb->simmem_get_content_mask());
     }
     if (request_output_data) {
-      if (tb->fetch_output_data(current_output)) {
+      if (tb->simmem_output_data_fetch(current_output)) {
         output_queue.push(current_output);
       }
     }
 
-    tb->tick();
+    tb->simmem_tick();
 
     if (reserve) {
-      tb->stop_reserve();
+      tb->simmem_reservation_stop();
     }
     if (apply_input) {
-      tb->stop_input_data();
+      tb->simmem_input_data_stop();
     }
     if (request_output_data) {
-      tb->stop_output_data();
+      tb->simmem_output_data_stop();
     }
   }
 
-  while (!tb->is_done()) {
-    tb->tick();
+  tb->simmem_requests_complete();
+  while (!tb->simmem_is_done()) {
+    tb->simmem_tick();
   }
 
   size_t nb_mismatches = 0;
@@ -264,6 +375,19 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
 
   return nb_mismatches;
 }
+
+/**
+ * Performs a complete test for multiple AXI identifiers. Reservation, input and
+ * output requests, as well as the data content (except for the AXI identifier)
+ * are randomized.
+ *
+ * @param tb a pointer to a fresh testbench instance
+ * @param num_identifiers the number of AXI identifiers to use in the test, must
+ * be included between 1 and 2**kIdWidth
+ * @param seed the seed used for the random request generation
+ *
+ * @return the number of mismatched between the expected and acquired outputs
+ */
 
 size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
                          unsigned int seed) {
@@ -293,13 +417,14 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   bool iteration_announced;
 
   u_int32_t current_input_id = identifiers[rand() % num_identifiers];
-  u_int32_t current_input =
-      id << kMsgWidth | (u_int32_t)(rand() & tb->get_identifier_mask());
+  u_int32_t current_content =
+      (u_int32_t)(rand() & tb->simmem_get_content_mask());
   u_int32_t current_reservation_id = identifiers[rand() % num_identifiers];
+  u_int32_t current_input;
   u_int32_t current_output;
 
-  tb->reset();
-  tb->allow_output_data();
+  tb->simmem_reset();
+  tb->simmem_output_data_allow();
 
   for (size_t i = 0; i < nb_iterations; i++) {
     iteration_announced = false;
@@ -309,28 +434,29 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
     request_output_data = (bool)(rand() & 1);
 
     if (reserve) {
-      tb->reserve(current_reservation_id);
+      tb->simmem_reservation_start(current_reservation_id);
     }
     if (apply_input) {
-      tb->apply_input_data(current_input);
+      current_input =
+          tb->simmem_input_data_apply(current_input_id, current_content);
     }
     if (request_output_data) {
-      tb->request_output_data();
+      tb->simmem_output_data_request();
     }
 
     // Important: apply all the input first, before any evaluation
-    if (reserve && tb->is_reservation_accepted()) {
+    if (reserve && tb->simmem_reservation_check()) {
       if (kTransactionsVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
           std::cout << std::endl << "Step " << std::dec << i << std::endl;
         }
         std::cout << current_reservation_id << " reserves "
-                  << tb->get_reserved_address() << std::endl;
+                  << tb->simmem_reservation_get_address() << std::endl;
       }
       current_reservation_id = identifiers[rand() % num_identifiers];
     }
-    if (tb->is_input_data_accepted()) {
+    if (tb->simmem_input_data_check()) {
       input_queues[current_input_id].push(current_input);
       if (kTransactionsVerbose) {
         if (!iteration_announced) {
@@ -341,12 +467,13 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
                   << current_input << std::endl;
       }
       current_input_id = identifiers[rand() % num_identifiers];
-      current_input =
-          current_input_id | (u_int32_t)(rand() & tb->get_identifier_mask());
+      current_content = (u_int32_t)(rand() & tb->simmem_get_content_mask());
     }
     if (request_output_data) {
-      if (tb->fetch_output_data(current_output)) {
-        output_queues[identifiers[current_output & ~tb->get_identifier_mask()]]
+      if (tb->simmem_output_data_fetch(current_output)) {
+        output_queues[identifiers[(current_output &
+                                   tb->simmem_get_identifier_mask()) >>
+                                  kMsgWidth]]
             .push(current_output);
 
         if (kTransactionsVerbose) {
@@ -355,27 +482,29 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
             std::cout << std::endl << "Step " << std::dec << i << std::endl;
           }
           std::cout << std::dec
-                    << (u_int32_t)(current_output & ~tb->get_identifier_mask())
+                    << (u_int32_t)(current_output &
+                                   ~tb->simmem_get_identifier_mask())
                     << " outputs " << std::hex << current_output << std::endl;
         }
       }
     }
 
-    tb->tick();
+    tb->simmem_tick();
 
     if (reserve) {
-      tb->stop_reserve();
+      tb->simmem_reservation_stop();
     }
     if (apply_input) {
-      tb->stop_input_data();
+      tb->simmem_input_data_stop();
     }
     if (request_output_data) {
-      tb->stop_output_data();
+      tb->simmem_output_data_stop();
     }
+  }
 
-    while (!tb->is_done()) {
-      tb->tick();
-    }
+  tb->simmem_requests_complete();
+  while (!tb->simmem_is_done()) {
+    tb->simmem_tick();
   }
 
   size_t nb_mismatches = 0;
@@ -391,8 +520,6 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
                   << std::endl;
       }
       nb_mismatches += (size_t)(current_input != current_output);
-      std::cout << "Expected: " << std::hex << current_input << std::endl
-                << "Acquired: " << current_output << std::endl;
     }
   }
   if (kPairsVerbose) {
@@ -408,20 +535,29 @@ int main(int argc, char **argv, char **env) {
   Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
 
+  // Counts the number of mismatches during the whole test
   size_t total_nb_mismatches = 0;
 
-  for (int i = 100; i < 101; i++) {
+  for (unsigned int seed = 0; seed < 100; seed++) {
+    // Counts the number of mismatches during the loop iteration
     size_t local_nb_mismatches;
 
+    // Instantiate the DUT instance
     WriteRespBankTestbench *tb =
         new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
 
-    // Choose testbench type
-    // sequential_test(tb);
-    local_nb_mismatches = single_id_test(tb, i);
-    // local_nb_mismatches = multiple_ids_test(tb, 5, i);
+    // Perform one test for the given seed
+    if (kTestStrategy == SINGLE_ID_TEST) {
+      sequential_test(tb);
+      break;
+    } else if (kTestStrategy == SINGLE_ID_TEST) {
+      local_nb_mismatches = single_id_test(tb, seed);
+    } else {
+      local_nb_mismatches = multiple_ids_test(tb, 5, seed);
+    }
+
     total_nb_mismatches += local_nb_mismatches;
-    std::cout << "Mismatches for seed " << std::dec << i << ": "
+    std::cout << "Mismatches for seed " << std::dec << seed << ": "
               << local_nb_mismatches << std::hex << std::endl;
     delete tb;
   }
