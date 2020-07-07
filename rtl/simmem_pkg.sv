@@ -10,7 +10,7 @@ package simmem_pkg;
   // AXI signals //
   /////////////////
 
-  localparam IDWidth = 8;
+  localparam IDWidth = 4;
   localparam NumIds = 2 ** IDWidth;
 
   // Address field widths

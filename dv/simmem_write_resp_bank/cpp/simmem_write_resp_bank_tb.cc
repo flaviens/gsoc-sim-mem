@@ -95,7 +95,7 @@ class WriteRespBankTestbench {
 
   void reserve(u_int32_t axi_id) {
     module_->reservation_req_ready_i = 1;
-    module_->reservation_req_id_onehot_i = 1;  // TODO;
+    module_->reservation_req_id_onehot_i = 1 << axi_id;
   }
 
   void stop_reserve() { module_->reservation_req_ready_i = 0; }
@@ -388,6 +388,8 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
                   << std::endl;
       }
       nb_mismatches += (size_t)(current_input != current_output);
+      std::cout << "Expected: " << std::hex << current_input << std::endl
+                << "Acquired: " << current_output << std::endl;
     }
   }
   if (kPairsVerbose) {

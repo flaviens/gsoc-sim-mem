@@ -375,14 +375,13 @@ module simmem_write_resp_bank (
   end : cur_out_bin_to_onehot
 
   // Transform next id to release to binary representation for more compact storage
-  logic [IDWidth-1:0] nxt_id_to_release_bin_msk[TotCapa];
-  logic [TotCapa-1:0] nxt_id_to_release_bin_msk_rot90[IDWidth];
+  logic [IDWidth-1:0] nxt_id_to_release_bin_msk[IDWidth];
+  logic [IDWidth-1:0] nxt_id_to_release_bin_msk_rot90[IDWidth];
   logic [IDWidth-1:0] nxt_id_to_release_bin;
-  for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_nxt_id_to_release_masks
-    assign nxt_id_to_release_bin_msk[i_addr] = nxt_id_to_release_onehot[i_addr] ? i_addr : '0;
+  for (genvar i_id = 0; i_id < IDWidth; i_id = i_id + 1) begin : gen_nxt_id_to_release_masks
+    assign nxt_id_to_release_bin_msk[i_id] = nxt_id_to_release_onehot[i_id] ? i_id : '0;
     for (genvar i_bit = 0; i_bit < IDWidth; i_bit = i_bit + 1) begin : rot_next_addr
-      assign
-          nxt_id_to_release_bin_msk_rot90[i_bit][i_addr] = nxt_id_to_release_bin_msk[i_addr][i_bit];
+      assign nxt_id_to_release_bin_msk_rot90[i_bit][i_id] = nxt_id_to_release_bin_msk[i_id][i_bit];
     end : rot_next_addr
   end : gen_nxt_id_to_release_masks
   for (genvar i_bit = 0; i_bit < IDWidth; i_bit = i_bit + 1) begin : aggregate_next_id
