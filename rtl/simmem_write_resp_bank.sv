@@ -365,6 +365,8 @@ module simmem_write_resp_bank (
   logic [IDWidth-1:0] cur_out_id_bin_d;
   logic [IDWidth-1:0] cur_out_id_bin_q;
   logic [NumIds-1:0] cur_out_id_onehot;
+  logic cur_out_valid_d;
+  logic cur_out_valid_q;
 
   logic [TotCapa-1:0] cur_out_addr_onehot_d;
   logic [TotCapa-1:0] cur_out_addr_onehot_q;
@@ -394,8 +396,11 @@ module simmem_write_resp_bank (
         mid_len_q[i_id] - 1 : mid_len_q[i_id];
   end : gen_len_after_output
 
+  // Recall if the current output is valid
+  assign cur_out_valid_d = |nxt_id_to_release_onehot;
+
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
-  assign out_valid_o = |cur_out_id_onehot;
+  assign out_valid_o = |cur_out_valid_q;
   assign data_o = {data_msg_ram_out, cur_out_id_bin_q};
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
@@ -562,11 +567,11 @@ module simmem_write_resp_bank (
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (~rst_ni) begin
-      // cur_output_valid_q <= '0;
+      cur_out_valid_q <= '0;
       cur_out_id_bin_q <= '0;
       cur_out_addr_onehot_q <= '0;
     end else begin
-      // cur_output_valid_q <= cur_output_valid_d;
+      cur_out_valid_q <= cur_out_valid_d;
       cur_out_id_bin_q <= cur_out_id_bin_d;
       cur_out_addr_onehot_q <= cur_out_addr_onehot_d;
     end

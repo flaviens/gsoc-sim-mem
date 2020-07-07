@@ -13,12 +13,15 @@
 #include <vector>
 #include <verilated_fst_c.h>
 
+// TODO Improve identifier mask
+
 const bool kIterationVerbose = false;
 const bool kTransactionsVerbose = false;
-const bool kPairsVerbose = false;
+const bool kPairsVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
+const int kkMsgWidth = 3;
 const int kIdWidth = 4;
 
 typedef Vsimmem_write_resp_bank Module;
@@ -100,8 +103,8 @@ class WriteRespBankTestbench {
 
   void stop_reserve() { module_->reservation_req_ready_i = 0; }
 
-  void apply_input_data(int data_i) {
-    module_->data_i = data_i;
+  u_int32_t apply_input_data(u_int32_t data_i) {
+    module_->data_i = content | id << kMsgWidth;
     module_->in_valid_i = 1;
   }
   bool is_input_data_accepted() {
@@ -291,7 +294,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
   u_int32_t current_input_id = identifiers[rand() % num_identifiers];
   u_int32_t current_input =
-      current_input_id | (u_int32_t)(rand() & tb->get_identifier_mask());
+      id << kMsgWidth | (u_int32_t)(rand() & tb->get_identifier_mask());
   u_int32_t current_reservation_id = identifiers[rand() % num_identifiers];
   u_int32_t current_output;
 
@@ -407,7 +410,7 @@ int main(int argc, char **argv, char **env) {
 
   size_t total_nb_mismatches = 0;
 
-  for (int i = 100; i < 1000; i++) {
+  for (int i = 100; i < 101; i++) {
     size_t local_nb_mismatches;
 
     WriteRespBankTestbench *tb =
@@ -415,8 +418,8 @@ int main(int argc, char **argv, char **env) {
 
     // Choose testbench type
     // sequential_test(tb);
-    // local_nb_mismatches = single_id_test(tb, i);
-    local_nb_mismatches = multiple_ids_test(tb, 5, i);
+    local_nb_mismatches = single_id_test(tb, i);
+    // local_nb_mismatches = multiple_ids_test(tb, 5, i);
     total_nb_mismatches += local_nb_mismatches;
     std::cout << "Mismatches for seed " << std::dec << i << ": "
               << local_nb_mismatches << std::hex << std::endl;

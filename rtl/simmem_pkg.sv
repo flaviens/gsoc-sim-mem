@@ -29,7 +29,7 @@ package simmem_pkg;
   // Data & response field widths
   localparam XDataWidth = 32;
   localparam XLastWidth = 1;
-  localparam XRespWidth = 1;
+  localparam XRespWidth = 3;
   localparam WUserWidth = 0;
   localparam RUserWidth = 0;
   localparam BUserWidth = 0;
