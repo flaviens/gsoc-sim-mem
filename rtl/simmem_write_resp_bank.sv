@@ -121,8 +121,8 @@ module simmem_write_resp_bank (
     assign tails_d[i_id] = pgbk_t_w_r[i_id] ? heads_d[i_id] : tails[i_id];
     always_comb begin : tail_assignment
       if (pgbk_t_with_m_q[i_id]) begin
-      end else if (update_t_from_ram_q[i_id]) begin
         tails[i_id] = mids[i_id];
+      end else if (update_t_from_ram_q[i_id]) begin
         tails[i_id] = meta_out_ram_data;
       end else begin
         tails[i_id] = tails_q[i_id];
