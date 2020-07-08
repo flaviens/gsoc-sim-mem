@@ -15,7 +15,7 @@
 
 const bool kIterationVerbose = false;
 const bool kTransactionsVerbose = false;
-const bool kPairsVerbose = true;
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -54,9 +54,9 @@ class WriteRespBankTestbench {
       trace_->open(trace_filename.c_str());
     }
 
+    // Puts ones at the fields' places
     content_mask_ = ~((1 << 31) >> (31 - kMsgWidth));
-    identifier_mask_ =
-        ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~content_mask_;
+    id_mask_ = ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~content_mask_;
   }
 
   ~WriteRespBankTestbench() { simmem_close_trace(); }
@@ -223,7 +223,7 @@ class WriteRespBankTestbench {
    * Getters.
    */
   u_int32_t simmem_get_content_mask() { return content_mask_; }
-  u_int32_t simmem_get_identifier_mask() { return identifier_mask_; }
+  u_int32_t simmem_get_identifier_mask() { return id_mask_; }
 
  private:
   vluint32_t tick_count_;
@@ -232,7 +232,7 @@ class WriteRespBankTestbench {
   std::unique_ptr<Module> module_;
 
   // Masks that contain ones in the corresponding fields
-  u_int32_t identifier_mask_;
+  u_int32_t id_mask_;
   u_int32_t content_mask_;
   VerilatedFstC *trace_;
 };
@@ -306,14 +306,19 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   u_int32_t current_output;
 
   tb->simmem_reset();
+  // Sets the input signal from releaser such that the releaser allows all
+  // output signals
   tb->simmem_output_data_allow();
 
   for (size_t i = 0; i < nb_iterations; i++) {
+    // Randomize the boolean signals deciding which interactions will take place
+    // in this cycle
     reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
 
     if (reserve) {
+      // Signal a reservation request
       tb->simmem_reservation_start(current_input_id);
     }
     if (apply_input) {
@@ -337,6 +342,9 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
 
     tb->simmem_tick();
 
+    // Reset all signals after tick (they may be set again before the next DUT
+    // evaluation during the beginning of the next iteration)
+
     if (reserve) {
       tb->simmem_reservation_stop();
     }
@@ -353,6 +361,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     tb->simmem_tick();
   }
 
+  // Check the input and output queues for mismatches
   size_t nb_mismatches = 0;
   while (!input_queue.empty() && !output_queue.empty()) {
     current_input = input_queue.front();
@@ -414,7 +423,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   bool reserve;
   bool apply_input;
   bool request_output_data;
-  bool iteration_announced;
+  bool iteration_announced;  // Variable only used for display
 
   u_int32_t current_input_id = identifiers[rand() % num_identifiers];
   u_int32_t current_content =
@@ -424,27 +433,34 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   u_int32_t current_output;
 
   tb->simmem_reset();
+  // Sets the input signal from releaser such that the releaser allows all
+  // output signals
   tb->simmem_output_data_allow();
 
   for (size_t i = 0; i < nb_iterations; i++) {
     iteration_announced = false;
 
+    // Randomize the boolean signals deciding which interactions will take place
+    // in this cycle
     reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
 
     if (reserve) {
+      // Signal a reservation request
       tb->simmem_reservation_start(current_reservation_id);
     }
     if (apply_input) {
+      // Apply a given input
       current_input =
           tb->simmem_input_data_apply(current_input_id, current_content);
     }
     if (request_output_data) {
+      // Try to fetch an output if the handshake is successful
       tb->simmem_output_data_request();
     }
 
-    // Important: apply all the input first, before any evaluation
+    // Only perform the evaluation once all the inputs have been applied
     if (reserve && tb->simmem_reservation_check()) {
       if (kTransactionsVerbose) {
         if (!iteration_announced) {
@@ -454,9 +470,14 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
         std::cout << current_reservation_id << " reserves "
                   << tb->simmem_reservation_get_address() << std::endl;
       }
+
+      // Renew the reservation identifier if the reservation has been successful
       current_reservation_id = identifiers[rand() % num_identifiers];
     }
     if (tb->simmem_input_data_check()) {
+      // If the input handshake has been successful, then add the input into the
+      // corresponding queue
+
       input_queues[current_input_id].push(current_input);
       if (kTransactionsVerbose) {
         if (!iteration_announced) {
@@ -466,10 +487,14 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
         std::cout << std::dec << current_input_id << " inputs " << std::hex
                   << current_input << std::endl;
       }
+
+      // Renew the input data if the input handshake has been successful
       current_input_id = identifiers[rand() % num_identifiers];
       current_content = (u_int32_t)(rand() & tb->simmem_get_content_mask());
     }
     if (request_output_data) {
+      // If the output handshake has been successful, then add the output to the
+      // corresponding queue
       if (tb->simmem_output_data_fetch(current_output)) {
         output_queues[identifiers[(current_output &
                                    tb->simmem_get_identifier_mask()) >>
@@ -491,6 +516,9 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
     tb->simmem_tick();
 
+    // Reset all signals after tick (they may be set again before the next DUT
+    // evaluation during the beginning of the next iteration)
+
     if (reserve) {
       tb->simmem_reservation_stop();
     }
@@ -507,6 +535,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
     tb->simmem_tick();
   }
 
+  // Check the input and output queues for mismatches
   size_t nb_mismatches = 0;
   for (size_t i = 0; i < num_identifiers; i++) {
     while (!input_queues[i].empty() && !output_queues[i].empty()) {

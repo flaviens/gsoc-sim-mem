@@ -101,4 +101,13 @@ package simmem_pkg;
 
   localparam MaxBurstLength = 4;
 
+
+  ////////////////////////////
+  // Enumerations for banks //
+  ////////////////////////////
+
+  typedef struct packed {logic [WriteRespBankAddrWidth-1:0] nxt_elem;} write_resp_metadata_e;
+
+  localparam WriteRespMetadataWidth = WriteRespBankAddrWidth;
+
 endpackage
