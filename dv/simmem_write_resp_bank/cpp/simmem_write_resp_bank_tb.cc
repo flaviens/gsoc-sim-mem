@@ -63,9 +63,7 @@ class WriteRespBankTestbench {
 
   void simmem_reset(void) {
     module_->rst_ni = 0;
-    for (size_t i = 0; i < kResetLength; i++) {
-      this->simmem_tick();
-    }
+    this->simmem_tick(kResetLength);
     module_->rst_ni = 1;
   }
 
@@ -284,7 +282,7 @@ void sequential_test(WriteRespBankTestbench *tb) {
  * @param tb a pointer to a fresh testbench instance
  * @param seed the seed used for the random request generation
  *
- * @return the number of mismatched between the expected and acquired outputs
+ * @return the number of mismatches between the expected and acquired outputs
  */
 size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   srand(seed);
@@ -395,7 +393,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
  * be included between 1 and 2**kIdWidth
  * @param seed the seed used for the random request generation
  *
- * @return the number of mismatched between the expected and acquired outputs
+ * @return the number of mismatches between the expected and acquired outputs
  */
 
 size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
