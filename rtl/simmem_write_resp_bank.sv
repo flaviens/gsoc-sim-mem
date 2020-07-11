@@ -30,8 +30,8 @@ module simmem_write_resp_bank (
     output logic in_data_ready_o,
 
     // Interface with the requester
-    input  logic out_ready_i,
-    output logic out_valid_o
+    input  logic out_data_ready_i,
+    output logic out_data_valid_o
 );
 
   import simmem_pkg::*;
@@ -151,7 +151,8 @@ module simmem_write_resp_bank (
 
     // Generate the ram valid masks
     assign ram_v_rsrvn_mask[i_addr] = nxt_free_addr == i_addr && res_req_ready_o && res_req_valid_i;
-    assign ram_v_out_mask[i_addr] = cur_out_addr_onehot_q[i_addr] && out_valid_o && out_ready_i;
+    assign ram_v_out_mask[i_addr] =
+        cur_out_addr_onehot_q[i_addr] && out_data_valid_o && out_data_ready_i;
 
     always_comb begin
       ram_v_d[i_addr] = ram_v_q[i_addr];
@@ -319,7 +320,7 @@ module simmem_write_resp_bank (
 
         // The address must additionally be, depending on the situation, the previous tail or the
         // tail of the corresponding queue
-        if (out_ready_i && out_valid_o && cur_out_id_onehot[i_id]) begin
+        if (out_data_ready_i && out_data_valid_o && cur_out_id_onehot[i_id]) begin
           nxt_addr_mhot_id[i_id][i_addr] &= tails[i_id] == i_addr;
         end else begin
           nxt_addr_mhot_id[i_id][i_addr] &= prev_tails[i_id] == i_addr;
@@ -361,7 +362,7 @@ module simmem_write_resp_bank (
 
   // Input is ready if there is room and data is not flowing out
   assign in_data_ready_o = in_data_valid_i && |is_id_rsrvd &&
-      !(out_valid_o && out_ready_i);  // AXI 4 allows ready to depend on the valid signal
+      !(out_data_valid_o && out_data_ready_i);  // AXI 4 allows ready to depend on the valid signal
   assign res_req_ready_o = |(~ram_v_q);
 
 
@@ -398,15 +399,15 @@ module simmem_write_resp_bank (
 
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign mid_len_after_out[i_id] = out_valid_o && out_ready_i && cur_out_id_onehot[i_id] ?
-        mid_len_q[i_id] - 1 : mid_len_q[i_id];
+    assign mid_len_after_out[i_id] = out_data_valid_o && out_data_ready_i &&
+        cur_out_id_onehot[i_id] ? mid_len_q[i_id] - 1 : mid_len_q[i_id];
   end : gen_len_after_output
 
   // Recall if the current output is valid
   assign cur_out_valid_d = |nxt_id_to_release_onehot;
 
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
-  assign out_valid_o = |cur_out_valid_q;
+  assign out_data_valid_o = |cur_out_valid_q;
   assign data_o.id = cur_out_id_bin_q;
   assign data_o.content = msg_out_ram_data;
 
@@ -440,7 +441,7 @@ module simmem_write_resp_bank (
       if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
-        if (out_valid_o && out_ready_i && cur_out_id_onehot[i_id]) begin
+        if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin
           msg_out_ram_addr_id[i_id] = tails[i_id];
         end else begin
           msg_out_ram_addr_id[i_id] = prev_tails[i_id];
@@ -521,7 +522,7 @@ module simmem_write_resp_bank (
         end
       end : reservation_handshake
 
-      if (out_valid_o && out_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
+      if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
         mid_len_d[i_id] = mid_len_d[i_id] - 1;
         update_pt_from_t[i_id] = 1'b1;  // Update the previous tail
         if (mids[i_id] != tails[i_id]) begin

@@ -8,13 +8,13 @@ module simmem_delay_bank (
   input logic clk_i,
   input logic rst_ni,
   
-  input logic [WriteRespBankTotalCapacity-1:0] local_identifier_i,
+  input logic [simmem_pkg::WriteRespBankTotalCapacity-1:0] local_identifier_i,
   input logic [simmem_pkg::DelayWidth-1:0] delay_i,
   input logic in_valid_i,
   
   // Signals at output
-  input logic [WriteRespBankTotalCapacity-1:0] address_released_onehot_i,
-  output logic [WriteRespBankTotalCapacity-1:0] release_en_o
+  input  logic [simmem_pkg::WriteRespBankTotalCapacity-1:0] address_released_onehot_i,
+  output logic [simmem_pkg::WriteRespBankTotalCapacity-1:0] release_en_o
 );
 
   import simmem_pkg::*;
