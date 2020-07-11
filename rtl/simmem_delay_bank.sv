@@ -2,18 +2,14 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 //
-// Linkedlist bank for messages in the simulated memory controller 
+// Linkedlist bank for delays in the simulated memory controller 
 
-// Takes out the data one by one (to perform the binary-to-one-hot translation)
-
-module simmem_delay_bank #(
-    parameter int CounterWidth = 16
-) (
+module simmem_delay_bank (
   input logic clk_i,
   input logic rst_ni,
   
   input logic [WriteRespBankTotalCapacity-1:0] local_identifier_i,
-  input logic [CounterWidth-1:0] delay_i,
+  input logic [simmem_pkg::DelayWidth-1:0] delay_i,
   input logic in_valid_i,
   
   // Signals at output
@@ -34,8 +30,8 @@ module simmem_delay_bank #(
   // Entry signals //
   ///////////////////
 
-  logic [CounterWidth-1:0] counters_d[WriteRespBankTotalCapacity];
-  logic [CounterWidth-1:0] counters_q[WriteRespBankTotalCapacity];
+  logic [DelayWidth-1:0] counters_d[WriteRespBankTotalCapacity];
+  logic [DelayWidth-1:0] counters_q[WriteRespBankTotalCapacity];
 
   // Entry signal management
   for (

@@ -6,8 +6,6 @@
 
 // Does not support direct replacement (simultaneous write and read in the RAM)
 
-// FUTURE Reserve some slots for each AXI ID to avoid deadlocks
-
 module simmem_write_resp_bank (
     input logic clk_i,
     input logic rst_ni,
@@ -23,7 +21,7 @@ module simmem_write_resp_bank (
 
     // Interface with the releaser
     input  logic [TotCapa-1:0] release_en_i,  // Multi-hot signal
-    output logic [TotCapa-1:0] rel_addr_onehot_o,
+    output logic [TotCapa-1:0] released_addr_onehot_o,
 
     // Interface with the real memory controller
     input  simmem_pkg::write_resp_t data_i, // AXI message excluding handshake
@@ -163,7 +161,7 @@ module simmem_write_resp_bank (
       ram_v_d[i_addr] ^= ram_v_out_mask[i_addr];
     end
   end
-  assign rel_addr_onehot_o = ram_v_out_mask;
+  assign released_addr_onehot_o = ram_v_out_mask;
 
 
   /////////////////////////

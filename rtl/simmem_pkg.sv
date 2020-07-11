@@ -101,6 +101,8 @@ package simmem_pkg;
 
   localparam MaxBurstLength = 4;
 
+  localparam DelayWidth = 6;
+
 
   ////////////////////////////
   // Enumerations for banks //
