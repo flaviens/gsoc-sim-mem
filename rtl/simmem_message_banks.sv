@@ -1,83 +1,59 @@
 // Copyright lowRISC contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
-//
-// simmem
 
-// This modules assumes that no capacity overflow occurs.
-
-module simmem_message_banks #(
-  // Width of the messages, including identifier
-  parameter int ReadDataStructWidth     = 64, 
-  parameter int WriteRespStructWidth    = 64,
-
-  parameter int ReadDataBanksCapacity   = 64,
-  parameter int WriteRespBanksCapacity  = 64,
-  
-  parameter int IDWidth                 = 8
-)(
+module simmem_message_banks (
   input logic clk_i,
   input logic rst_ni,
 
-  input logic [1:0][2**IDWidth-1:0] release_en_i, // Input from the releaser
+  input logic [simmem_pkg::NumIds-1:0] write_resp_release_en_i, // Input from the releaser
 
-  input logic [ReadDataStructWidth-1:0] read_data_i,
-  input logic [WriteRespStructWidth-1:0] write_resp_i,
+  input  logic [simmem_pkg::IDWidth-1:0] write_resp_res_req_id_i,
+  output logic [simmem_pkg::WriteRespBankAddrWidth-1:0] write_resp_res_addr_o, // Reserved address
 
-  output logic [ReadDataStructWidth-1:0] read_data_o,
-  output logic [WriteRespStructWidth-1:0] write_resp_o,
+  input  logic write_resp_res_req_valid_i,
+  output logic write_resp_res_req_ready_o, 
 
-  input logic   read_data_in_valid_i,
-  input logic   read_data_out_ready_i,
-  output logic  read_data_in_ready_o,
-  output logic  read_data_out_valid_o,
+  input  simmem_pkg::write_resp_t write_resp_i,
+  output simmem_pkg::write_resp_t write_resp_o,
 
-  input logic   write_resp_in_valid_i,
-  input logic   write_resp_out_ready_i,
-  output logic  write_resp_in_ready_o,
-  output logic  write_resp_out_valid_o
+  input  logic write_resp_in_valid_i,
+  output logic write_resp_in_ready_o,
+
+  input  logic write_resp_out_ready_i,
+  output logic write_resp_out_valid_o
 );
 
-  import simmem_pkg::ram_bank_e;
+  import simmem_pkg::*;
 
-  simmem_linkedlist_message_bank #(
-    .StructWidth(ReadDataStructWidth),
-    .TotalCapacity(ReadDataBanksCapacity),
-    .IDWidth(IDWidth)
-  ) simmem_linkedlist_message_bank_read_data_i (
-    .clk_i,
-    .rst_ni,
+  logic [NumIds-1:0] write_resp_res_req_id_onehot;
 
-    .release_en_i(release_en_i[READ_DATA]),
+  simmem_write_resp_bank i_simmem_write_resp_bank (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
 
-    .data_i(read_data_i),
-    .data_o(read_data_o),
+    .res_req_id_onehot_i(write_resp_res_req_id_onehot),
+    .res_addr_o(write_resp_res_addr), // Reserved address
+    // Reservation handshake signals
+    .res_req_valid_i(write_resp_res_req_valid),
+    .res_req_ready_o(write_resp_res_req_ready), 
 
-    .in_valid_i(read_data_in_valid_i),
-    .in_ready_o(read_data_in_ready_o),
+    // Interface with the releaser
+    .release_en_i(write_resp_release_en),  // Multi-hot signal
+    .rel_addr_onehot_o(write_resp_released_addr_onehot),
 
-    .out_ready_i(read_data_out_ready_i),
-    .out_valid_o(read_data_out_valid_o)
+    // Interface with the real memory controller
+    .data_i(write_resp_bank_in_data), // AXI message excluding handshake
+    .data_o(write_resp_bank_out_data), // AXI message excluding handshake
+    .in_data_valid_i(write_resp_bank_in_valid),
+    .in_data_ready_o(write_resp_bank_in_ready),
+
+    // Interface with the requester
+    .out_ready_i(write_resp_bank_out_ready),
+    .out_valid_o(write_resp_bank_out_valid)
   );
 
-  simmem_linkedlist_message_bank #(
-    .StructWidth(ReadDataStructWidth),
-    .TotalCapacity(ReadDataBanksCapacity),
-    .IDWidth(IDWidth)
-  ) simmem_message_bank_write_resp_i (
-    .clk_i,
-    .rst_ni,
-
-    .release_en_i(release_en_i[WRITE_RESP]),
-
-    .data_i(write_resp_i),
-    .data_o(write_resp_o),
-
-    .in_valid_i(write_resp_in_valid_i),
-    .in_ready_o(write_resp_in_ready_o),
-
-    .out_ready_i(write_resp_out_ready_i),
-    .out_valid_o(write_resp_out_valid_o)
-  );
+  // Binary to onehot
+  write_resp_res_req_id_onehot
 
 endmodule

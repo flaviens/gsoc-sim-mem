@@ -72,7 +72,7 @@ module simmem_write_only (
     .out_valid_o(write_resp_bank_out_valid)
   );
 
-  assign write_resp_res_req_id_onehot
+  assign write_resp_res_req_id_onehot = 
 
 
   ///////////////////////////////
