@@ -43,7 +43,7 @@ class DelayBankTestbench {
     }
   }
 
-  ~DelayBankTestbench() { simmem_close_trace(); }
+  ~DelayBankTestbench(void) { simmem_close_trace(); }
 
   void simmem_reset(void) {
     module_->rst_ni = 0;
@@ -94,7 +94,7 @@ class DelayBankTestbench {
    * @param local_identifier the identifier of the incoming data
    * @param delay the delay applied as input to the module
    */
-  void simmem_input_data_apply(u_int32_t local_identifier, u_int32_t delay) {
+  void simmem_input_data_apply(uint32_t local_identifier, uint32_t delay) {
     module_->local_identifier_i = local_identifier;
     module_->delay_i = delay;
     module_->in_valid_i = 1;
@@ -103,7 +103,7 @@ class DelayBankTestbench {
   /**
    * Stops feeding data to the DUT instance.
    */
-  void simmem_input_data_stop() { module_->in_valid_i = 0; }
+  void simmem_input_data_stop(void) { module_->in_valid_i = 0; }
 
   /**
    * Signals that the corresponding local identifier has actually been released
@@ -111,14 +111,14 @@ class DelayBankTestbench {
    *
    * @param local_identifier the released local identifier
    */
-  void simmem_output_data_apply(u_int32_t local_identifier) {
+  void simmem_output_data_apply(uint32_t local_identifier) {
     module_->address_released_onehot_i = 1 << local_identifier;
   }
 
   /**
    * Sets the released local identifier one-hot signal as full-zero.
    */
-  void simmem_output_data_stop() { module_->address_released_onehot_i = 0; }
+  void simmem_output_data_stop(void) { module_->address_released_onehot_i = 0; }
 
   /**
    * Checks the module's releasable signals against the testbench's.
@@ -141,7 +141,7 @@ class DelayBankTestbench {
 
     if (kTransactionVerbose) {
       std::cout << "Release signal: " << std::hex
-                << (u_int32_t)(module_->release_en_o) << std::dec << std::endl;
+                << (uint32_t)(module_->release_en_o) << std::dec << std::endl;
     }
     for (size_t local_id = 0; local_id < kNbLocalIdentifiers; local_id++) {
       if (completed_identifiers[local_id] !=
@@ -154,7 +154,6 @@ class DelayBankTestbench {
 
  private:
   vluint32_t tick_count_;
-  vluint32_t max_clock_cycles_;
   bool record_trace_;
   std::unique_ptr<Module> module_;
   VerilatedFstC *trace_;
@@ -183,11 +182,11 @@ size_t randomized_test(DelayBankTestbench *tb, unsigned int seed) {
 
   // Stores the next local identifier that will be releasable, along with its
   // expiration time
-  std::pair<u_int32_t, size_t> next_id_and_expiration =
-      std::pair<u_int32_t, size_t>(0, ~0);
+  std::pair<uint32_t, size_t> next_id_and_expiration =
+      std::pair<uint32_t, size_t>(0, ~0);
 
   // The local identifiers that wait for releasability after input
-  std::unordered_map<u_int32_t, size_t> pending_expiration_times;
+  std::unordered_map<uint32_t, size_t> pending_expiration_times;
 
   // Currently releasable identifiers
   bool completed_identifiers[kNbLocalIdentifiers];
@@ -216,7 +215,7 @@ size_t randomized_test(DelayBankTestbench *tb, unsigned int seed) {
 
       // Update the next delay and corresponding identifier
       next_id_and_expiration.second = ~0;
-      for (std::pair<u_int32_t, size_t> pending_id_and_delay :
+      for (std::pair<uint32_t, size_t> pending_id_and_delay :
            pending_expiration_times) {
         if (pending_id_and_delay.second < next_id_and_expiration.second) {
           next_id_and_expiration = pending_id_and_delay;
@@ -233,9 +232,9 @@ size_t randomized_test(DelayBankTestbench *tb, unsigned int seed) {
     apply_output = nb_releasable_ids && (bool)(rand() & 1);
 
     if (apply_input) {
-      std::unordered_map<u_int32_t, size_t>::const_iterator found_it;
+      std::unordered_map<uint32_t, size_t>::const_iterator found_it;
       size_t tmp_input_expiration;
-      u_int32_t tmp_local_identifier;
+      uint32_t tmp_local_identifier;
 
       // Find the next local identifier to input
       do {
@@ -252,7 +251,7 @@ size_t randomized_test(DelayBankTestbench *tb, unsigned int seed) {
 
       // Update the storage of the next local identifier that expires
       if (tmp_input_expiration < next_id_and_expiration.second) {
-        next_id_and_expiration = std::pair<u_int32_t, size_t>(
+        next_id_and_expiration = std::pair<uint32_t, size_t>(
             tmp_local_identifier, tmp_input_expiration);
       }
       if (kTransactionVerbose) {
@@ -263,7 +262,7 @@ size_t randomized_test(DelayBankTestbench *tb, unsigned int seed) {
       }
 
       // Update the pending expiration times data structure
-      pending_expiration_times.insert(std::pair<u_int32_t, size_t>(
+      pending_expiration_times.insert(std::pair<uint32_t, size_t>(
           tmp_local_identifier, tmp_input_expiration));
 
       // Apply the inputs to the module
@@ -275,7 +274,7 @@ size_t randomized_test(DelayBankTestbench *tb, unsigned int seed) {
     }
 
     if (apply_output) {
-      u_int32_t tmp_output_identifier;
+      uint32_t tmp_output_identifier;
       // Determine the next identifier whose actual release will be signaled to
       // the DUT instance
       do {
@@ -308,9 +307,9 @@ int main(int argc, char **argv, char **env) {
 
   size_t nb_errors;
 
-  DelayBankTestbench *tb = new DelayBankTestbench(100, true, "delay_bank.fst");
+  DelayBankTestbench *tb = new DelayBankTestbench(true, "delay_bank.fst");
 
-  // Choose testbench type
+  // Perform the actual randomized testing
   nb_errors = randomized_test(tb, 0);
   delete tb;
 

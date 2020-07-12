@@ -18,52 +18,52 @@ module simmem #(
   input logic   clk_i,
   input logic   rst_ni,
 
-  input logic   read_addr_in_valid_i,
-  input logic   read_addr_out_ready_i,
-  output logic  read_addr_in_ready_o,
-  output logic  read_addr_out_valid_o,
+  input logic   raddr_in_valid_i,
+  input logic   raddr_out_ready_i,
+  output logic  raddr_in_ready_o,
+  output logic  raddr_out_valid_o,
 
-  input logic   write_addr_in_valid_i,
-  input logic   write_addr_out_ready_i,
-  output logic  write_addr_in_ready_o,
-  output logic  write_addr_out_valid_o,
+  input logic   waddr_in_valid_i,
+  input logic   waddr_out_ready_i,
+  output logic  waddr_in_ready_o,
+  output logic  waddr_out_valid_o,
 
-  input logic   write_data_in_valid_i,
-  input logic   write_data_out_ready_i,
-  output logic  write_data_in_ready_o,
-  output logic  write_data_out_valid_o,
+  input logic   wdata_in_valid_i,
+  input logic   wdata_out_ready_i,
+  output logic  wdata_in_ready_o,
+  output logic  wdata_out_valid_o,
 
-  input logic   read_data_in_valid_i,
-  input logic   read_data_out_ready_i,
-  output logic  read_data_in_ready_o,
-  output logic  read_data_out_valid_o,
+  input logic   rdata_in_valid_i,
+  input logic   rdata_out_ready_i,
+  output logic  rdata_in_ready_o,
+  output logic  rdata_out_valid_o,
 
-  input logic   write_resp_in_valid_i,
-  input logic   write_resp_out_ready_i,
-  output logic  write_resp_in_ready_o,
-  output logic  write_resp_out_valid_o,
+  input logic   wresp_in_valid_i,
+  input logic   wresp_out_ready_i,
+  output logic  wresp_in_ready_o,
+  output logic  wresp_out_valid_o,
 
-  input read_addr_req_t read_addr_req_i,
-  input write_addr_req_t write_addr_req_i,
-  input write_data_req_t write_data_req_i,
-  input read_data_resp_t read_data_resp_i,
-  input write_resp_t write_resp_i,
+  input raddr_req_t raddr_req_i,
+  input waddr_req_t waddr_req_i,
+  input wdata_req_t wdata_req_i,
+  input rdata_resp_t rdata_resp_i,
+  input wresp_t wresp_i,
 
-  output read_addr_req_t read_addr_req_o,
-  output write_addr_req_t write_addr_req_o,
-  output write_data_req_t write_data_req_o,
-  output read_data_resp_t read_data_resp_o,
-  output write_resp_t write_resp_o
+  output raddr_req_t raddr_req_o,
+  output waddr_req_t waddr_req_o,
+  output wdata_req_t wdata_req_o,
+  output rdata_resp_t rdata_resp_o,
+  output wresp_t wresp_o
 );
 
   // Releaser instance
 
-  logic [WriteRespBanksCapacity-1:0] write_resp_release_en;
-  logic [ReadDataBanksCapacity-1:0] read_data_release_en;
+  logic [WriteRespBanksCapacity-1:0] wresp_release_en;
+  logic [ReadDataBanksCapacity-1:0] rdata_release_en;
 
   // Blocks the transactions if the releaser is not ready
-  // logic releaser_read_data_ready;
-  // logic releaser_write_resp_ready;
+  // logic releaser_rdata_ready;
+  // logic releaser_wresp_ready;
 
   simmem_releaser #(
     // .ReadAddressStructWidth,
@@ -77,33 +77,33 @@ module simmem #(
     .clk_i,
     .rst_ni,
 
-    .read_addr_in_valid_i,
-    .read_addr_out_ready_i,
+    .raddr_in_valid_i,
+    .raddr_out_ready_i,
 
-    .write_addr_in_valid_i,
-    .write_addr_out_ready_i,
+    .waddr_in_valid_i,
+    .waddr_out_ready_i,
 
-    .write_data_in_valid_i,
-    .write_data_out_ready_i,
+    .wdata_in_valid_i,
+    .wdata_out_ready_i,
 
-    .read_data_in_valid_i,
-    .read_data_out_ready_i,
-    .read_data_in_ready_i(read_data_in_ready_o),
-    .read_data_out_valid_i(read_data_out_valid_o),
+    .rdata_in_valid_i,
+    .rdata_out_ready_i,
+    .rdata_in_ready_i(rdata_in_ready_o),
+    .rdata_out_valid_i(rdata_out_valid_o),
   
-    .write_resp_in_valid_i,
-    .write_resp_out_ready_i,
-    .write_resp_in_ready_i(write_resp_in_ready_o),
-    .write_resp_out_valid_i(write_resp_out_valid_o),
+    .wresp_in_valid_i,
+    .wresp_out_ready_i,
+    .wresp_in_ready_i(wresp_in_ready_o),
+    .wresp_out_valid_i(wresp_out_valid_o),
 
-    .read_addr_i,
-    .write_addr_i,
-    .write_data_i,
+    .raddr_i,
+    .waddr_i,
+    .wdata_i,
 
-    .write_resp_release_en_o(write_resp_release_en),
-    .read_data_release_en_o(read_data_release_en)
-    // .read_data_ready_o(releaser_read_data_ready)
-    // .releaser_write_resp_ready_o(releaser_write_resp_ready)
+    .wresp_release_en_o(wresp_release_en),
+    .rdata_release_en_o(rdata_release_en)
+    // .rdata_ready_o(releaser_rdata_ready)
+    // .releaser_wresp_ready_o(releaser_wresp_ready)
   );
 
 
@@ -119,31 +119,31 @@ module simmem #(
     .clk_i,
     .rst_ni,
   
-    .write_resp_release_en_i(write_resp_release_en),
-    .read_data_release_en_i(read_data_release_en)
+    .wresp_release_en_i(wresp_release_en),
+    .rdata_release_en_i(rdata_release_en)
   
-    .read_data_i,
-    .write_resp_i,
+    .rdata_i,
+    .wresp_i,
   
-    .read_data_o,
-    .write_resp_o,
+    .rdata_o,
+    .wresp_o,
   
-    .read_data_in_valid_i,
-    .read_data_out_ready_i,
-    .read_data_in_ready_o,
-    .read_data_out_valid_o,
+    .rdata_in_valid_i,
+    .rdata_out_ready_i,
+    .rdata_in_ready_o,
+    .rdata_out_valid_o,
   
-    .write_resp_in_valid_i,
-    .write_resp_out_ready_i,
-    .write_resp_in_ready_o,
-    .write_resp_out_valid_o
+    .wresp_in_valid_i,
+    .wresp_out_ready_i,
+    .wresp_in_ready_o,
+    .wresp_out_valid_o
   );
 
 
   // I/O signals
 
-  assign read_data_in_ready_o = read_data_out_ready_i;
-  assign read_addr_in_ready_o = read_addr_out_ready_i;
-  assign write_addr_in_ready_o = write_addr_out_ready_i;
+  assign rdata_in_ready_o = rdata_out_ready_i;
+  assign raddr_in_ready_o = raddr_out_ready_i;
+  assign waddr_in_ready_o = waddr_out_ready_i;
 
 endmodule

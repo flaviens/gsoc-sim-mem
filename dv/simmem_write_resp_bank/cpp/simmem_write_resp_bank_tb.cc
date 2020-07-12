@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Vsimmem_write_resp_bank.h"
+#include "Vsimmem_wresp_bank.h"
 #include "verilated.h"
 #include <cassert>
 #include <iostream>
@@ -28,8 +28,8 @@ typedef enum {
   MULTIPLE_ID_TEST
 } test_strategy_e;
 
-typedef Vsimmem_write_resp_bank Module;
-typedef std::map<u_int32_t, std::queue<u_int32_t>> queue_map_t;
+typedef Vsimmem_wresp_bank Module;
+typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
 const int kTestStrategy = MULTIPLE_ID_TEST;
 
@@ -59,7 +59,7 @@ class WriteRespBankTestbench {
     id_mask_ = ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~content_mask_;
   }
 
-  ~WriteRespBankTestbench() { simmem_close_trace(); }
+  ~WriteRespBankTestbench(void) { simmem_close_trace(); }
 
   void simmem_reset(void) {
     module_->rst_ni = 0;
@@ -110,7 +110,7 @@ class WriteRespBankTestbench {
    *
    * @param axi_id the AXI identifier to reserve
    */
-  void simmem_reservation_start(u_int32_t axi_id) {
+  void simmem_reservation_start(uint32_t axi_id) {
     module_->res_req_valid_i = 1;
     module_->res_req_id_onehot_i = 1 << axi_id;
   }
@@ -118,7 +118,7 @@ class WriteRespBankTestbench {
   /**
    * Sets the reservation request signal to zero.
    */
-  void simmem_reservation_stop() { module_->res_req_valid_i = 0; }
+  void simmem_reservation_stop(void) { module_->res_req_valid_i = 0; }
 
   /**
    * Applies valid input data.
@@ -128,12 +128,12 @@ class WriteRespBankTestbench {
    *
    * @return the data as seen by the design under test instance
    */
-  u_int32_t simmem_input_data_apply(u_int32_t identifier, u_int32_t content) {
+  uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t content) {
     // Checks if the given values are not too big
     assert(!(content >> kMsgWidth));
     assert(!(identifier >> kIdWidth));
 
-    u_int32_t in_data = identifier << kMsgWidth | content;
+    uint32_t in_data = identifier << kMsgWidth | content;
     module_->data_i = in_data;
     module_->in_data_valid_i = 1;
     return in_data;
@@ -142,13 +142,13 @@ class WriteRespBankTestbench {
   /**
    * Gets the newly reserved address as offered by the DUT.
    */
-  u_int32_t simmem_reservation_get_address() { return module_->res_addr_o; }
+  uint32_t simmem_reservation_get_address(void) { return module_->res_addr_o; }
 
   /**
    * Checks whether the input data has been accepted by checking the ready
    * output signal.
    */
-  bool simmem_input_data_check() {
+  bool simmem_input_data_check(void) {
     module_->eval();
     return (bool)(module_->in_data_ready_o);
   }
@@ -156,7 +156,7 @@ class WriteRespBankTestbench {
   /**
    * Checks whether the reservation request has been accepted.
    */
-  bool simmem_reservation_check() {
+  bool simmem_reservation_check(void) {
     module_->eval();
     return (bool)(module_->res_req_ready_o);
   }
@@ -164,49 +164,49 @@ class WriteRespBankTestbench {
   /**
    * Stops feeding data to the DUT instance.
    */
-  void simmem_input_data_stop() { module_->in_data_valid_i = 0; }
+  void simmem_input_data_stop(void) { module_->in_data_valid_i = 0; }
 
   /**
    * Allows all the data output from a releaser module standpoint.
    */
-  void simmem_output_data_allow() { module_->release_en_i = -1; }
+  void simmem_output_data_allow(void) { module_->release_en_i = -1; }
 
   /**
    * Forbids all the data output from a releaser module standpoint.
    */
-  void simmem_output_data_forbid() { module_->release_en_i = 0; }
+  void simmem_output_data_forbid(void) { module_->release_en_i = 0; }
 
   /**
    * Sets the ready signal to one on the output side.
    */
-  void simmem_output_data_request() { module_->out_ready_i = 1; }
+  void simmem_output_data_request(void) { module_->out_ready_i = 1; }
 
   /**
-   * Tries to fetch output data. Requires the ready signal to be one at the
+   * Tries to fetch output data. Requires the ready signal to be one at the DUT
    * output.
    *
    * @param out_data the output data from the DUT
    *
    * @return true iff the data is valid
    */
-  bool simmem_output_data_fetch(u_int32_t &out_data) {
+  bool simmem_output_data_fetch(uint32_t &out_data) {
     module_->eval();
     assert(module_->out_ready_i);
 
-    out_data = (u_int32_t)module_->data_o;
+    out_data = (uint32_t)module_->data_o;
     return (bool)(module_->out_valid_o);
   }
 
   /**
    * Sets the ready signal to zero on the output side.
    */
-  void simmem_output_data_stop() { module_->out_ready_i = 0; }
+  void simmem_output_data_stop(void) { module_->out_ready_i = 0; }
 
   /**
-   * Informs the testbench that all the requests hav been performed and
+   * Informs the testbench that all the requests have been performed and
    * therefore that the trailing cycles phase should start.
    */
-  void simmem_requests_complete() { tick_count_ = 0; }
+  void simmem_requests_complete(void) { tick_count_ = 0; }
 
   /**
    * Checks whether the testbench completed the trailing cycles phase.
@@ -220,8 +220,8 @@ class WriteRespBankTestbench {
   /**
    * Getters.
    */
-  u_int32_t simmem_get_content_mask() { return content_mask_; }
-  u_int32_t simmem_get_identifier_mask() { return id_mask_; }
+  uint32_t simmem_get_content_mask(void) { return content_mask_; }
+  uint32_t simmem_get_identifier_mask(void) { return id_mask_; }
 
  private:
   vluint32_t tick_count_;
@@ -230,8 +230,8 @@ class WriteRespBankTestbench {
   std::unique_ptr<Module> module_;
 
   // Masks that contain ones in the corresponding fields
-  u_int32_t id_mask_;
-  u_int32_t content_mask_;
+  uint32_t id_mask_;
+  uint32_t content_mask_;
   VerilatedFstC *trace_;
 };
 
@@ -287,21 +287,20 @@ void sequential_test(WriteRespBankTestbench *tb) {
 size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   srand(seed);
 
-  u_int32_t current_input_id = 4;
+  uint32_t current_input_id = 4;
   int nb_iterations = 1000;
 
   // Generate inputs
-  std::queue<u_int32_t> input_queue;
-  std::queue<u_int32_t> output_queue;
+  std::queue<uint32_t> input_queue;
+  std::queue<uint32_t> output_queue;
 
   bool reserve;
   bool apply_input;
   bool request_output_data;
 
-  u_int32_t current_content =
-      (u_int32_t)(rand() & tb->simmem_get_content_mask());
-  u_int32_t current_input;
-  u_int32_t current_output;
+  uint32_t current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
+  uint32_t current_input;
+  uint32_t current_output;
 
   tb->simmem_reset();
   // Sets the input signal from releaser such that the releaser allows all
@@ -330,7 +329,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     // Only perform the evaluation once all the inputs have been applied
     if (tb->simmem_input_data_check()) {
       input_queue.push(current_input);
-      current_content = (u_int32_t)(rand() & tb->simmem_get_content_mask());
+      current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
     }
     if (request_output_data) {
       if (tb->simmem_output_data_fetch(current_output)) {
@@ -402,7 +401,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
   int nb_iterations = 1000;
 
-  std::vector<u_int32_t> identifiers;
+  std::vector<uint32_t> identifiers;
 
   for (size_t i = 0; i < num_identifiers; i++) {
     identifiers.push_back(i);
@@ -412,10 +411,10 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   queue_map_t output_queues;
 
   for (size_t i = 0; i < num_identifiers; i++) {
-    input_queues.insert(std::pair<u_int32_t, std::queue<u_int32_t>>(
-        identifiers[i], std::queue<u_int32_t>()));
-    output_queues.insert(std::pair<u_int32_t, std::queue<u_int32_t>>(
-        identifiers[i], std::queue<u_int32_t>()));
+    input_queues.insert(std::pair<uint32_t, std::queue<uint32_t>>(
+        identifiers[i], std::queue<uint32_t>()));
+    output_queues.insert(std::pair<uint32_t, std::queue<uint32_t>>(
+        identifiers[i], std::queue<uint32_t>()));
   }
 
   bool reserve;
@@ -423,12 +422,11 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   bool request_output_data;
   bool iteration_announced;  // Variable only used for display
 
-  u_int32_t current_input_id = identifiers[rand() % num_identifiers];
-  u_int32_t current_content =
-      (u_int32_t)(rand() & tb->simmem_get_content_mask());
-  u_int32_t current_reservation_id = identifiers[rand() % num_identifiers];
-  u_int32_t current_input;
-  u_int32_t current_output;
+  uint32_t current_input_id = identifiers[rand() % num_identifiers];
+  uint32_t current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
+  uint32_t current_reservation_id = identifiers[rand() % num_identifiers];
+  uint32_t current_input;
+  uint32_t current_output;
 
   tb->simmem_reset();
   // Sets the input signal from releaser such that the releaser allows all
@@ -488,7 +486,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
       // Renew the input data if the input handshake has been successful
       current_input_id = identifiers[rand() % num_identifiers];
-      current_content = (u_int32_t)(rand() & tb->simmem_get_content_mask());
+      current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
     }
     if (request_output_data) {
       // If the output handshake has been successful, then add the output to the
@@ -505,8 +503,8 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
             std::cout << std::endl << "Step " << std::dec << i << std::endl;
           }
           std::cout << std::dec
-                    << (u_int32_t)(current_output &
-                                   ~tb->simmem_get_identifier_mask())
+                    << (uint32_t)(current_output &
+                                  ~tb->simmem_get_identifier_mask())
                     << " outputs " << std::hex << current_output << std::endl;
         }
       }
@@ -571,7 +569,7 @@ int main(int argc, char **argv, char **env) {
 
     // Instantiate the DUT instance
     WriteRespBankTestbench *tb =
-        new WriteRespBankTestbench(100, true, "write_resp_bank.fst");
+        new WriteRespBankTestbench(100, true, "wresp_bank.fst");
 
     // Perform one test for the given seed
     if (kTestStrategy == SINGLE_ID_TEST) {

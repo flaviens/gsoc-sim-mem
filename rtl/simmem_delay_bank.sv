@@ -8,7 +8,7 @@ module simmem_delay_bank (
   input logic clk_i,
   input logic rst_ni,
   
-  input logic [simmem_pkg::WriteRespBankTotalCapacity-1:0] local_identifier_i,
+  input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] local_identifier_i,
   input logic [simmem_pkg::DelayWidth-1:0] delay_i,
   input logic in_valid_i,
   

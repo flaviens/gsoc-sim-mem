@@ -24,8 +24,8 @@ module simmem_write_resp_bank (
     output logic [TotCapa-1:0] released_addr_onehot_o,
 
     // Interface with the real memory controller
-    input  simmem_pkg::write_resp_t data_i, // AXI message excluding handshake
-    output simmem_pkg::write_resp_t data_o, // AXI message excluding handshake
+    input  simmem_pkg::wresp_t data_i, // AXI message excluding handshake
+    output simmem_pkg::wresp_t data_o, // AXI message excluding handshake
     input  logic in_data_valid_i,
     output logic in_data_ready_o,
 
@@ -209,10 +209,10 @@ module simmem_write_resp_bank (
   logic [BankAddrWidth-1:0] meta_ram_in_wmask, meta_ram_out_wmask;
 
   logic [MsgWidth-1:0] msg_out_ram_data;
-  write_resp_metadata_e meta_ram_out_data;
+  wresp_metadata_e meta_ram_out_data;
 
-  write_resp_metadata_e meta_ram_in_content;
-  write_resp_metadata_e meta_ram_in_content_id[NumIds];
+  wresp_metadata_e meta_ram_in_content;
+  wresp_metadata_e meta_ram_in_content_id[NumIds];
   logic [NumIds - 1:0] meta_ram_in_content_msk_rot90[WriteRespMetadataWidth];
 
   // RAM address and aggregation message

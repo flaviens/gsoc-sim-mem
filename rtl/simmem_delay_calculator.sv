@@ -5,8 +5,8 @@
 // TODO: Add the management of read data
 
 module simmem_delay_calculator (
-  input logic clk_i,
-  input logic rst_ni,
+  // input logic clk_i,
+  // input logic rst_ni,
   
   input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] wresp_local_id_i,
   input logic in_valid_i,

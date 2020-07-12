@@ -47,7 +47,7 @@ package simmem_pkg;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxQoSWidth-1:0] qos;
   // logic [AwUserWidth-1:0] user_signal;
-  } write_addr_req_t;
+  } waddr_req_t;
 
   typedef struct packed {
     logic [IDWidth-1:0] id;
@@ -60,7 +60,7 @@ package simmem_pkg;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxQoSWidth-1:0] qos;
   // logic [ArUserWidth-1:0] user_signal;
-  } read_addr_req_t;
+  } raddr_req_t;
 
   typedef struct packed {
     logic [IDWidth-1:0] id;
@@ -68,7 +68,7 @@ package simmem_pkg;
     logic [WStrbWidth-1:0] strobes;
     logic [XLastWidth-1:0] last;
   // logic [WUserWidth-1:0] user_signal;
-  } write_data_req_t;
+  } wdata_req_t;
 
   typedef struct packed {
     logic [IDWidth-1:0] id;
@@ -76,7 +76,7 @@ package simmem_pkg;
     logic [WStrbWidth-1:0] response;
     logic [XLastWidth-1:0] last;
   // logic [RUserWidth-1:0] user_signal;
-  } read_data_resp_t;
+  } rdata_resp_t;
 
   localparam ReadDataRespWidth = IDWidth + XDataWidth + WStrbWidth + XLastWidth;
 
@@ -84,7 +84,7 @@ package simmem_pkg;
     logic [IDWidth-1:0] id;
     logic [XRespWidth-1:0] content;
   // logic [BUserWidth-1:0] user_signal;
-  } write_resp_t;
+  } wresp_t;
 
   localparam WriteRespWidth = IDWidth + XRespWidth;
 
@@ -108,7 +108,7 @@ package simmem_pkg;
   // Enumerations for banks //
   ////////////////////////////
 
-  typedef struct packed {logic [WriteRespBankAddrWidth-1:0] nxt_elem;} write_resp_metadata_e;
+  typedef struct packed {logic [WriteRespBankAddrWidth-1:0] nxt_elem;} wresp_metadata_e;
 
   localparam WriteRespMetadataWidth = WriteRespBankAddrWidth;
 
