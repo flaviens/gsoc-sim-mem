@@ -8,13 +8,13 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
+#include <queue>
 #include <stdlib.h>
 #include <unordered_map>
 #include <vector>
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
-const bool kPairsVerbose = false;
 const bool kTransactionVerbose = false;
 
 const int kResetLength = 5;
@@ -27,8 +27,13 @@ const size_t kNbLocalIdentifiers = 32;
 const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 
 typedef Vsimmem_write_only_nocontent Module;
-typedef std::map<uint64_t, std::queue<WriteAddressRequest>> waddr_queue_map_t;
+
 typedef std::map<uint64_t, std::queue<WriteResponse>> wresp_queue_map_t;
+// Maps mapping AXI identifiers to queues of pairs (timestamp, message)
+typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>
+    waddr_time_queue_map_t;
+typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
+    wresp_time_queue_map_t;
 
 // This class implements elementary operations for the testbench
 class SimmemWriteOnlyNoBurstTestbench {
@@ -106,6 +111,14 @@ class SimmemWriteOnlyNoBurstTestbench {
   }
 
   /**
+   * Checks whether the input request has been accepted.
+   */
+  bool simmem_requester_waddr_check() {
+    module_->eval();
+    return (bool)(module_->waddr_in_ready_o);
+  }
+
+  /**
    * Stops feeding a valid input write address request as the requester.
    */
   void simmem_requester_waddr_stop(void) { module_->waddr_in_valid_i = 0; }
@@ -145,6 +158,14 @@ class SimmemWriteOnlyNoBurstTestbench {
   void simmem_realmem_wresp_apply(WriteResponse wresp) {
     module_->wresp_data_i = wresp.to_packed();
     module_->wresp_in_valid_i = 1;
+  }
+
+  /**
+   * Checks whether the input request has been accepted.
+   */
+  bool simmem_realmem_wresp_check() {
+    module_->eval();
+    return (bool)(module_->wresp_in_ready_o);
   }
 
   /**
@@ -206,9 +227,21 @@ class RealMemoryController {
  public:
   RealMemoryController(std::vector<uint64_t> identifiers) {
     for (size_t i = 0; i < identifiers.size(); i++) {
-      wresp_queues.insert(std::pair<uint64_t, std::queue<WriteResponse>>(
+      wresp_out_queues.insert(std::pair<uint64_t, std::queue<WriteResponse>>(
           identifiers[i], std::queue<WriteResponse>()));
     }
+  }
+
+  /**
+   * Adds a new write address to the received list.
+   */
+  void add_waddr(WriteAddressRequest waddr) {
+    WriteResponse new_resp;
+    new_resp.content =  // Copy the low order content of the incoming waddr in
+                        // the corresponding wresp
+        waddr.to_packed() &
+        (1L << (PackedW - 1)) >> (PackedW - WriteResponse::content_w);
+    wresp_out_queues[waddr.id].push(new_resp);
   }
 
   /**
@@ -218,8 +251,8 @@ class RealMemoryController {
    * @return 1 iff the real controller holds a valid write response.
    */
   bool has_wresp_to_input() {
-    queue_map_t::iterator it;
-    for (it = wresp_queues.begin(); it != wresp_queues.end(); it++) {
+    wresp_queue_map_t::iterator it;
+    for (it = wresp_out_queues.begin(); it != wresp_out_queues.end(); it++) {
       if (it->second.size()) {
         return true;
       }
@@ -234,34 +267,33 @@ class RealMemoryController {
    * @return the write response.
    */
   WriteResponse get_next_wresp() {
-    queue_map_t::iterator it;
-    for (it = wresp_queues.begin(); it != wresp_queues.end(); it++) {
+    wresp_queue_map_t::iterator it;
+    for (it = wresp_out_queues.begin(); it != wresp_out_queues.end(); it++) {
       if (it->second.size()) {
         return it->second.front();
       }
     }
-    assert(true);
+    assert(false);
   }
 
   /**
-   * Gets the next write response. Assumes there is one ready.
-   * This function is destructive: the write response is popped.
+   * Pops the next write response. Assumes there is one ready.
    *
-   * @return the write response.
    */
-  uint64_t pop_next_wresp() {
-    queue_map_t::iterator it;
-    for (it = wresp_queues.begin(); it != wresp_queues.end(); it++) {
+  void pop_next_wresp() {
+    wresp_queue_map_t::iterator it;
+    for (it = wresp_out_queues.begin(); it != wresp_out_queues.end(); it++) {
       if (it->second.size()) {
-        return it->second.pop();
+        it->second.pop();
+        return;
       }
     }
-    assert(true);
+    assert(false);
   }
 
  private:
-  wresp_queue_map_t wresp_queues;
-}
+  wresp_queue_map_t wresp_out_queues;
+};
 
 void simple_testbench(SimmemWriteOnlyNoBurstTestbench *tb) {
   tb->simmem_reset();
@@ -277,7 +309,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
                           size_t num_identifiers, unsigned int seed) {
   srand(seed);
 
-  int nb_iterations = 1000;
+  size_t nb_iterations = 1000;
 
   std::vector<uint64_t> identifiers;
 
@@ -287,118 +319,158 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
   RealMemoryController realmem(identifiers);
 
-  waddr_queue_t waddr_queues;
-  wresp_queue_t wresp_queues;
+  waddr_time_queue_map_t waddr_in_queues;
+  waddr_time_queue_map_t waddr_out_queues;
+  wresp_time_queue_map_t wresp_in_queues;
+  wresp_time_queue_map_t wresp_out_queues;
 
   for (size_t i = 0; i < num_identifiers; i++) {
-    waddr_queues.insert(std::pair<uint64_t, std::queue<WriteAddressRequest>>(
-        identifiers[i], std::queue<WriteAddressRequest>()));
-    wresp_queues.insert(std::pair<uint64_t, std::queue<WriteResponse>>(
-        identifiers[i], std::queue<WriteResponse>()));
+    waddr_in_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
+            identifiers[i],
+            std::queue<std::pair<size_t, WriteAddressRequest>>()));
+    waddr_out_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
+            identifiers[i],
+            std::queue<std::pair<size_t, WriteAddressRequest>>()));
+    wresp_in_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>(
+            identifiers[i], std::queue<std::pair<size_t, WriteResponse>>()));
+    wresp_out_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>(
+            identifiers[i], std::queue<std::pair<size_t, WriteResponse>>()));
   }
 
-  bool requester_apply_input_data;
-  bool realmem_apply_input_data;
-  bool requester_req_output_data;
-  bool realmem_req_output_data;
+  bool requester_apply_waddr_input_data;
+  bool realmem_apply_wresp_input_data;
+  bool requester_req_wresp_output_data;
+  bool realmem_req_waddr_output_data;
 
   bool iteration_announced;  // Variable only used for display
 
   WriteAddressRequest requester_current_input;  // Input from the requester
-  requester_current_input
-      .from_packed(rand() % PackedWidth)
-          requester_current_input.id = identifiers[rand() % num_identifiers];
-
+  requester_current_input.from_packed(rand() % PackedW);
+  requester_current_input.id = identifiers[rand() % num_identifiers];
   WriteResponse requester_current_output;  // Output to the requester
 
-  uint64_t realmem_current_input;   // Input from the real memory controller
-  uint64_t realmem_current_output;  // Output to the real memory controller
+  WriteResponse realmem_current_input;         // Input from the realmem
+  WriteAddressRequest realmem_current_output;  // Output to the realmem
 
   tb->simmem_reset();
 
-  for (size_t i = 0; i < nb_iterations; i++) {
+  for (size_t curr_itern = 0; curr_itern < nb_iterations; curr_itern++) {
     iteration_announced = false;
 
     // Randomize the boolean signals deciding which interactions will take place
     // in this cycle
-    requester_apply_input_data = (bool)(rand() & 1);
-    requester_req_output_data = (bool)(rand() & 1);
-    realmem_apply_input_data =
-        realmem.has_write_data_to_input(realmem_current_output);
-    // The real memory controller is supposedly always ready to get data
-    realmem_req_output_data = 1;
+    requester_apply_waddr_input_data = (bool)(rand() & 1);
+    requester_req_wresp_output_data = true;
+    // The requester is supposedly always ready to get data, for precise delay
+    // calculation
+    realmem_apply_wresp_input_data = realmem.has_wresp_to_input();
+    // The real memory controller is supposedly always ready to get data, for
+    // precise delay calculation
+    realmem_req_waddr_output_data = 1;
 
-    if (requester_apply_input_data) {
+    if (requester_apply_waddr_input_data) {
       // Apply a given input
-      tb->simmem_requester_waddr_apply(current_input_id, current_content);
+      tb->simmem_requester_waddr_apply(requester_current_input);
     }
-    if (requester_req_output_data) {
-      // Try to fetch an output if the handshake is successful
+    if (requester_req_wresp_output_data) {
+      // Express readiness
       tb->simmem_requester_wresp_request();
     }
-    // if (simmem_apply_input_data) {
-    //   // Apply a given input
-    //   tb->simmem_requester_waddr_apply(current_input_id, current_content);
-    // }
-    // if (requester_req_output_data) {
-    //   // Try to fetch an output if the handshake is successful
-    //   tb->simmem_requester_wresp_request();
-    // }
-
-    // TODO: Continue here by adding the interaction with the real memory
-    // controller
-
-    // Only perform the evaluation once all the inputs have been applied
-    if (reserve && tb->simmem_reservation_check()) {
-      if (kTransactionsVerbose) {
-        if (!iteration_announced) {
-          iteration_announced = true;
-          std::cout << std::endl << "Step " << std::dec << i << std::endl;
-        }
-        std::cout << current_reservation_id << " reserves "
-                  << tb->simmem_reservation_get_address() << std::endl;
-      }
-
-      // Renew the reservation identifier if the reservation has been successful
-      current_reservation_id = identifiers[rand() % num_identifiers];
+    if (realmem_apply_wresp_input_data) {
+      // Apply the next available wresp from the real memory controller
+      tb->simmem_realmem_wresp_apply(realmem.get_next_wresp());
     }
-    if (tb->simmem_input_data_check()) {
-      // If the input handshake has been successful, then add the input into the
-      // corresponding queue
+    if (realmem_req_waddr_output_data) {
+      // Express readiness
+      tb->simmem_realmem_waddr_request();
+    }
 
-      waddr_queues[current_input_id].push(current_input);
-      if (kTransactionsVerbose) {
+    // Input handshakes
+    if (requester_apply_waddr_input_data &&
+        tb->simmem_requester_waddr_check()) {
+      // If the input handshake between the requester and the simmem has been
+      // successful, then accept the input
+
+      waddr_in_queues[requester_current_input.id].push(
+          std::pair<size_t, WriteAddressRequest>(curr_itern,
+                                                 requester_current_input));
+      if (kTransactionVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
-          std::cout << std::endl << "Step " << std::dec << i << std::endl;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
         }
-        std::cout << std::dec << current_input_id << " inputs " << std::hex
-                  << current_input << std::endl;
+        std::cout << "Requester inputted " << std::hex
+                  << requester_current_input.to_packed() << std::endl;
       }
 
       // Renew the input data if the input handshake has been successful
-      current_input_id = identifiers[rand() % num_identifiers];
-      current_content = (uint64_t)(rand() & tb->simmem_get_content_mask());
+      requester_current_input.from_packed(rand() % PackedW);
+      requester_current_input.id = identifiers[rand() % num_identifiers];
     }
-    if (requester_req_output_data) {
-      // If the output handshake has been successful, then add the output to the
-      // corresponding queue
-      if (tb->simmem_output_data_fetch(current_output)) {
-        wresp_queues[identifiers[(current_output &
-                                  tb->simmem_get_identifier_mask()) >>
-                                 kMsgWidth]]
-            .push(current_output);
-
-        if (kTransactionsVerbose) {
-          if (!iteration_announced) {
-            iteration_announced = true;
-            std::cout << std::endl << "Step " << std::dec << i << std::endl;
-          }
-          std::cout << std::dec
-                    << (uint64_t)(current_output &
-                                  ~tb->simmem_get_identifier_mask())
-                    << " outputs " << std::hex << current_output << std::endl;
+    if (realmem_apply_wresp_input_data && tb->simmem_realmem_wresp_check()) {
+      // If the input handshake between the realmem and the simmem has been
+      // successful, then accept the input
+      realmem_current_input = realmem.get_next_wresp();
+      wresp_in_queues[realmem_current_input.id].push(
+          std::pair<size_t, WriteResponse>(curr_itern, realmem_current_input));
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
         }
+        std::cout << "Realmem inputted " << std::hex
+                  << realmem_current_input.to_packed() << std::endl;
+      }
+
+      // Renew the input data if the input handshake has been successful
+      realmem_current_input.from_packed(rand() % PackedW);
+      realmem_current_input.id = identifiers[rand() % num_identifiers];
+    }
+
+    // Output handshakes
+    if (requester_req_wresp_output_data &&
+        tb->simmem_requester_wresp_fetch(requester_current_output)) {
+      // If the output handshake between the requester and the simmem has been
+      // successful, then accept the output
+      wresp_out_queues[identifiers[requester_current_output.id]].push(
+          std::pair<size_t, WriteResponse>(curr_itern,
+                                           requester_current_output));
+
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
+        }
+        std::cout << "Requester received wresp " << std::hex
+                  << requester_current_output.to_packed() << std::endl;
+      }
+    }
+    if (realmem_req_waddr_output_data &&
+        tb->simmem_realmem_waddr_fetch(realmem_current_output)) {
+      // If the output handshake between the realmem and the simmem has been
+      // successful, then accept the output
+      waddr_out_queues[identifiers[realmem_current_output.id]].push(
+          std::pair<size_t, WriteAddressRequest>(curr_itern,
+                                                 realmem_current_output));
+
+      // Let the realmem treat the freshly received waddr
+      realmem.add_waddr(realmem_current_output);
+
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
+        }
+        std::cout << "Realmem received waddr " << std::hex
+                  << realmem_current_output.to_packed() << std::endl;
       }
     }
 
@@ -407,14 +479,17 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
     // Reset all signals after tick (they may be set again before the next DUT
     // evaluation during the beginning of the next iteration)
 
-    if (reserve) {
-      tb->simmem_reservation_stop();
+    if (requester_apply_waddr_input_data) {
+      tb->simmem_requester_waddr_stop();
     }
-    if (requester_apply_input_data) {
-      tb->simmem_input_data_stop();
+    if (requester_req_wresp_output_data) {
+      tb->simmem_requester_wresp_stop();
     }
-    if (requester_req_output_data) {
-      tb->simmem_output_data_stop();
+    if (realmem_apply_wresp_input_data) {
+      tb->simmem_realmem_wresp_stop();
+    }
+    if (realmem_req_waddr_output_data) {
+      tb->simmem_realmem_waddr_stop();
     }
   }
 
@@ -423,29 +498,23 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
     tb->simmem_tick();
   }
 
-  // Check the input and output queues for mismatches
-  size_t nb_mismatches = 0;
-  for (size_t i = 0; i < num_identifiers; i++) {
-    while (!waddr_queues[i].empty() && !wresp_queues[i].empty()) {
-      current_input = waddr_queues[i].front();
-      current_output = wresp_queues[i].front();
+  // Time of message entrance and output
+  size_t in_time, out_time;
 
-      waddr_queues[i].pop();
-      wresp_queues[i].pop();
-      if (kPairsVerbose) {
-        std::cout << std::hex << current_input << " - " << current_output
-                  << std::endl;
-      }
-      nb_mismatches += (size_t)(current_input != current_output);
+  for (size_t curr_id = 0; curr_id < num_identifiers; curr_id++) {
+    std::cout << "\n--- AXI ID " << std::dec << curr_id << " ---" << std::endl;
+
+    while (!waddr_in_queues[curr_id].empty() &&
+           !wresp_out_queues[curr_id].empty()) {
+      in_time = waddr_in_queues[curr_id].front().first;
+      out_time = wresp_out_queues[curr_id].front().first;
+
+      waddr_in_queues[curr_id].pop();
+      wresp_out_queues[curr_id].pop();
+      std::cout << "Delay: " << std::dec << out_time - in_time << "."
+                << std::endl;
     }
   }
-  if (kPairsVerbose) {
-    std::cout << std::endl
-              << "Mismatches: " << std::dec << nb_mismatches << std::endl
-              << std::endl;
-  }
-
-  return nb_mismatches;
 }
 
 int main(int argc, char **argv, char **env) {
@@ -456,7 +525,9 @@ int main(int argc, char **argv, char **env) {
       100, true, "write_only_nocontent.fst");
 
   // Choose testbench type
-  simple_testbench(tb);
+  // simple_testbench(tb);
+  randomized_testbench(tb, 1, 0);
+
   delete tb;
 
   // std::cout << nb_errors << " errors uncovered." << std::endl;

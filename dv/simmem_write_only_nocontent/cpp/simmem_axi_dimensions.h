@@ -28,13 +28,13 @@ const uint64_t ArUserWidth = 0;
 // Data & response field widths
 const uint64_t XDataWidth = 32;
 const uint64_t XLastWidth = 1;
-const uint64_t XRespWidth = 3;
+const uint64_t XRespWidth = 10;  // TODO: Set to 3
 const uint64_t WUserWidth = 0;
 const uint64_t RUserWidth = 0;
 const uint64_t BUserWidth = 0;
 
 const uint64_t WStrbWidth = XDataWidth >> 3;
 
-const unsigned int PackedWidth = 64;
+const unsigned int PackedW = 64;
 
 #endif  // SIMMEM_DV_AXI_DIMENSIONS

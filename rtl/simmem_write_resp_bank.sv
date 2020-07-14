@@ -537,41 +537,39 @@ module simmem_write_resp_bank (
     end
   end
 
-  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_seq_by_id
-    always_ff @(posedge clk_i or negedge rst_ni) begin
-      if (!rst_ni) begin
-        mids_q[i_id] <= '0;
-        heads_q[i_id] <= '0;
-        prev_tails_q[i_id] <= '0;
-        tails_q[i_id] <= '0;
-        mid_len_q[i_id] <= '0;
-        rsrvn_len_q[i_id] <= '0;
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      mids_q <= '{default: '0};
+      heads_q <= '{default: '0};
+      prev_tails_q <= '{default: '0};
+      tails_q <= '{default: '0};
+      mid_len_q <= '{default: '0};
+      rsrvn_len_q <= '{default: '0};
 
-        update_t_from_ram_q[i_id] <= '0;
-        update_m_from_ram_q[i_id] <= '0;
+      update_t_from_ram_q <= '{default: '0};
+      update_m_from_ram_q <= '{default: '0};
 
-        is_middle_emptybox_q[i_id] <= 1'b1;
+      is_middle_emptybox_q <= '{default: '1};
 
-        pgbk_pt_with_m_q[i_id] <= '0;
-        pgbk_t_with_m_q[i_id] <= '0;
-      end else begin
-        mids_q[i_id] <= mids_d[i_id];
-        heads_q[i_id] <= heads_d[i_id];
-        prev_tails_q[i_id] <= prev_tails_d[i_id];
-        tails_q[i_id] <= tails_d[i_id];
-        mid_len_q[i_id] <= mid_len_d[i_id];
-        rsrvn_len_q[i_id] <= rsrvn_len_d[i_id];
+      pgbk_pt_with_m_q <= '{default: '0};
+      pgbk_t_with_m_q <= '{default: '0};
+    end else begin
+      mids_q <= mids_d;
+      heads_q <= heads_d;
+      prev_tails_q <= prev_tails_d;
+      tails_q <= tails_d;
+      mid_len_q <= mid_len_d;
+      rsrvn_len_q <= rsrvn_len_d;
 
-        update_t_from_ram_q[i_id] <= update_t_from_ram_d[i_id];
-        update_m_from_ram_q[i_id] <= update_m_from_ram_d[i_id];
+      update_t_from_ram_q <= update_t_from_ram_d;
+      update_m_from_ram_q <= update_m_from_ram_d;
 
-        is_middle_emptybox_q[i_id] <= is_middle_emptybox_d[i_id];
+      is_middle_emptybox_q <= is_middle_emptybox_d;
 
-        pgbk_pt_with_m_q[i_id] <= pgbk_pt_with_m_d[i_id];
-        pgbk_t_with_m_q[i_id] <= pgbk_t_with_m_d[i_id];
-      end
+      pgbk_pt_with_m_q <= pgbk_pt_with_m_d;
+      pgbk_t_with_m_q <= pgbk_t_with_m_d;
     end
-  end : gen_seq_by_id
+  end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin

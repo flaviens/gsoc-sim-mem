@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Vsimmem_wresp_bank.h"
+#include "Vsimmem_write_resp_bank.h"
 #include "verilated.h"
 #include <cassert>
 #include <iostream>
@@ -28,7 +28,7 @@ typedef enum {
   MULTIPLE_ID_TEST
 } test_strategy_e;
 
-typedef Vsimmem_wresp_bank Module;
+typedef Vsimmem_write_resp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
 const int kTestStrategy = MULTIPLE_ID_TEST;
@@ -179,7 +179,7 @@ class WriteRespBankTestbench {
   /**
    * Sets the ready signal to one on the output side.
    */
-  void simmem_output_data_request(void) { module_->out_ready_i = 1; }
+  void simmem_output_data_request(void) { module_->out_data_ready_i = 1; }
 
   /**
    * Tries to fetch output data. Requires the ready signal to be one at the DUT
@@ -191,16 +191,16 @@ class WriteRespBankTestbench {
    */
   bool simmem_output_data_fetch(uint32_t &out_data) {
     module_->eval();
-    assert(module_->out_ready_i);
+    assert(module_->out_data_ready_i);
 
     out_data = (uint32_t)module_->data_o;
-    return (bool)(module_->out_valid_o);
+    return (bool)(module_->out_data_valid_o);
   }
 
   /**
    * Sets the ready signal to zero on the output side.
    */
-  void simmem_output_data_stop(void) { module_->out_ready_i = 0; }
+  void simmem_output_data_stop(void) { module_->out_data_ready_i = 0; }
 
   /**
    * Informs the testbench that all the requests have been performed and
@@ -288,7 +288,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   srand(seed);
 
   uint32_t current_input_id = 4;
-  int nb_iterations = 1000;
+  size_t nb_iterations = 1000;
 
   // Generate inputs
   std::queue<uint32_t> input_queue;
@@ -399,7 +399,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
                          unsigned int seed) {
   srand(seed);
 
-  int nb_iterations = 1000;
+  size_t nb_iterations = 1000;
 
   std::vector<uint32_t> identifiers;
 
@@ -546,11 +546,6 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
       }
       nb_mismatches += (size_t)(current_input != current_output);
     }
-  }
-  if (kPairsVerbose) {
-    std::cout << std::endl
-              << "Mismatches: " << std::dec << nb_mismatches << std::endl
-              << std::endl;
   }
 
   return nb_mismatches;
