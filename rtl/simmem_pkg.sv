@@ -29,7 +29,7 @@ package simmem_pkg;
   // Data & response field widths
   localparam XDataWidth = 32;
   localparam XLastWidth = 1;
-  localparam XRespWidth = 3;
+  localparam XRespWidth = 10;  // TODO: Set to 3
   localparam WUserWidth = 0;
   localparam RUserWidth = 0;
   localparam BUserWidth = 0;
@@ -37,53 +37,53 @@ package simmem_pkg;
   localparam WStrbWidth = XDataWidth / 8;
 
   typedef struct packed {
-    logic [IDWidth-1:0] id;
-    logic [AxAddrWidth-1:0] addr;
-    logic [AxLenWidth-1:0] burst_length;
-    logic [AxSizeWidth-1:0] burst_size;
-    logic [AxBurstWidth-1:0] burst_type;
-    logic [AxLockWidth-1:0] lock_type;
-    logic [AxCacheWidth-1:0] memory_type;
-    logic [AxProtWidth-1:0] protection_type;
+    // logic [AwUserWidth-1:0] user_signal;
     logic [AxQoSWidth-1:0] qos;
-  // logic [AwUserWidth-1:0] user_signal;
+    logic [AxProtWidth-1:0] protection_type;
+    logic [AxCacheWidth-1:0] memory_type;
+    logic [AxLockWidth-1:0] lock_type;
+    logic [AxBurstWidth-1:0] burst_type;
+    logic [AxSizeWidth-1:0] burst_size;
+    logic [AxLenWidth-1:0] burst_length;
+    logic [AxAddrWidth-1:0] addr;
+    logic [IDWidth-1:0] id;
   } waddr_req_t;
 
   typedef struct packed {
-    logic [IDWidth-1:0] id;
-    logic [AxAddrWidth-1:0] addr;
-    logic [AxLenWidth-1:0] burst_length;
-    logic [AxSizeWidth-1:0] burst_size;
-    logic [AxBurstWidth-1:0] burst_type;
-    logic [AxLockWidth-1:0] lock_type;
-    logic [AxCacheWidth-1:0] memory_type;
-    logic [AxProtWidth-1:0] protection_type;
+    // logic [ArUserWidth-1:0] user_signal;
     logic [AxQoSWidth-1:0] qos;
-  // logic [ArUserWidth-1:0] user_signal;
+    logic [AxProtWidth-1:0] protection_type;
+    logic [AxCacheWidth-1:0] memory_type;
+    logic [AxLockWidth-1:0] lock_type;
+    logic [AxBurstWidth-1:0] burst_type;
+    logic [AxSizeWidth-1:0] burst_size;
+    logic [AxLenWidth-1:0] burst_length;
+    logic [AxAddrWidth-1:0] addr;
+    logic [IDWidth-1:0] id;
   } raddr_req_t;
 
   typedef struct packed {
-    logic [IDWidth-1:0] id;
-    logic [XDataWidth-1:0] data;
-    logic [WStrbWidth-1:0] strobes;
+    // logic [WUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
-  // logic [WUserWidth-1:0] user_signal;
+    logic [WStrbWidth-1:0] strobes;
+    logic [XDataWidth-1:0] data;
+    logic [IDWidth-1:0] id;
   } wdata_req_t;
 
   typedef struct packed {
-    logic [IDWidth-1:0] id;
-    logic [XDataWidth-1:0] data;
-    logic [WStrbWidth-1:0] response;
+    // logic [RUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
-  // logic [RUserWidth-1:0] user_signal;
+    logic [WStrbWidth-1:0] response;
+    logic [XDataWidth-1:0] data;
+    logic [IDWidth-1:0] id;
   } rdata_resp_t;
 
   localparam ReadDataRespWidth = IDWidth + XDataWidth + WStrbWidth + XLastWidth;
 
   typedef struct packed {
-    logic [IDWidth-1:0] id;
+    // logic [BUserWidth-1:0] user_signal;
     logic [XRespWidth-1:0] content;
-  // logic [BUserWidth-1:0] user_signal;
+    logic [IDWidth-1:0] id;
   } wresp_t;
 
   localparam WriteRespWidth = IDWidth + XRespWidth;

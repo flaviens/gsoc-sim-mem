@@ -15,7 +15,7 @@
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
-const bool kTransactionVerbose = false;
+const bool kTransactionVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -157,6 +157,7 @@ class SimmemWriteOnlyNoBurstTestbench {
    */
   void simmem_realmem_wresp_apply(WriteResponse wresp) {
     module_->wresp_data_i = wresp.to_packed();
+
     module_->wresp_in_valid_i = 1;
   }
 
@@ -237,10 +238,12 @@ class RealMemoryController {
    */
   void add_waddr(WriteAddressRequest waddr) {
     WriteResponse new_resp;
+    new_resp.id = waddr.id;
     new_resp.content =  // Copy the low order content of the incoming waddr in
                         // the corresponding wresp
-        waddr.to_packed() &
-        (1L << (PackedW - 1)) >> (PackedW - WriteResponse::content_w);
+        (waddr.to_packed() >> WriteAddressRequest::id_w) &
+        ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::content_w));
+
     wresp_out_queues[waddr.id].push(new_resp);
   }
 
@@ -349,7 +352,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
   bool iteration_announced;  // Variable only used for display
 
   WriteAddressRequest requester_current_input;  // Input from the requester
-  requester_current_input.from_packed(rand() % PackedW);
+  requester_current_input.from_packed(rand());
   requester_current_input.id = identifiers[rand() % num_identifiers];
   WriteResponse requester_current_output;  // Output to the requester
 
@@ -409,13 +412,16 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
       }
 
       // Renew the input data if the input handshake has been successful
-      requester_current_input.from_packed(rand() % PackedW);
+      requester_current_input.from_packed(rand());
       requester_current_input.id = identifiers[rand() % num_identifiers];
     }
     if (realmem_apply_wresp_input_data && tb->simmem_realmem_wresp_check()) {
       // If the input handshake between the realmem and the simmem has been
       // successful, then accept the input
+
       realmem_current_input = realmem.get_next_wresp();
+      realmem.pop_next_wresp();
+
       wresp_in_queues[realmem_current_input.id].push(
           std::pair<size_t, WriteResponse>(curr_itern, realmem_current_input));
       if (kTransactionVerbose) {
@@ -429,7 +435,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
       }
 
       // Renew the input data if the input handshake has been successful
-      realmem_current_input.from_packed(rand() % PackedW);
+      realmem_current_input.from_packed(rand());
       realmem_current_input.id = identifiers[rand() % num_identifiers];
     }
 
@@ -500,6 +506,8 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
   // Time of message entrance and output
   size_t in_time, out_time;
+  WriteAddressRequest in_req;
+  WriteResponse out_res;
 
   for (size_t curr_id = 0; curr_id < num_identifiers; curr_id++) {
     std::cout << "\n--- AXI ID " << std::dec << curr_id << " ---" << std::endl;
@@ -509,10 +517,14 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
       in_time = waddr_in_queues[curr_id].front().first;
       out_time = wresp_out_queues[curr_id].front().first;
 
+      in_req = waddr_in_queues[curr_id].front().second;
+      out_res = wresp_out_queues[curr_id].front().second;
+
       waddr_in_queues[curr_id].pop();
       wresp_out_queues[curr_id].pop();
-      std::cout << "Delay: " << std::dec << out_time - in_time << "."
-                << std::endl;
+      std::cout << "Delay: " << std::dec << out_time - in_time << std::hex
+                << " (waddr: " << in_req.to_packed()
+                << ", wresp: " << out_res.to_packed() << ")." << std::endl;
     }
   }
 }

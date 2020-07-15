@@ -285,7 +285,7 @@ module simmem_write_resp_bank (
   // middle pointer from RAM).
   // This signal could be more fine-grained by excluding cases where the output from RAM will not
   // be taken into account.
-  assign meta_ram_out_req = |nxt_id_to_release_onehot || (in_data_ready_o && in_data_valid_i);
+  assign meta_ram_out_req = 1;
 
   assign msg_ram_in_write = 1'b1;
   assign msg_ram_out_write = 1'b0;

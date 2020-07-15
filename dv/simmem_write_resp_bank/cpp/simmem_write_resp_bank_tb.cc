@@ -573,7 +573,7 @@ int main(int argc, char **argv, char **env) {
     } else if (kTestStrategy == SINGLE_ID_TEST) {
       local_nb_mismatches = single_id_test(tb, seed);
     } else {
-      local_nb_mismatches = multiple_ids_test(tb, 5, seed);
+      local_nb_mismatches = multiple_ids_test(tb, 1, seed);
     }
 
     total_nb_mismatches += local_nb_mismatches;
