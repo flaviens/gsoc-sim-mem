@@ -18,7 +18,7 @@ module simmem_delay_calculator (
 
   import simmem_pkg::*;
 
-  assign delay_o = 10;  // Fixed delay of 10 cycles for now
+  assign delay_o = 30;  // Fixed delay of 10 cycles for now
   assign local_id_o = wresp_local_id_i;
   assign out_valid_o = in_valid_i;
 

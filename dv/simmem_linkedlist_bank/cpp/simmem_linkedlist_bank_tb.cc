@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Vsimmem_write_resp_bank.h"
+#include "Vsimmem_linkedlist_bank.h"
 #include "verilated.h"
 #include <cassert>
 #include <iostream>
@@ -14,12 +14,12 @@
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
-const bool kTransactionsVerbose = true;
-const bool kPairsVerbose = true;
+const bool kTransactionsVerbose = false;
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kMsgWidth = 10;  // Whole message width
+const int kMsgWidth = 3;
 const int kIdWidth = 4;
 
 typedef enum {
@@ -28,7 +28,7 @@ typedef enum {
   MULTIPLE_ID_TEST
 } test_strategy_e;
 
-typedef Vsimmem_write_resp_bank Module;
+typedef Vsimmem_linkedlist_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
 const int kTestStrategy = MULTIPLE_ID_TEST;
@@ -55,11 +55,8 @@ class WriteRespBankTestbench {
     }
 
     // Puts ones at the fields' places
-    id_mask_ = ~((1 << 31) >> (31 - kIdWidth));
-    content_mask_ = ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~id_mask_;
-
-    std::cout << "ID mask:      " << std::hex << id_mask_ << std::endl;
-    std::cout << "Content mask: " << std::hex << content_mask_ << std::endl;
+    content_mask_ = ~((1 << 31) >> (31 - kMsgWidth));
+    id_mask_ = ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~content_mask_;
   }
 
   ~WriteRespBankTestbench(void) { simmem_close_trace(); }
@@ -105,63 +102,6 @@ class WriteRespBankTestbench {
         trace_->flush();
       }
     }
-  }
-
-  /**
-   * Sets the reservation request signal to one and the reservation request
-   * identifier to the right value.
-   *
-   * @param axi_id the AXI identifier to reserve
-   */
-  void simmem_reservation_start(uint32_t axi_id) {
-    module_->res_req_valid_i = 1;
-    module_->res_req_id_onehot_i = 1 << axi_id;
-  }
-
-  /**
-   * Sets the reservation request signal to zero.
-   */
-  void simmem_reservation_stop(void) { module_->res_req_valid_i = 0; }
-
-  /**
-   * Applies valid input data.
-   *
-   * @param identifier the AXI identifier of the incoming data
-   * @param content the rest (payload) of the incoming data
-   *
-   * @return the data as seen by the design under test instance
-   */
-  uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t content) {
-    // Checks if the given values are not too big
-    assert(!(content >> kMsgWidth));
-    assert(!(identifier >> kIdWidth));
-
-    uint32_t in_data = content << kIdWidth | identifier;
-    module_->data_i = in_data;
-    module_->in_data_valid_i = 1;
-    return in_data;
-  }
-
-  /**
-   * Gets the newly reserved address as offered by the DUT.
-   */
-  uint32_t simmem_reservation_get_address(void) { return module_->res_addr_o; }
-
-  /**
-   * Checks whether the input data has been accepted by checking the ready
-   * output signal.
-   */
-  bool simmem_input_data_check(void) {
-    module_->eval();
-    return (bool)(module_->in_data_ready_o);
-  }
-
-  /**
-   * Checks whether the reservation request has been accepted.
-   */
-  bool simmem_reservation_check(void) {
-    module_->eval();
-    return (bool)(module_->res_req_ready_o);
   }
 
   /**
@@ -239,21 +179,13 @@ class WriteRespBankTestbench {
 };
 
 /**
- * Performs a basic test as a temporally disjoint sequence of reservation, data
- * input and data output.
+ * Performs a basic test as a temporally disjoint sequence data input and data
+ * output.
  *
  * @param tb a pointer to a fresh testbench instance
  */
 void sequential_test(WriteRespBankTestbench *tb) {
   tb->simmem_reset();
-
-  // Apply reservation requests for 4 ticks
-  tb->simmem_reservation_start(
-      4);  // Start issuing reservation requests for AXI ID 4
-  tb->simmem_tick(4);
-  tb->simmem_reservation_stop();  // Stop issuing reservation requests
-
-  tb->simmem_tick(4);
 
   // Apply inputs for 6 ticks
   tb->simmem_input_data_apply(4, 3);
@@ -278,9 +210,9 @@ void sequential_test(WriteRespBankTestbench *tb) {
 }
 
 /**
- * Performs a complete test for a single AXI identifier. Reservation, input and
- * output requests, as well as the data content (except for the AXI identifier)
- * are randomized.
+ * Performs a complete test for a single AXI identifier. Input and output
+ * requests, as well as the data content (except for the AXI identifier) are
+ * randomized.
  *
  * @param tb a pointer to a fresh testbench instance
  * @param seed the seed used for the random request generation
@@ -297,12 +229,10 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   std::queue<uint32_t> input_queue;
   std::queue<uint32_t> output_queue;
 
-  bool reserve;
   bool apply_input;
   bool request_output_data;
 
-  uint32_t current_content =
-      (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
+  uint32_t current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
   uint32_t current_input;
   uint32_t current_output;
 
@@ -314,14 +244,9 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   for (size_t i = 0; i < nb_iterations; i++) {
     // Randomize the boolean signals deciding which interactions will take place
     // in this cycle
-    reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
 
-    if (reserve) {
-      // Signal a reservation request
-      tb->simmem_reservation_start(current_input_id);
-    }
     if (apply_input) {
       current_input =
           tb->simmem_input_data_apply(current_input_id, current_content);
@@ -333,8 +258,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     // Only perform the evaluation once all the inputs have been applied
     if (tb->simmem_input_data_check()) {
       input_queue.push(current_input);
-      current_content =
-          (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
+      current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
     }
     if (request_output_data) {
       if (tb->simmem_output_data_fetch(current_output)) {
@@ -347,9 +271,6 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     // Reset all signals after tick (they may be set again before the next DUT
     // evaluation during the beginning of the next iteration)
 
-    if (reserve) {
-      tb->simmem_reservation_stop();
-    }
     if (apply_input) {
       tb->simmem_input_data_stop();
     }
@@ -388,9 +309,9 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
 }
 
 /**
- * Performs a complete test for multiple AXI identifiers. Reservation, input and
- * output requests, as well as the data content (except for the AXI identifier)
- * are randomized.
+ * Performs a complete test for multiple AXI identifiers. Input and output
+ * requests, as well as the data content (except for the AXI identifier) are
+ * randomized.
  *
  * @param tb a pointer to a fresh testbench instance
  * @param num_identifiers the number of AXI identifiers to use in the test, must
@@ -422,15 +343,12 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
         identifiers[i], std::queue<uint32_t>()));
   }
 
-  bool reserve;
   bool apply_input;
   bool request_output_data;
   bool iteration_announced;  // Variable only used for display
 
   uint32_t current_input_id = identifiers[rand() % num_identifiers];
-  uint32_t current_content =
-      (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
-  uint32_t current_reservation_id = identifiers[rand() % num_identifiers];
+  uint32_t current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
   uint32_t current_input;
   uint32_t current_output;
 
@@ -444,14 +362,9 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
     // Randomize the boolean signals deciding which interactions will take place
     // in this cycle
-    reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
 
-    if (reserve) {
-      // Signal a reservation request
-      tb->simmem_reservation_start(current_reservation_id);
-    }
     if (apply_input) {
       // Apply a given input
       current_input =
@@ -462,20 +375,6 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
       tb->simmem_output_data_request();
     }
 
-    // Only perform the evaluation once all the inputs have been applied
-    if (reserve && tb->simmem_reservation_check()) {
-      if (kTransactionsVerbose) {
-        if (!iteration_announced) {
-          iteration_announced = true;
-          std::cout << std::endl << "Step " << std::dec << i << std::endl;
-        }
-        std::cout << current_reservation_id << " reserves "
-                  << tb->simmem_reservation_get_address() << std::endl;
-      }
-
-      // Renew the reservation identifier if the reservation has been successful
-      current_reservation_id = identifiers[rand() % num_identifiers];
-    }
     if (tb->simmem_input_data_check()) {
       // If the input handshake has been successful, then add the input into the
       // corresponding queue
@@ -492,15 +391,15 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
 
       // Renew the input data if the input handshake has been successful
       current_input_id = identifiers[rand() % num_identifiers];
-      current_content =
-          (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
+      current_content = (uint32_t)(rand() & tb->simmem_get_content_mask());
     }
     if (request_output_data) {
       // If the output handshake has been successful, then add the output to the
       // corresponding queue
       if (tb->simmem_output_data_fetch(current_output)) {
         output_queues[identifiers[(current_output &
-                                   tb->simmem_get_identifier_mask())]]
+                                   tb->simmem_get_identifier_mask()) >>
+                                  kMsgWidth]]
             .push(current_output);
 
         if (kTransactionsVerbose) {
@@ -508,12 +407,9 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
             iteration_announced = true;
             std::cout << std::endl << "Step " << std::dec << i << std::endl;
           }
-          std::cout << "Output mask: " << std::hex
-                    << tb->simmem_get_identifier_mask() << std::endl;
-
           std::cout << std::dec
                     << (uint32_t)(current_output &
-                                  tb->simmem_get_identifier_mask())
+                                  ~tb->simmem_get_identifier_mask())
                     << " outputs " << std::hex << current_output << std::endl;
         }
       }
@@ -524,9 +420,6 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
     // Reset all signals after tick (they may be set again before the next DUT
     // evaluation during the beginning of the next iteration)
 
-    if (reserve) {
-      tb->simmem_reservation_stop();
-    }
     if (apply_input) {
       tb->simmem_input_data_stop();
     }
@@ -543,10 +436,6 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
   // Check the input and output queues for mismatches
   size_t nb_mismatches = 0;
   for (size_t i = 0; i < num_identifiers; i++) {
-    if (kPairsVerbose) {
-      std::cout << std::dec << "--- ID: " << i << " ---" << std::endl;
-    }
-
     while (!input_queues[i].empty() && !output_queues[i].empty()) {
       current_input = input_queues[i].front();
       current_output = output_queues[i].front();
@@ -577,7 +466,7 @@ int main(int argc, char **argv, char **env) {
 
     // Instantiate the DUT instance
     WriteRespBankTestbench *tb =
-        new WriteRespBankTestbench(100, true, "wresp_bank.fst");
+        new WriteRespBankTestbench(100, true, "linkedlist_bank.fst");
 
     // Perform one test for the given seed
     if (kTestStrategy == SINGLE_ID_TEST) {
@@ -586,7 +475,7 @@ int main(int argc, char **argv, char **env) {
     } else if (kTestStrategy == SINGLE_ID_TEST) {
       local_nb_mismatches = single_id_test(tb, seed);
     } else {
-      local_nb_mismatches = multiple_ids_test(tb, 4, seed);
+      local_nb_mismatches = multiple_ids_test(tb, 1, seed);
     }
 
     total_nb_mismatches += local_nb_mismatches;
