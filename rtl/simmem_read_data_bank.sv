@@ -6,7 +6,7 @@
 
 // Does not support direct replacement (simultaneous write and read in the RAM)
 
-module simmem_write_resp_bank (
+module simmem_read_data_bank (
   input logic clk_i,
   input logic rst_ni,
 
@@ -14,6 +14,7 @@ module simmem_write_resp_bank (
 
   // Identifier for which the reseration request is being done
   input  logic [NumIds-1:0] res_req_id_onehot_i,
+  input  logic [simmem::MaxBurstLenWidth-1:0] res_burst_len_i,
   output logic [BankAddrWidth-1:0] res_addr_o, // Reserved address
   // Reservation handshake signals
   input  logic res_req_valid_i,
@@ -36,10 +37,10 @@ module simmem_write_resp_bank (
 
   import simmem_pkg::*;
 
-  localparam TotCapa = WriteRespBankTotalCapacity;
-  localparam BankAddrWidth = WriteRespBankAddrWidth;
+  localparam TotCapa = ReadDataBankTotalCapacity;
+  localparam BankAddrWidth = ReadDataBankAddrWidth;
 
-  localparam MsgRamWidth = WriteRespWidth - IDWidth;
+  localparam MsgRamWidth = MaxBurstLen * (ReadDataWidth - IDWidth);
 
   //////////////////
   // RAM pointers //
@@ -95,13 +96,14 @@ module simmem_write_resp_bank (
   logic [NumIds-1:0] queue_initiated_id;
 
   // Lengths of reservation and effective lengths
-  logic [BankAddrWidth-1:0] rsrvn_len_d[NumIds];
-  logic [BankAddrWidth-1:0] rsrvn_len_q[NumIds];
+  logic [BankAddrWidth-1:0] rsvn_len_d[NumIds];
+  logic [BankAddrWidth-1:0] rsvn_len_q[NumIds];
 
   logic [BankAddrWidth-1:0] mid_len_d[NumIds];
   logic [BankAddrWidth-1:0] mid_len_q[NumIds];
   // Length after the potential output
   logic [BankAddrWidth-1:0] mid_len_after_out[NumIds];
+
 
   // Update heads, mids and tails according to the piggyback and update signals
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : pointers_update
@@ -136,33 +138,103 @@ module simmem_write_resp_bank (
   end
 
 
+  /////////////////////////
+  // Burst count in cell //
+  /////////////////////////
+
+  // Counts how many burst elements are reserved or currently present in the cell.
+  // Reservation counters are set at reservation time and decrease when messages are acquired.
+  // Message counters increase at message input time and decrease when messages are acquired.
+  logic [MaxBurstLenWidth-1:0] rsvn_cnt_d[TotCapa];
+  logic [MaxBurstLenWidth-1:0] rsvn_cnt_q[TotCapa];
+  logic [MaxBurstLenWidth-1:0] msg_cnt_d[TotCapa];
+  logic [MaxBurstLenWidth-1:0] msg_cnt_q[TotCapa];
+  
+  // Masks are intermediates for counter updates
+  logic [TotCapa-1:0] cnt_rsvn_mask;
+  logic [TotCapa-1:0][NumIds] cnt_in_mask_id;
+  logic [TotCapa-1:0] cnt_in_mask;
+  logic [TotCapa-1:0] cnt_out_mask;
+
+  for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : cnt_update
+    
+    // Caculate the masks according to I/O signals
+    assign cnt_rsvn_mask[i_addr] = nxt_free_addr == i_addr && res_req_ready_o && res_req_valid_i;
+    assign cnt_out_mask[i_addr] =
+        cur_out_addr_onehot_q[i_addr] && out_data_valid_o && out_data_ready_i;
+    for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_cnt_in_mask
+      assign cnt_in_mask_id[i_addr][i_id] = data_i.id == i_id && mids[i_id] == i_addr;
+    end : gen_cnt_in_mask
+    assign cnt_in_mask = in_data_ready_o && in_data_valid_i && |cnt_in_mask_id[i_addr];
+
+    always_comb begin
+      rsvn_cnt_d[i_addr] = rsvn_cnt_q[i_addr];
+      msg_cnt_d[i_addr] = msg_cnt_q[i_addr];
+
+      // Update the counters according to the masks
+      if (cnt_rsvn_mask[i_addr]) begin
+        rsvn_cnt_d[i_addr] = rsvn_cnt_q+1;
+      end else if (cnt_in_mask[i_addr]) begin
+        rsvn_cnt_d[i_addr] = rsvn_cnt_q-1;
+        msg_cnt_d[i_addr] = msg_cnt_q+1;
+      end if (cnt_in_mask[i_addr]) begin
+        msg_cnt_d[i_addr] = msg_cnt_q-1;
+      end
+    end
+  end : cnt_update
+  assign released_addr_onehot_o = cnt_out_mask;
+
+  // Intermediate signals to calculate lengths
+  logic [TotCapa-1:0][MaxBurstLenWidth-1:0] rsvn_cnt_addr[IDWidth];
+  logic [TotCapa-1:0][MaxBurstLenWidth-1:0] mid_cnt_addr[IDWidth];
+  logic [TotCapa-1:0][MaxBurstLenWidth-1:0] tail_cnt_addr[IDWidth];
+  logic [TotCapa-1:0][MaxBurstLenWidth-1:0] prev_tail_cnt_addr[IDWidth];
+  logic [MaxBurstLenWidth-1:0][TotCapa-1:0] rsvn_cnt_addr_rot90[IDWidth];
+  logic [MaxBurstLenWidth-1:0][TotCapa-1:0] mid_cnt_addr_rot90[IDWidth];
+  logic [MaxBurstLenWidth-1:0][TotCapa-1:0] tail_cnt_addr_rot90[IDWidth];
+  logic [MaxBurstLenWidth-1:0][TotCapa-1:0] prev_tail_cnt_addr_rot90[IDWidth];
+  logic [MaxBurstLenWidth-1:0] rsvn_cnt[IDWidth];
+  logic [MaxBurstLenWidth-1:0] mid_cnt[IDWidth];
+  logic [MaxBurstLenWidth-1:0] tail_cnt[IDWidth];
+  logic [MaxBurstLenWidth-1:0] prev_tail_cnt[IDWidth];
+
+  // Assign the count intermediate signals TODO Use these signals for all the lengths and pointer update decisions
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_cnt
+    for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_cnt_addr
+      assign rsvn_cnt_addr[i_id][i_addr] = rsvn_cnt_q[i_addr] & {MaxBurstLenWidth{heads[i_id] == i_addr}};
+      assign msg_cnt_addr[i_id][i_addr] = msg_cnt_q[i_addr] & {MaxBurstLenWidth{mids[i_id] == i_addr}};
+      assign tail_cnt_addr[i_id][i_addr] = msg_cnt_q[i_addr] & {MaxBurstLenWidth{tails[i_id] == i_addr}};
+      assign prev_tail_cnt_addr[i_id][i_addr] = msg_cnt_q[i_addr] & {MaxBurstLenWidth{prev_tails[i_id] == i_addr}};
+    end : gen_cnt_addr
+
+    for (genvar i_bit = 0; i_bit < MaxBurstLenWidth; i_bit = i_bit + 1) begin : gen_cnt_addr_rot
+      for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_cnt_addr_rot_addr
+        assign rsvn_cnt_addr_rot90[i_id][i_bit][i_addr] = rsvn_cnt_addr[i_id][i_addr][i_bit];
+        assign msg_cnt_addr_rot90[i_id][i_bit][i_addr] = msg_cnt_addr[i_id][i_addr][i_bit];
+        assign tail_cnt_addr_rot90[i_id][i_bit][i_addr] = tail_cnt_addr[i_id][i_addr][i_bit];
+        assign prev_tail_cnt_addr_rot90[i_id][i_bit][i_addr] = prev_tail_cnt_addr[i_id][i_addr][i_bit];
+      end : gen_cnt_addr_rot_addr
+    end : gen_cnt_addr_rot
+
+    for (genvar i_bit = 0; i_bit < MaxBurstLenWidth; i_bit = i_bit + 1) begin : gen_cnt_after_rot
+      assign rsvn_cnt[i_id][i_bit] = |rsvn_cnt_addr_rot90[i_id][i_bit];
+      assign msg_cnt[i_id][i_bit] = |msg_cnt_addr_rot90[i_id][i_bit];
+      assign tail_cnt[i_id][i_bit] = |tail_cnt_addr_rot90[i_id][i_bit];
+      assign prev_tail_cnt[i_id][i_bit] = |prev_tail_cnt_addr_rot90[i_id][i_bit];
+    end
+  end : gen_cnt
+
+
   ///////////////
   // RAM valid //
   ///////////////
 
   // Valid bits and pointer to next arrays. Masks update the valid bits
-  logic [TotCapa-1:0] ram_v_d;
-  logic [TotCapa-1:0] ram_v_q;
-  logic [TotCapa-1:0] ram_v_rsrvn_mask;
-  logic [TotCapa-1:0] ram_v_out_mask;
-
+  logic [TotCapa-1:0] ram_v;
   // Prepare the next RAM valid bit array
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : ram_v_update
-
-    // Generate the ram valid masks
-    assign ram_v_rsrvn_mask[i_addr] = nxt_free_addr == i_addr && res_req_ready_o && res_req_valid_i;
-    assign ram_v_out_mask[i_addr] =
-        cur_out_addr_onehot_q[i_addr] && out_data_valid_o && out_data_ready_i;
-
-    always_comb begin
-      ram_v_d[i_addr] = ram_v_q[i_addr];
-      // Mark the newly reserved addressed as valid, if applicable
-      ram_v_d[i_addr] ^= ram_v_rsrvn_mask[i_addr];
-      // Mark the newly released addressed as invalid, if applicable
-      ram_v_d[i_addr] ^= ram_v_out_mask[i_addr];
-    end
+    assign ram_v = |msg_cnt_q[i_addr] | |rsvcnt_q[i_addr];
   end
-  assign released_addr_onehot_o = ram_v_out_mask;
 
 
   /////////////////////////
@@ -176,9 +248,9 @@ module simmem_write_resp_bank (
   // Genereate the next free address onehot signal
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_nxt_free_addr_onehot
     if (i_addr == 0) begin
-      assign nxt_free_addr_onehot[0] = ~ram_v_q[0];
+      assign nxt_free_addr_onehot[0] = ~ram_v[0];
     end else begin
-      assign nxt_free_addr_onehot[i_addr] = ~ram_v_q[i_addr] && &ram_v_q[i_addr - 1:0];
+      assign nxt_free_addr_onehot[i_addr] = ~ram_v[i_addr] && &ram_v[i_addr - 1:0];
     end
   end : gen_nxt_free_addr_onehot
 
@@ -205,17 +277,33 @@ module simmem_write_resp_bank (
   logic msg_ram_in_write, msg_ram_out_write;
   logic meta_ram_in_write, meta_ram_out_write;
 
-  logic [MsgRamWidth-1:0] msg_ram_in_wmask, msg_ram_out_wmask;
   logic [BankAddrWidth-1:0] meta_ram_in_wmask, meta_ram_out_wmask;
+  logic [MaxBurstLen-1:0] msg_ram_in_wmask, msg_ram_out_wmask;
+  logic [MaxBurstLen-1:0] msg_ram_in_wmask_id[NumIds];
+  logic [MaxBurstLen-1:0][NumIds-1:0] msg_ram_in_wmask_id_rot90;
+  logic [MaxBurstLen-1:0] msg_ram_out_wmask_id[NumIds];
+  logic [MaxBurstLen-1:0][NumIds-1:0] msg_ram_out_wmask_id_rot90;
+
+  // Aggregate the read/write masks
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : aggregate_wmask_id
+    for (genvar i_bit = 0; i_bit < MaxBurstLen; i_bit = i_bit + 1) begin : aggregate_wmask_id_rot
+      assign msg_ram_in_wmask_id_rot90[i_bit][i_id] = msg_ram_in_wmask_id[i_id][i_bit];
+      assign msg_ram_out_wmask_id_rot90[i_bit][i_id] = msg_ram_out_wmask_id[i_id][i_bit];
+    end : aggregate_wmask_id_rot
+  end : aggregate_wmask_id
+  for (genvar i_bit = 0; i_bit < MaxBurstLen; i_bit = i_bit + 1) begin : aggregate_wmask
+    assign msg_ram_in_wmask[i_bit] = |msg_ram_in_wmask_id_rot90[i_bit];
+    assign msg_ram_out_wmask[i_bit] = |msg_ram_out_wmask_id_rot90[i_bit];
+  end : aggregate_wmask
 
   logic [MsgRamWidth-1:0] msg_out_ram_data;
   wresp_metadata_e meta_ram_out_data_tail, meta_ram_out_data_mid;
 
   wresp_metadata_e meta_ram_in_content;
   wresp_metadata_e meta_ram_in_content_id[NumIds];
-  logic [NumIds - 1:0] meta_ram_in_content_msk_rot90[WriteRespMetadataWidth];
+  logic [NumIds - 1:0] meta_ram_in_content_msk_rot90[ReadDataMetadataWidth];
 
-  // RAM address and aggregation message
+  // RAM address and aggregation
   logic [BankAddrWidth-1:0] msg_ram_in_addr;
   logic [BankAddrWidth-1:0] msg_ram_out_addr;
   logic [BankAddrWidth-1:0] meta_ram_in_addr;
@@ -234,9 +322,7 @@ module simmem_write_resp_bank (
 
   // RAM address aggregation
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_address
-    for (
-        genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1
-    ) begin : rotate_ram_address_inner
+    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : rotate_ram_address_inner
       assign msg_ram_in_addr_rot90[i_bit][i_id] = msg_ram_in_addr_id[i_id][i_bit];
       assign msg_ram_out_addr_rot90[i_bit][i_id] = msg_ram_out_addr_id[i_id][i_bit];
       assign meta_ram_in_addr_rot90[i_bit][i_id] = meta_ram_in_addr_id[i_id][i_bit];
@@ -263,8 +349,6 @@ module simmem_write_resp_bank (
   end : aggregate_meta_in
 
   // RAM write masks, filled with ones
-  assign msg_ram_in_wmask = {MsgRamWidth{1'b1}};
-  assign msg_ram_out_wmask = {MsgRamWidth{1'b1}};
   assign meta_ram_in_wmask = {BankAddrWidth{1'b1}};
   assign meta_ram_out_wmask = {BankAddrWidth{1'b1}};
 
@@ -281,7 +365,7 @@ module simmem_write_resp_bank (
     // condition is satisfied, namely if there is at least one reserved cell in the queue or there
     // will be at least one actual stored element in the queue after the possible output.
     assign queue_initiated_id[i_id] =
-        res_req_id_onehot_i[i_id] && (|rsrvn_len_q[i_id] || |mid_len_after_out[i_id]);
+        res_req_id_onehot_i[i_id] && (|rsvn_len_q[i_id] || |mid_len_after_out[i_id]);
   end : req_meta_in_id_assignment
 
   // New metadata input is coming when there is a reservation and the queue is already initiated
@@ -298,6 +382,24 @@ module simmem_write_resp_bank (
   assign msg_ram_out_write = 1'b0;
   assign meta_ram_in_write = 1'b1;
   assign meta_ram_out_write = 1'b0;
+
+  // Message RAM input and output data selection
+  logic [MaxBurstLen-1:0][ReadDataWidth-IDWidth-1:0] msg_ram_in_data;
+  logic [MaxBurstLen-1:0][ReadDataWidth-IDWidth-1:0] msg_ram_out_burst_data;
+  logic [ReadDataWidth-IDWidth-1:0][MaxBurstLen-1:0] msg_ram_out_burst_data_rot90;
+
+  // Fill input with the input message. The irrelevant input will be filtered out using the wmasks
+  for (genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin : gen_in_data
+    assign msg_ram_in_data[i_burst] = data_i.content;
+  end : gen_msg_ram_in_data
+
+  // Fill input with the input message. The irrelevant input will be filtered out using the wmasks
+  for (genvar i_bit = 0; i_bit < ReadDataWidth - IDWidth; i_bit = i_bit + 1) begin : gen_out_data
+    for (genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin : gen_out_data_inner
+      msg_ram_out_burst_data_rot90[i_bit][i_burst] = msg_ram_out_burst_data[i_burst][i_bit] & msg_ram_out_wmask[i_burst];
+    end : gen_out_data_inner
+    msg_ram_out_data[i_bit] = |msg_ram_out_burst_data_rot90[i_bit];
+  end : gen_out_data
 
 
   ////////////////////////////////////
@@ -364,13 +466,13 @@ module simmem_write_resp_bank (
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsrvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsrvd[i_id] = data_i.id == i_id && |(rsrvn_len_q[i_id]);
+    assign is_id_rsrvd[i_id] = data_i.id == i_id & mids[i_id] == i_addr& |(rsvn_len_q[i_id]);
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
   assign in_data_ready_o =
       in_data_valid_i && |is_id_rsrvd;  // AXI 4 allows ready to depend on the valid signal
-  assign res_req_ready_o = |(~ram_v_q);
+  assign res_req_ready_o = |(~ram_v);
 
 
   /////////////
@@ -407,7 +509,7 @@ module simmem_write_resp_bank (
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
     assign mid_len_after_out[i_id] = out_data_valid_o && out_data_ready_i &&
-        cur_out_id_onehot[i_id] ? mid_len_q[i_id] - 1 : mid_len_q[i_id];
+        cur_out_id_onehot[i_id] && msg_cnt[i_id] == 1 ? mid_len_q[i_id] - 1 : mid_len_q[i_id];
   end : gen_len_after_output
 
   // Recall if the current output is valid
@@ -423,7 +525,7 @@ module simmem_write_resp_bank (
     always_comb begin
       // Default assignments
       mid_len_d[i_id] = mid_len_q[i_id];
-      rsrvn_len_d[i_id] = rsrvn_len_q[i_id];
+      rsvn_len_d[i_id] = rsvn_len_q[i_id];
       is_middle_emptybox_d[i_id] = is_middle_emptybox_q[i_id];
 
       update_t_from_ram_d[i_id] = 1'b0;
@@ -449,43 +551,52 @@ module simmem_write_resp_bank (
       if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
-        if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin
+        if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id] && msg_cnt[i_id]==1) begin
           msg_ram_out_addr_id[i_id] = tails[i_id];
+          msg_ram_out_wmask_id[i_id] = tail_cnt[i_id]-1;
         end else begin
           msg_ram_out_addr_id[i_id] = prev_tails[i_id];
+          msg_ram_out_wmask_id[i_id] = prev_tail_cnt[i_id]-1;
         end
       end
 
       // Input handshake
-      if (in_data_ready_o && in_data_valid_i && data_i.id == i_id) begin : in_handshake
+      if (in_data_ready_o && in_data_valid_i && data_i.id == i_id mids[i_id] == i_addr) begin : in_handshake
 
-        mid_len_d[i_id] = mid_len_d[i_id] + 1;
-        rsrvn_len_d[i_id] = rsrvn_len_d[i_id] - 1;
+        // If this is the last data of the burst, then update the pointers
+        if (rsvn_cnt[i_id] == 1) begin
 
-        if (mids[i_id] == heads_q[i_id]) begin
-          pgbk_m_with_h[i_id] = 1'b1;
-          // Fullbox if could not move forward
-          is_middle_emptybox_d[i_id] = heads_d[i_id] != heads_q[i_id];
-        end else begin
-          // If the reservation head is ahead of the middle pointer, then one can follow the
-          // pointer from the metadata RAM
-          update_m_from_ram_d[i_id] = 1'b1;
-        end
+          mid_len_d[i_id] = mid_len_d[i_id] + 1;
+          rsvn_len_d[i_id] = rsvn_len_d[i_id] - 1;
 
-        // Manage more piggybacking on input acquisition
-        if (tails[i_id] == mids[i_id]) begin
-          if (mid_len_after_out[i_id] == 0) begin
-            pgbk_t_with_m_d[i_id] = 1'b1;
-            if (!is_middle_emptybox_q[i_id]) begin
-              pgbk_pt_with_m_d[i_id] = 1'b1;
+          if (mids[i_id] == heads_q[i_id]) begin
+            pgbk_m_with_h[i_id] = 1'b1;
+            // Fullbox if could not move forward
+            is_middle_emptybox_d[i_id] = heads_d[i_id] != heads_q[i_id];
+          end else begin
+            // If the reservation head is ahead of the middle pointer, then one can follow the
+            // pointer from the metadata RAM
+            update_m_from_ram_d[i_id] = 1'b1;
+          end
+
+          // Manage more piggybacking on input acquisition
+          if (tails[i_id] == mids[i_id]) begin
+            if (mid_len_after_out[i_id] == 0) begin
+              pgbk_t_with_m_d[i_id] = 1'b1;
+              if (!is_middle_emptybox_q[i_id]) begin
+                pgbk_pt_with_m_d[i_id] = 1'b1;
+              end
+            end else if (mid_len_after_out[i_id] == 1 && prev_tails[i_id] == tails[i_id]) begin
+              pgbk_t_with_m_d[i_id] = 1'b1;
             end
-          end else if (mid_len_after_out[i_id] == 1 && prev_tails[i_id] == tails[i_id]) begin
-            pgbk_t_with_m_d[i_id] = 1'b1;
           end
         end
 
         // Store the data
         msg_ram_in_addr_id[i_id] = mids[i_id];
+
+        // Set the right msg RAM wmask
+        msg_ram_in_wmask_id[i_id] = mid_cnt[i_id];
 
         // Update the middle pointer position
         meta_ram_out_addr_mid_id[i_id] = mids[i_id];
@@ -494,17 +605,17 @@ module simmem_write_resp_bank (
       if (res_req_valid_i && res_req_ready_o && res_req_id_onehot_i[i_id]
           ) begin : reservation_handshake
 
-        rsrvn_len_d[i_id] = rsrvn_len_d[i_id] + 1;
+        rsvn_len_d[i_id] = rsvn_len_d[i_id] + 1;
         update_heads[i_id] = 1'b1;
 
         // If the queue is already initiated, then update the head position in the RAM and manage
         // the piggybacking properly
-        if (|rsrvn_len_q[i_id] || |mid_len_after_out[i_id]) begin : reservation_initiated_queue
+        if (|rsvn_len_q[i_id] || |mid_len_after_out[i_id]) begin : reservation_initiated_queue
           meta_ram_in_addr_id[i_id] = heads_q[i_id];
           meta_ram_in_content_id[i_id].nxt_elem = nxt_free_addr;
 
           if (heads_q[i_id] == mids[i_id]) begin
-            if (rsrvn_len_q[i_id] == 0) begin
+            if (rsvn_len_q[i_id] == 0) begin
               if (mid_len_after_out[i_id] == 0) begin
                 pgbk_m_with_h[i_id] = 1'b1;
                 pgbk_pt_with_h[i_id] = 1'b1;
@@ -531,15 +642,20 @@ module simmem_write_resp_bank (
       end : reservation_handshake
 
       if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
-        mid_len_d[i_id] = mid_len_d[i_id] - 1;
-        update_pt_from_t[i_id] = 1'b1;  // Update the previous tail
-        if (mids[i_id] != tails[i_id]) begin
-          // If possible, read the next tail address from RAM
-          update_t_from_ram_d[i_id] = 1'b1;
-          meta_ram_out_addr_tail_id[i_id] = tails[i_id];
-        end else begin
-          // Else, piggyback
-          pgbk_t_with_m_d[i_id] = 1'b1;
+
+        // If this is the last burst, then update the pointers
+        if (mid_cnt[i_id] == 1) begin
+
+          mid_len_d[i_id] = mid_len_d[i_id] - 1;
+          update_pt_from_t[i_id] = 1'b1;  // Update the previous tail
+          if (mids[i_id] != tails[i_id]) begin
+            // If possible, read the next tail address from RAM
+            update_t_from_ram_d[i_id] = 1'b1;
+            meta_ram_out_addr_tail_id[i_id] = tails[i_id];
+          end else begin
+            // Else, piggyback
+            pgbk_t_with_m_d[i_id] = 1'b1;
+          end
         end
       end : ouptut_handshake
     end
@@ -552,7 +668,10 @@ module simmem_write_resp_bank (
       prev_tails_q <= '{default: '0};
       tails_q <= '{default: '0};
       mid_len_q <= '{default: '0};
-      rsrvn_len_q <= '{default: '0};
+      rsvn_len_q <= '{default: '0};
+
+      rsvn_cnt_q <= '{default: '0};
+      msg_cnt_q <= '{default: '0};
 
       update_t_from_ram_q <= '{default: '0};
       update_m_from_ram_q <= '{default: '0};
@@ -567,7 +686,10 @@ module simmem_write_resp_bank (
       prev_tails_q <= prev_tails_d;
       tails_q <= tails_d;
       mid_len_q <= mid_len_d;
-      rsrvn_len_q <= rsrvn_len_d;
+      rsvn_len_q <= rsvn_len_d;
+
+      rsvn_cnt_q <= rsvn_cnt_d;
+      msg_cnt_q <= msg_cnt_d;
 
       update_t_from_ram_q <= update_t_from_ram_d;
       update_m_from_ram_q <= update_m_from_ram_d;
@@ -591,18 +713,10 @@ module simmem_write_resp_bank (
     end
   end
 
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (!rst_ni) begin
-      ram_v_q <= '0;
-    end else begin
-      ram_v_q <= ram_v_d;
-    end
-  end
-
   // Message RAM instance
   prim_generic_ram_2p #(
     .Width(MsgRamWidth),
-    .DataBitsPerMask(1),
+    .DataBitsPerMask(ReadDataWidth - IDWidth),
     .Depth(TotCapa)
   ) i_msg_ram (
     .clk_a_i     (clk_i),
@@ -612,7 +726,7 @@ module simmem_write_resp_bank (
     .a_write_i   (msg_ram_in_write),
     .a_wmask_i   (msg_ram_in_wmask),
     .a_addr_i    (msg_ram_in_addr),
-    .a_wdata_i   (data_i.content),
+    .a_wdata_i   (msg_ram_in_data),
     .a_rdata_o   (),
     
     .b_req_i     (msg_ram_out_req),
@@ -620,12 +734,12 @@ module simmem_write_resp_bank (
     .b_wmask_i   (msg_ram_out_wmask),
     .b_addr_i    (msg_ram_out_addr),
     .b_wdata_i   (),
-    .b_rdata_o   (msg_out_ram_data)
+    .b_rdata_o   (msg_out_ram_burst_data)
   );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-    .Width(WriteRespMetadataWidth),
+    .Width(ReadDataMetadataWidth),
     .DataBitsPerMask(1),
     .Depth(TotCapa)
   ) i_meta_ram_out_tail (
@@ -649,7 +763,7 @@ module simmem_write_resp_bank (
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-  .Width(WriteRespMetadataWidth),
+  .Width(ReadDataMetadataWidth),
   .DataBitsPerMask(1),
   .Depth(TotCapa)
 ) i_meta_ram_out_mid (

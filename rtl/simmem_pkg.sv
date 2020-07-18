@@ -67,7 +67,7 @@ package simmem_pkg;
     logic [XLastWidth-1:0] last;
     logic [WStrbWidth-1:0] strobes;
     logic [XDataWidth-1:0] data;
-    logic [IDWidth-1:0] id;
+  // logic [IDWidth-1:0] id; AXI4 does not allocate identifiers in write data messages
   } wdata_req_t;
 
   typedef struct packed {
@@ -99,7 +99,8 @@ package simmem_pkg;
   localparam WriteRespBankAddrWidth = $clog2(WriteRespBankTotalCapacity);
   localparam ReadDataBankAddrWidth = $clog2(ReadDataBankTotalCapacity);
 
-  localparam MaxBurstLength = 4;
+  localparam MaxBurstLen = 4;
+  localparam MaxBurstLenWidth = $clog2(MaxBurstLen);
 
   localparam DelayWidth = 6;
 

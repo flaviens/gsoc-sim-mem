@@ -170,34 +170,36 @@ module simmem_linkedlist_bank #(
   logic [NumIds - 1:0] meta_ram_in_content_msk_rot90[WriteRespMetadataWidth];
 
   // RAM address and aggregation message
-  logic [BankAddrWidth-1:0] msg_in_ram_addr;
-  logic [BankAddrWidth-1:0] msg_out_ram_addr;
+  logic [BankAddrWidth-1:0] msg_ram_in_addr;
+  logic [BankAddrWidth-1:0] msg_ram_out_addr;
   logic [BankAddrWidth-1:0] meta_ram_in_addr;
   logic [BankAddrWidth-1:0] meta_ram_out_addr;
-  logic [BankAddrWidth-1:0] msg_in_ram_addr_id[NumIds];
-  logic [BankAddrWidth-1:0] msg_out_ram_addr_id[NumIds];
+  logic [BankAddrWidth-1:0] msg_ram_in_addr_id[NumIds];
+  logic [BankAddrWidth-1:0] msg_ram_out_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_out_addr_id[NumIds];
-  logic [BankAddrWidth-1:0][NumIds-1:0] msg_in_ram_addr_rot90;
-  logic [BankAddrWidth-1:0][NumIds-1:0] msg_out_ram_addr_rot90;
+  logic [BankAddrWidth-1:0][NumIds-1:0] msg_ram_in_addr_rot90;
+  logic [BankAddrWidth-1:0][NumIds-1:0] msg_ram_out_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_rot90;
 
   // RAM address aggregation
-  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_addres
-    for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : rotate_ram_addres_inner
-      assign msg_in_ram_addr_rot90[i_bit][i_id] = msg_in_ram_addr_id[i_id][i_bit];
-      assign msg_out_ram_addr_rot90[i_bit][i_id] = msg_out_ram_addr_id[i_id][i_bit];
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_address
+    for (
+        genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1
+    ) begin : rotate_ram_address_inner
+      assign msg_ram_in_addr_rot90[i_bit][i_id] = msg_ram_in_addr_id[i_id][i_bit];
+      assign msg_ram_out_addr_rot90[i_bit][i_id] = msg_ram_out_addr_id[i_id][i_bit];
       assign meta_ram_in_addr_rot90[i_bit][i_id] = meta_ram_in_addr_id[i_id][i_bit];
       assign meta_ram_out_addr_rot90[i_bit][i_id] = meta_ram_out_addr_id[i_id][i_bit];
-    end : rotate_ram_addres_inner
-  end : rotate_ram_addres
-  for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_addres
-    assign msg_in_ram_addr[i_bit] = |msg_in_ram_addr_rot90[i_bit];
-    assign msg_out_ram_addr[i_bit] = |msg_out_ram_addr_rot90[i_bit];
+    end : rotate_ram_address_inner
+  end : rotate_ram_address
+  for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_address
+    assign msg_ram_in_addr[i_bit] = |msg_ram_in_addr_rot90[i_bit];
+    assign msg_ram_out_addr[i_bit] = |msg_ram_out_addr_rot90[i_bit];
     assign meta_ram_in_addr[i_bit] = |meta_ram_in_addr_rot90[i_bit];
     assign meta_ram_out_addr[i_bit] = |meta_ram_out_addr_rot90[i_bit];
-  end : aggregate_ram_addres
+  end : aggregate_ram_address
 
   // RAM address aggregation
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_meta_in
@@ -365,8 +367,8 @@ module simmem_linkedlist_bank #(
       update_heads[i_id] = 1'b0;
       update_pt_from_t[i_id] = 1'b0;
 
-      msg_in_ram_addr_id[i_id] = '0;
-      msg_out_ram_addr_id[i_id] = '0;
+      msg_ram_in_addr_id[i_id] = '0;
+      msg_ram_out_addr_id[i_id] = '0;
       meta_ram_in_addr_id[i_id] = '0;
       meta_ram_out_addr_id[i_id] = '0;
 
@@ -377,9 +379,9 @@ module simmem_linkedlist_bank #(
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
         if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin
-          msg_out_ram_addr_id[i_id] = tails[i_id];
+          msg_ram_out_addr_id[i_id] = tails[i_id];
         end else begin
-          msg_out_ram_addr_id[i_id] = prev_tails_q[i_id];
+          msg_ram_out_addr_id[i_id] = prev_tails_q[i_id];
         end
       end
 
@@ -390,7 +392,7 @@ module simmem_linkedlist_bank #(
         list_len_d[i_id] = list_len_d[i_id] + 1;
 
         // Store the data
-        msg_in_ram_addr_id[i_id] = heads_q[i_id];
+        msg_ram_in_addr_id[i_id] = heads_q[i_id];
 
         // Update the metadata if the queue was initiated
         if (|queue_initiated_id[i_id]) begin
@@ -464,14 +466,14 @@ module simmem_linkedlist_bank #(
       .a_req_i     (msg_ram_in_req),
       .a_write_i   (msg_ram_in_write),
       .a_wmask_i   (msg_ram_in_wmask),
-      .a_addr_i    (msg_in_ram_addr),
+      .a_addr_i    (msg_ram_in_addr),
       .a_wdata_i   (data_i.content),
       .a_rdata_o   (),
       
       .b_req_i     (msg_ram_out_req),
       .b_write_i   (msg_ram_out_write),
       .b_wmask_i   (msg_ram_out_wmask),
-      .b_addr_i    (msg_out_ram_addr),
+      .b_addr_i    (msg_ram_out_addr),
       .b_wdata_i   (),
       .b_rdata_o   (msg_out_ram_data)
     );
