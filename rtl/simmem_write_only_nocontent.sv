@@ -74,10 +74,10 @@ module simmem_write_only_nocontent (
       .rst_ni,
 
       .wresp_res_req_id_i(wresp_res_req_id),
-      .wresp_res_addr_o(wresp_res_addr), // Reserved address
+      .wresp_rsv_addr_o(wresp_res_addr), // Reserved address
       // Reservation handshake signals
-      .wresp_res_req_valid_i(wresp_res_req_valid),
-      .wresp_res_req_ready_o(wresp_res_req_ready), 
+      .wresp_rsv_valid_i(wresp_res_req_valid),
+      .wresp_rsv_ready_o(wresp_res_req_ready), 
 
       // Interface with the releaser
       .wresp_release_en_i(wresp_release_en),  // Multi-hot signal

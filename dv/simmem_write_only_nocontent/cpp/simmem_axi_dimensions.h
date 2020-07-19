@@ -28,7 +28,8 @@ const uint64_t ArUserWidth = 0;
 // Data & response field widths
 const uint64_t XDataWidth = 32;
 const uint64_t XLastWidth = 1;
-const uint64_t XRespWidth = 10;  // TODO Set to 3
+// TODO: Set XRespWidth to 3 when all tests are passed
+const uint64_t XRespWidth = 10;
 const uint64_t WUserWidth = 0;
 const uint64_t RUserWidth = 0;
 const uint64_t BUserWidth = 0;

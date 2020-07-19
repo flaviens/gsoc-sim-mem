@@ -114,14 +114,14 @@ class WriteRespBankTestbench {
    * @param axi_id the AXI identifier to reserve
    */
   void simmem_reservation_start(uint32_t axi_id) {
-    module_->res_req_valid_i = 1;
-    module_->res_req_id_onehot_i = 1 << axi_id;
+    module_->rsv_valid_i = 1;
+    module_->rsv_req_id_onehot_i = 1 << axi_id;
   }
 
   /**
    * Sets the reservation request signal to zero.
    */
-  void simmem_reservation_stop(void) { module_->res_req_valid_i = 0; }
+  void simmem_reservation_stop(void) { module_->rsv_valid_i = 0; }
 
   /**
    * Applies valid input data.
@@ -145,7 +145,7 @@ class WriteRespBankTestbench {
   /**
    * Gets the newly reserved address as offered by the DUT.
    */
-  uint32_t simmem_reservation_get_address(void) { return module_->res_addr_o; }
+  uint32_t simmem_reservation_get_address(void) { return module_->rsv_addr_o; }
 
   /**
    * Checks whether the input data has been accepted by checking the ready
@@ -161,7 +161,7 @@ class WriteRespBankTestbench {
    */
   bool simmem_reservation_check(void) {
     module_->eval();
-    return (bool)(module_->res_req_ready_o);
+    return (bool)(module_->rsv_ready_o);
   }
 
   /**

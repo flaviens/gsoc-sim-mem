@@ -13,11 +13,11 @@ module simmem_write_resp_bank (
   // Interface with the reservation manager
 
   // Identifier for which the reseration request is being done
-  input  logic [NumIds-1:0] res_req_id_onehot_i,
-  output logic [BankAddrWidth-1:0] res_addr_o, // Reserved address
+  input  logic [NumIds-1:0] rsv_req_id_onehot_i,
+  output logic [BankAddrWidth-1:0] rsv_addr_o, // Reserved address
   // Reservation handshake signals
-  input  logic res_req_valid_i,
-  output logic res_req_ready_o, 
+  input  logic rsv_valid_i,
+  output logic rsv_ready_o, 
 
   // Interface with the releaser
   input  logic [TotCapa-1:0] release_en_i,  // Multi-hot signal
@@ -95,8 +95,8 @@ module simmem_write_resp_bank (
   logic [NumIds-1:0] queue_initiated_id;
 
   // Lengths of reservation and effective lengths
-  logic [BankAddrWidth-1:0] rsrvn_len_d[NumIds];
-  logic [BankAddrWidth-1:0] rsrvn_len_q[NumIds];
+  logic [BankAddrWidth-1:0] rsv_len_d[NumIds];
+  logic [BankAddrWidth-1:0] rsv_len_q[NumIds];
 
   logic [BankAddrWidth-1:0] mid_len_d[NumIds];
   logic [BankAddrWidth-1:0] mid_len_q[NumIds];
@@ -143,21 +143,21 @@ module simmem_write_resp_bank (
   // Valid bits and pointer to next arrays. Masks update the valid bits
   logic [TotCapa-1:0] ram_v_d;
   logic [TotCapa-1:0] ram_v_q;
-  logic [TotCapa-1:0] ram_v_rsrvn_mask;
+  logic [TotCapa-1:0] ram_v_rsv_mask;
   logic [TotCapa-1:0] ram_v_out_mask;
 
   // Prepare the next RAM valid bit array
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : ram_v_update
 
     // Generate the ram valid masks
-    assign ram_v_rsrvn_mask[i_addr] = nxt_free_addr == i_addr && res_req_ready_o && res_req_valid_i;
+    assign ram_v_rsv_mask[i_addr] = nxt_free_addr == i_addr && rsv_ready_o && rsv_valid_i;
     assign ram_v_out_mask[i_addr] =
         cur_out_addr_onehot_q[i_addr] && out_data_valid_o && out_data_ready_i;
 
     always_comb begin
       ram_v_d[i_addr] = ram_v_q[i_addr];
       // Mark the newly reserved addressed as valid, if applicable
-      ram_v_d[i_addr] ^= ram_v_rsrvn_mask[i_addr];
+      ram_v_d[i_addr] ^= ram_v_rsv_mask[i_addr];
       // Mark the newly released addressed as invalid, if applicable
       ram_v_d[i_addr] ^= ram_v_out_mask[i_addr];
     end
@@ -192,7 +192,7 @@ module simmem_write_resp_bank (
     end
   end : get_nxt_free_addr_from_onehot
 
-  assign res_addr_o = nxt_free_addr;
+  assign rsv_addr_o = nxt_free_addr;
 
 
   ////////////////////////////
@@ -281,11 +281,11 @@ module simmem_write_resp_bank (
     // condition is satisfied, namely if there is at least one reserved cell in the queue or there
     // will be at least one actual stored element in the queue after the possible output.
     assign queue_initiated_id[i_id] =
-        res_req_id_onehot_i[i_id] && (|rsrvn_len_q[i_id] || |mid_len_after_out[i_id]);
+        rsv_req_id_onehot_i[i_id] && (|rsv_len_q[i_id] || |mid_len_after_out[i_id]);
   end : req_meta_in_id_assignment
 
   // New metadata input is coming when there is a reservation and the queue is already initiated
-  assign meta_ram_in_req = res_req_valid_i && res_req_ready_o && |queue_initiated_id;
+  assign meta_ram_in_req = rsv_valid_i && rsv_ready_o && |queue_initiated_id;
 
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding tails from RAM) or input data coming (to potentially update the corresponding
@@ -362,15 +362,15 @@ module simmem_write_resp_bank (
   end : gen_next_addr_out
 
   // Signals indicating if there is reserved space for a given AXI identifier
-  logic [NumIds-1:0] is_id_rsrvd;
+  logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsrvd[i_id] = data_i.id == i_id && |(rsrvn_len_q[i_id]);
+    assign is_id_rsvd[i_id] = data_i.id == i_id && |(rsv_len_q[i_id]);
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
   assign in_data_ready_o =
-      in_data_valid_i && |is_id_rsrvd;  // AXI 4 allows ready to depend on the valid signal
-  assign res_req_ready_o = |(~ram_v_q);
+      in_data_valid_i && |is_id_rsvd;  // AXI 4 allows ready to depend on the valid signal
+  assign rsv_ready_o = |(~ram_v_q);
 
 
   /////////////
@@ -423,7 +423,7 @@ module simmem_write_resp_bank (
     always_comb begin
       // Default assignments
       mid_len_d[i_id] = mid_len_q[i_id];
-      rsrvn_len_d[i_id] = rsrvn_len_q[i_id];
+      rsv_len_d[i_id] = rsv_len_q[i_id];
       is_middle_emptybox_d[i_id] = is_middle_emptybox_q[i_id];
 
       update_t_from_ram_d[i_id] = 1'b0;
@@ -460,7 +460,7 @@ module simmem_write_resp_bank (
       if (in_data_ready_o && in_data_valid_i && data_i.id == i_id) begin : in_handshake
 
         mid_len_d[i_id] = mid_len_d[i_id] + 1;
-        rsrvn_len_d[i_id] = rsrvn_len_d[i_id] - 1;
+        rsv_len_d[i_id] = rsv_len_d[i_id] - 1;
 
         if (mids[i_id] == heads_q[i_id]) begin
           pgbk_m_with_h[i_id] = 1'b1;
@@ -491,20 +491,19 @@ module simmem_write_resp_bank (
         meta_ram_out_addr_mid_id[i_id] = mids[i_id];
       end
 
-      if (res_req_valid_i && res_req_ready_o && res_req_id_onehot_i[i_id]
-          ) begin : reservation_handshake
+      if (rsv_valid_i && rsv_ready_o && rsv_req_id_onehot_i[i_id]) begin : reservation_handshake
 
-        rsrvn_len_d[i_id] = rsrvn_len_d[i_id] + 1;
+        rsv_len_d[i_id] = rsv_len_d[i_id] + 1;
         update_heads[i_id] = 1'b1;
 
         // If the queue is already initiated, then update the head position in the RAM and manage
         // the piggybacking properly
-        if (|rsrvn_len_q[i_id] || |mid_len_after_out[i_id]) begin : reservation_initiated_queue
+        if (|rsv_len_q[i_id] || |mid_len_after_out[i_id]) begin : reservation_initiated_queue
           meta_ram_in_addr_id[i_id] = heads_q[i_id];
           meta_ram_in_content_id[i_id].nxt_elem = nxt_free_addr;
 
           if (heads_q[i_id] == mids[i_id]) begin
-            if (rsrvn_len_q[i_id] == 0) begin
+            if (rsv_len_q[i_id] == 0) begin
               if (mid_len_after_out[i_id] == 0) begin
                 pgbk_m_with_h[i_id] = 1'b1;
                 pgbk_pt_with_h[i_id] = 1'b1;
@@ -552,7 +551,7 @@ module simmem_write_resp_bank (
       prev_tails_q <= '{default: '0};
       tails_q <= '{default: '0};
       mid_len_q <= '{default: '0};
-      rsrvn_len_q <= '{default: '0};
+      rsv_len_q <= '{default: '0};
 
       update_t_from_ram_q <= '{default: '0};
       update_m_from_ram_q <= '{default: '0};
@@ -567,7 +566,7 @@ module simmem_write_resp_bank (
       prev_tails_q <= prev_tails_d;
       tails_q <= tails_d;
       mid_len_q <= mid_len_d;
-      rsrvn_len_q <= rsrvn_len_d;
+      rsv_len_q <= rsv_len_d;
 
       update_t_from_ram_q <= update_t_from_ram_d;
       update_m_from_ram_q <= update_m_from_ram_d;

@@ -14,8 +14,8 @@
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
-const bool kTransactionsVerbose = true;
-const bool kPairsVerbose = true;
+const bool kTransactionsVerbose = false;
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -57,9 +57,6 @@ class WriteRespBankTestbench {
     // Puts ones at the fields' places
     id_mask_ = ~((1 << 31) >> (31 - kIdWidth));
     content_mask_ = ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~id_mask_;
-
-    std::cout << "ID mask:      " << std::hex << id_mask_ << std::endl;
-    std::cout << "Content mask: " << std::hex << content_mask_ << std::endl;
   }
 
   ~WriteRespBankTestbench(void) { simmem_close_trace(); }
@@ -114,15 +111,15 @@ class WriteRespBankTestbench {
    * @param axi_id the AXI identifier to reserve
    */
   void simmem_reservation_start(uint32_t axi_id) {
-    module_->res_req_valid_i = 1;
-    module_->res_req_id_onehot_i = 1 << axi_id;
-    module_->res_req_id_onehot_i = 1 << axi_id;
+    module_->rsv_valid_i = 1;
+    module_->rsv_req_id_onehot_i = 1 << axi_id;
+    module_->rsv_burst_len_i = 4;
   }
 
   /**
    * Sets the reservation request signal to zero.
    */
-  void simmem_reservation_stop(void) { module_->res_req_valid_i = 0; }
+  void simmem_reservation_stop(void) { module_->rsv_valid_i = 0; }
 
   /**
    * Applies valid input data.
@@ -146,7 +143,7 @@ class WriteRespBankTestbench {
   /**
    * Gets the newly reserved address as offered by the DUT.
    */
-  uint32_t simmem_reservation_get_address(void) { return module_->res_addr_o; }
+  uint32_t simmem_reservation_get_address(void) { return module_->rsv_addr_o; }
 
   /**
    * Checks whether the input data has been accepted by checking the ready
@@ -162,7 +159,7 @@ class WriteRespBankTestbench {
    */
   bool simmem_reservation_check(void) {
     module_->eval();
-    return (bool)(module_->res_req_ready_o);
+    return (bool)(module_->rsv_ready_o);
   }
 
   /**
@@ -572,13 +569,13 @@ int main(int argc, char **argv, char **env) {
   // Counts the number of mismatches during the whole test
   size_t total_nb_mismatches = 0;
 
-  for (unsigned int seed = 0; seed < 100; seed++) {
+  for (unsigned int seed = 0; seed < 1000; seed++) {
     // Counts the number of mismatches during the loop iteration
     size_t local_nb_mismatches;
 
     // Instantiate the DUT instance
     WriteRespBankTestbench *tb =
-        new WriteRespBankTestbench(100, true, "wresp_bank.fst");
+        new WriteRespBankTestbench(100, true, "rdata_bank.fst");
 
     // Perform one test for the given seed
     if (kTestStrategy == SINGLE_ID_TEST) {

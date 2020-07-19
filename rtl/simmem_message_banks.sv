@@ -8,10 +8,10 @@ module simmem_message_banks (
   input logic rst_ni,
 
   input  logic [simmem_pkg::IDWidth-1:0] wresp_res_req_id_i,
-  output logic [simmem_pkg::WriteRespBankAddrWidth-1:0] wresp_res_addr_o, // Reserved address
+  output logic [simmem_pkg::WriteRespBankAddrWidth-1:0] wresp_rsv_addr_o, // Reserved address
   
-  input  logic wresp_res_req_valid_i,
-  output logic wresp_res_req_ready_o,
+  input  logic wresp_rsv_valid_i,
+  output logic wresp_rsv_ready_o,
   
   input  simmem_pkg::wresp_t wresp_data_i,
   output simmem_pkg::wresp_t wresp_data_o,
@@ -34,11 +34,11 @@ module simmem_message_banks (
     .clk_i(clk_i),
     .rst_ni(rst_ni),
 
-    .res_req_id_onehot_i(wresp_res_req_id_onehot),
-    .res_addr_o(wresp_res_addr_o), // Reserved address
+    .rsv_req_id_onehot_i(wresp_res_req_id_onehot),
+    .rsv_addr_o(wresp_rsv_addr_o), // Reserved address
     // Reservation handshake signals
-    .res_req_valid_i(wresp_res_req_valid_i),
-    .res_req_ready_o(wresp_res_req_ready_o), 
+    .rsv_valid_i(wresp_rsv_valid_i),
+    .rsv_ready_o(wresp_rsv_ready_o), 
 
     // Interface with the releaser
     .release_en_i(wresp_release_en_i),  // Multi-hot signal

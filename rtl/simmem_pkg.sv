@@ -27,9 +27,10 @@ package simmem_pkg;
   localparam ArUserWidth = 0;
 
   // Data & response field widths
-  localparam XDataWidth = 32;
+  localparam XDataWidth = 14;
   localparam XLastWidth = 1;
-  localparam XRespWidth = 10;  // TODO: Set to 3
+  // TODO: Set XRespWidth to 3 when all tests are passed
+  localparam XRespWidth = 10;
   localparam WUserWidth = 0;
   localparam RUserWidth = 0;
   localparam BUserWidth = 0;
@@ -76,9 +77,19 @@ package simmem_pkg;
     logic [WStrbWidth-1:0] response;
     logic [XDataWidth-1:0] data;
     logic [IDWidth-1:0] id;
+  } rdata_resp_all_fields_t;
+
+  typedef struct packed {
+    logic [$bits(rdata_resp_all_fields_t)-IDWidth-1:0] content;
+    logic [IDWidth-1:0] id;
+  } rdata_resp_merged_content_t;
+
+  typedef union packed {
+    rdata_resp_all_fields_t all_fields;
+    rdata_resp_merged_content_t merged_content;
   } rdata_resp_t;
 
-  localparam ReadDataRespWidth = IDWidth + XDataWidth + WStrbWidth + XLastWidth;
+  localparam ReadDataRespWidth = $bits(rdata_resp_t);
 
   typedef struct packed {
     // logic [BUserWidth-1:0] user_signal;
@@ -100,7 +111,7 @@ package simmem_pkg;
   localparam ReadDataBankAddrWidth = $clog2(ReadDataBankTotalCapacity);
 
   localparam MaxBurstLen = 4;
-  localparam MaxBurstLenWidth = $clog2(MaxBurstLen);
+  localparam MaxBurstLenWidth = $clog2(MaxBurstLen + 1);
 
   localparam DelayWidth = 6;
 

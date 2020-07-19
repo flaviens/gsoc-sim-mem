@@ -4,8 +4,6 @@
 
 #include "simmem_axi_structures.h"
 
-#include <iostream>  // TODO: Remove
-
 ///////////////////////////
 // Write address request //
 ///////////////////////////
