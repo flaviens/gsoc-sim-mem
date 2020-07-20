@@ -4,9 +4,7 @@
 //
 // Linkedlist bank for messages in the simulated memory controller 
 
-// Does not support direct replacement (simultaneous write and read in the RAM)
-
-module simmem_write_resp_bank (
+module simmem_resp_bank (
   input logic clk_i,
   input logic rst_ni,
 
