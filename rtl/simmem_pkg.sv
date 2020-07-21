@@ -106,6 +106,9 @@ package simmem_pkg;
   localparam WriteRespBankTotalCapacity = 32;
   localparam ReadDataBankTotalCapacity = 32;
 
+  localparam WriteRespBankAddrWidth = $clog2(WriteRespBankTotalCapacity);
+  localparam ReadDataBankAddrWidth = $clog2(ReadDataBankTotalCapacity);
+
   localparam MaxReadDataBurstLen = 4;
 
   localparam DelayWidth = 6;
