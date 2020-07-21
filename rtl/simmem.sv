@@ -46,13 +46,13 @@ module simmem #(
   input raddr_req_t raddr_req_i,
   input waddr_req_t waddr_req_i,
   input wdata_req_t wdata_req_i,
-  input rdata_resp_t rdata_resp_i,
+  input rdata_t rdata_resp_i,
   input wresp_t wresp_i,
 
   output raddr_req_t raddr_req_o,
   output waddr_req_t waddr_req_o,
   output wdata_req_t wdata_req_o,
-  output rdata_resp_t rdata_resp_o,
+  output rdata_t rdata_resp_o,
   output wresp_t wresp_o
 );
 

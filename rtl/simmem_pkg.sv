@@ -77,27 +77,26 @@ package simmem_pkg;
     logic [WStrbWidth-1:0] response;
     logic [XDataWidth-1:0] data;
     logic [IDWidth-1:0] id;
-  } rdata_resp_all_fields_t;
+  } rdata_all_fields_t;
 
   typedef struct packed {
-    logic [$bits(rdata_resp_all_fields_t)-IDWidth-1:0] content;
+    logic [$bits(rdata_all_fields_t)-IDWidth-1:0] content;
     logic [IDWidth-1:0] id;
-  } rdata_resp_merged_content_t;
+  } rdata_merged_content_t;
 
   typedef union packed {
-    rdata_resp_all_fields_t all_fields;
-    rdata_resp_merged_content_t merged_content;
-  } rdata_resp_t;
-
-  localparam ReadDataRespWidth = $bits(rdata_resp_t);
+    rdata_all_fields_t all_fields;
+    rdata_merged_content_t merged_content;
+  } rdata_t;
 
   typedef struct packed {
     // logic [BUserWidth-1:0] user_signal;
     logic [XRespWidth-1:0] content;
     logic [IDWidth-1:0] id;
-  } wresp_t;
+  } wresp_merged_content_t;
 
-  localparam WriteRespWidth = IDWidth + XRespWidth;
+  // For the write response, the union is only a wrapper helping generic message bank implementation
+  typedef union packed {wresp_merged_content_t merged_content;} wresp_t;
 
 
   ////////////////////////////
@@ -107,21 +106,8 @@ package simmem_pkg;
   localparam WriteRespBankTotalCapacity = 32;
   localparam ReadDataBankTotalCapacity = 32;
 
-  localparam WriteRespBankAddrWidth = $clog2(WriteRespBankTotalCapacity);
-  localparam ReadDataBankAddrWidth = $clog2(ReadDataBankTotalCapacity);
-
-  localparam MaxBurstLen = 4;
-  localparam MaxBurstLenWidth = $clog2(MaxBurstLen + 1);
+  localparam MaxReadDataBurstLen = 4;
 
   localparam DelayWidth = 6;
-
-
-  ////////////////////////////
-  // Enumerations for banks //
-  ////////////////////////////
-
-  typedef struct packed {logic [WriteRespBankAddrWidth-1:0] nxt_elem;} wresp_metadata_e;
-
-  localparam WriteRespMetadataWidth = WriteRespBankAddrWidth;
 
 endpackage

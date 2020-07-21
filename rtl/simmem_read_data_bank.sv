@@ -6,7 +6,12 @@
 
 // Does not support direct replacement (simultaneous write and read in the RAM)
 
-module simmem_read_data_bank (
+module simmem_read_data_bank #(
+    parameter int MaxBurstLen = 1,
+    parameter int TotCapa = simmem_pkg::ReadDataBankTotalCapacity,
+    parameter type DataType = simmem_pkg::wresp_t
+
+) (
   input logic clk_i,
   input logic rst_ni,
 
@@ -14,7 +19,7 @@ module simmem_read_data_bank (
 
   // Identifier for which the reseration request is being done
   input  logic [NumIds-1:0] rsv_req_id_onehot_i,
-  input  logic [simmem_pkg::MaxBurstLenWidth-1:0] rsv_burst_len_i, // Should not be zero
+  input  logic [MaxBurstLenWidth-1:0] rsv_burst_len_i, // Should not be zero
   output logic [BankAddrWidth-1:0] rsv_addr_o, // Reserved address
   // Reservation handshake signals
   input  logic rsv_valid_i,
@@ -25,8 +30,8 @@ module simmem_read_data_bank (
   output logic [TotCapa-1:0] released_addr_onehot_o,
 
   // Interface with the real memory controller
-  input  simmem_pkg::rdata_resp_t data_i, // AXI message excluding handshake
-  output simmem_pkg::rdata_resp_t data_o, // AXI message excluding handshake
+  input  DataType data_i, // AXI message excluding handshake
+  output DataType data_o, // AXI message excluding handshake
   input  logic in_data_valid_i,
   output logic in_data_ready_o,
 
@@ -37,9 +42,13 @@ module simmem_read_data_bank (
 
   import simmem_pkg::*;
 
-  localparam TotCapa = ReadDataBankTotalCapacity;
-  localparam BankAddrWidth = ReadDataBankAddrWidth;
-  localparam MsgRamWidth = MaxBurstLen * (ReadDataRespWidth - IDWidth);
+  localparam MaxBurstLenWidth = $clog2(MaxBurstLen + 1);
+  localparam BankAddrWidth = $clog2(TotCapa);
+  localparam DataWidth = $bits(DataType);
+  localparam MsgRamWidth = MaxBurstLen * (DataWidth - IDWidth);
+
+  typedef struct packed {logic [BankAddrWidth-1:0] nxt_elem;} metadata_e;
+
 
   //////////////////
   // RAM pointers //
@@ -304,11 +313,11 @@ module simmem_read_data_bank (
     assign msg_ram_out_wmask_d[i_bit] = |msg_ram_out_wmask_id_rot90[i_bit];
   end : aggregate_wmask
 
-  logic [ReadDataRespWidth-IDWidth-1:0] msg_ram_out_data;
-  wresp_metadata_e meta_ram_out_data_tail, meta_ram_out_data_mid;
+  logic [DataWidth-IDWidth-1:0] msg_ram_out_data;
+  metadata_e meta_ram_out_data_tail, meta_ram_out_data_mid;
 
-  wresp_metadata_e meta_ram_in_content;
-  wresp_metadata_e meta_ram_in_content_id[NumIds];
+  metadata_e meta_ram_in_content;
+  metadata_e meta_ram_in_content_id[NumIds];
   logic [NumIds - 1:0] meta_ram_in_content_msk_rot90[BankAddrWidth];
 
   // RAM address and aggregation
@@ -365,8 +374,8 @@ module simmem_read_data_bank (
   // Msg ram wmask extension
   for (genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin : expand_msg_wmasks
     for (
-        genvar i_bit = (ReadDataRespWidth - IDWidth) * i_burst;
-        i_bit < (ReadDataRespWidth - IDWidth) * (i_burst + 1);
+        genvar i_bit = (DataWidth - IDWidth) * i_burst;
+        i_bit < (DataWidth - IDWidth) * (i_burst + 1);
         i_bit = i_bit + 1
     ) begin : expand_msg_wmasks_inner
       assign msg_ram_in_wmask_expanded[i_bit] = msg_ram_in_wmask[i_burst];
@@ -406,9 +415,9 @@ module simmem_read_data_bank (
   assign meta_ram_out_write = 1'b0;
 
   // Message RAM input and output data selection
-  logic [MaxBurstLen-1:0][ReadDataRespWidth-IDWidth-1:0] msg_ram_in_data;
-  logic [MaxBurstLen-1:0][ReadDataRespWidth-IDWidth-1:0] msg_ram_out_burst_data;
-  logic [ReadDataRespWidth-IDWidth-1:0][MaxBurstLen-1:0] msg_ram_out_burst_data_rot90;
+  logic [MaxBurstLen-1:0][DataWidth-IDWidth-1:0] msg_ram_in_data;
+  logic [MaxBurstLen-1:0][DataWidth-IDWidth-1:0] msg_ram_out_burst_data;
+  logic [DataWidth-IDWidth-1:0][MaxBurstLen-1:0] msg_ram_out_burst_data_rot90;
 
   // Fill input with the input message. The irrelevant input will be filtered out using the wmasks
   for (genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin : gen_msg_ram_in_data
@@ -416,9 +425,7 @@ module simmem_read_data_bank (
   end : gen_msg_ram_in_data
 
   // Fill input with the input message. The irrelevant input will be filtered out using the wmasks
-  for (
-      genvar i_bit = 0; i_bit < ReadDataRespWidth - IDWidth; i_bit = i_bit + 1
-  ) begin : gen_out_data
+  for (genvar i_bit = 0; i_bit < DataWidth - IDWidth; i_bit = i_bit + 1) begin : gen_out_data
     for (
         genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1
     ) begin : gen_out_data_inner
@@ -587,8 +594,8 @@ module simmem_read_data_bank (
 
           // Set the message RAM output wmask
           for (int unsigned i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin
-            msg_ram_out_wmask_id[i_id][i_burst] =
-                tail_cnt_id[i_id] == MaxBurstLen - i_burst[MaxBurstLenWidth - 1:0];
+            msg_ram_out_wmask_id[i_id][i_burst] = tail_cnt_id[i_id] ==
+                MaxBurstLen[MaxBurstLenWidth - 1:0] - i_burst[MaxBurstLenWidth - 1:0];
           end
         end else begin
           msg_ram_out_addr_id[i_id] = prev_tails[i_id];
@@ -597,13 +604,13 @@ module simmem_read_data_bank (
           // read data burst pointed by the previous tail
           if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin
             for (int unsigned i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin
-              msg_ram_out_wmask_id[i_id][i_burst] =
-                  prev_tail_cnt_id[i_id] == MaxBurstLen - i_burst[MaxBurstLenWidth - 1:0] + 1;
+              msg_ram_out_wmask_id[i_id][i_burst] = prev_tail_cnt_id[i_id] ==
+                  MaxBurstLen[MaxBurstLenWidth - 1:0] - i_burst[MaxBurstLenWidth - 1:0] + 1;
             end
           end else begin
             for (int unsigned i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin
-              msg_ram_out_wmask_id[i_id][i_burst] =
-                  prev_tail_cnt_id[i_id] == MaxBurstLen - i_burst[MaxBurstLenWidth - 1:0];
+              msg_ram_out_wmask_id[i_id][i_burst] = prev_tail_cnt_id[i_id] ==
+                  MaxBurstLen[MaxBurstLenWidth - 1:0] - i_burst[MaxBurstLenWidth - 1:0];
             end
           end
         end
@@ -767,7 +774,7 @@ module simmem_read_data_bank (
   // Message RAM instance
   prim_generic_ram_2p #(
     .Width(MsgRamWidth),
-    .DataBitsPerMask(ReadDataRespWidth - IDWidth),
+    .DataBitsPerMask(DataWidth - IDWidth),
     .Depth(TotCapa)
   ) i_msg_ram (
     .clk_a_i     (clk_i),
