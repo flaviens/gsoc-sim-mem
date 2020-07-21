@@ -134,7 +134,7 @@ module simmem_linkedlist_bank_core #(
 
     always_comb begin
       // Default assignments
-      heads_d[current_id] = heads_q[current_id];
+      rsv_heads_d[current_id] = rsv_heads_q[current_id];
       tails_d[current_id] = tails_q[current_id];
       linkedlist_length_d[current_id] = linkedlist_length_q[current_id];
       buf_data_valid[current_id] = 1'b0;
@@ -227,7 +227,7 @@ module simmem_linkedlist_bank_core #(
             addr_ram_id[MESSAGE_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
 
           end else begin : in_handshake_initiate_ram_linkedlist
-            heads_d[current_id] = next_free_ram_entry_binary;
+            rsv_heads_d[current_id] = next_free_ram_entry_binary;
             tails_d[current_id] = next_free_ram_entry_binary;
 
             // Store into struct RAM and mark address as taken
@@ -245,7 +245,7 @@ module simmem_linkedlist_bank_core #(
   for (genvar current_id = 0; current_id < 2 ** IDWidth; current_id = current_id + 1) begin
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (~rst_ni) begin
-        heads_q[current_id] <= '0;
+        rsv_heads_q[current_id] <= '0;
         tails_q[current_id] <= '0;
         linkedlist_length_q[current_id] <= '0;
         update_heads_from_ram_q[current_id] <= '0;
@@ -254,7 +254,7 @@ module simmem_linkedlist_bank_core #(
         out_buf_id_q[current_id] <= '0;
         update_out_buf_from_ram_q[current_id] <= '0;
       end else begin
-        heads_q[current_id] <= heads_d[current_id];
+        rsv_heads_q[current_id] <= rsv_heads_d[current_id];
         tails_q[current_id] <= tails_d[current_id];
         linkedlist_length_q[current_id] <= linkedlist_length_d[current_id];
         update_heads_from_ram_q[current_id] <= update_heads_from_ram_d[current_id];

@@ -34,8 +34,8 @@ module simmem_linkedlist_message_bank #(
   assign data_in_id_field = data_i[IDWidth - 1:0];
 
   // Head, tail and non-empty signals
-  logic [$clog2(TotalCapacity)-1:0] heads_d[2**IDWidth-1:0];
-  logic [$clog2(TotalCapacity)-1:0] heads_q[2**IDWidth-1:0];
+  logic [$clog2(TotalCapacity)-1:0] rsv_heads_d[2**IDWidth-1:0];
+  logic [$clog2(TotalCapacity)-1:0] rsv_heads_q[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] heads_actual[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] tails_d[2**IDWidth-1:0];
   logic [$clog2(TotalCapacity)-1:0] tails_q[2**IDWidth-1:0];
@@ -52,7 +52,7 @@ module simmem_linkedlist_message_bank #(
 
     // Chooses of the new head should be taken from the flip-flop, or from RAM
     assign heads_actual[current_id] =
-        update_heads_from_ram_q[current_id] ? data_out_next_elem_ram : heads_q[current_id];
+        update_heads_from_ram_q[current_id] ? data_out_next_elem_ram : rsv_heads_q[current_id];
   end
 
   // Output buffers, contain the next data to output
@@ -319,7 +319,7 @@ module simmem_linkedlist_message_bank #(
 
     always_comb begin
       // Default assignments
-      heads_d[current_id] = heads_q[current_id];
+      rsv_heads_d[current_id] = rsv_heads_q[current_id];
       tails_d[current_id] = tails_q[current_id];
       linkedlist_length_d[current_id] = linkedlist_length_q[current_id];
       data_o_id[current_id] = '0;
@@ -412,7 +412,7 @@ module simmem_linkedlist_message_bank #(
             addr_ram_id[MESSAGE_RAM][RAM_IN][current_id] = next_free_ram_entry_binary;
 
           end else begin : in_handshake_initiate_ram_linkedlist
-            heads_d[current_id] = next_free_ram_entry_binary;
+            rsv_heads_d[current_id] = next_free_ram_entry_binary;
             tails_d[current_id] = next_free_ram_entry_binary;
 
             // Store into struct RAM and mark address as taken
@@ -430,7 +430,7 @@ module simmem_linkedlist_message_bank #(
   for (genvar current_id = 0; current_id < 2 ** IDWidth; current_id = current_id + 1) begin
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (~rst_ni) begin
-        heads_q[current_id] <= '0;
+        rsv_heads_q[current_id] <= '0;
         tails_q[current_id] <= '0;
         linkedlist_length_q[current_id] <= '0;
         update_heads_from_ram_q[current_id] <= '0;
@@ -439,7 +439,7 @@ module simmem_linkedlist_message_bank #(
         out_buf_id_q[current_id] <= '0;
         update_out_buf_from_ram_q[current_id] <= '0;
       end else begin
-        heads_q[current_id] <= heads_d[current_id];
+        rsv_heads_q[current_id] <= rsv_heads_d[current_id];
         tails_q[current_id] <= tails_d[current_id];
         linkedlist_length_q[current_id] <= linkedlist_length_d[current_id];
         update_heads_from_ram_q[current_id] <= update_heads_from_ram_d[current_id];

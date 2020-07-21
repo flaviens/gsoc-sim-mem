@@ -45,15 +45,15 @@ module simmem_resp_bank (
 
   // Head, tail and length signals
 
-  // mids are the pointers to the next address where the next input of the corresponding AXI
+  // msg_heads are the pointers to the next address where the next input of the corresponding AXI
   // identifier will be allocated
-  logic [BankAddrWidth-1:0] mids_d[NumIds];
-  logic [BankAddrWidth-1:0] mids_q[NumIds];  // Before update from RAM
-  logic [BankAddrWidth-1:0] mids[NumIds];  // Effective middle, after update from RAM
+  logic [BankAddrWidth-1:0] msg_heads_d[NumIds];
+  logic [BankAddrWidth-1:0] msg_heads_q[NumIds];  // Before update from RAM
+  logic [BankAddrWidth-1:0] msg_heads[NumIds];  // Effective middle, after update from RAM
 
   // Heads are the pointers to the last reserved address
-  logic [BankAddrWidth-1:0] heads_d[NumIds];
-  logic [BankAddrWidth-1:0] heads_q[NumIds];
+  logic [BankAddrWidth-1:0] rsv_heads_d[NumIds];
+  logic [BankAddrWidth-1:0] rsv_heads_q[NumIds];
 
   // Previous tails are the pointers to the next addresses to release
   logic [BankAddrWidth-1:0] prev_tails_d[NumIds];
@@ -83,14 +83,14 @@ module simmem_resp_bank (
   logic update_m_from_ram_d[NumIds];  // Update middle from RAM
   logic update_m_from_ram_q[NumIds];
 
-  logic is_middle_emptybox_d[NumIds];  // Signal that determines the right piggybacking strategy
-  logic is_middle_emptybox_q[NumIds];
+  logic is_msg_head_emptybox_d[NumIds];  // Signal that determines the right piggybacking strategy
+  logic is_msg_head_emptybox_q[NumIds];
 
   logic update_heads[NumIds];
 
   // Determines, for each AXI identifier, whether the queue already exists in RAM. If the queue
   // does not exist in RAM, all the pointers should be piggybacked with the head.
-  logic [NumIds-1:0] queue_initiated_id;
+  logic [NumIds-1:0] queue_initiated;
 
   // Lengths of reservation and effective lengths
   logic [BankAddrWidth-1:0] rsv_len_d[NumIds];
@@ -99,12 +99,13 @@ module simmem_resp_bank (
   logic [BankAddrWidth-1:0] mid_len_d[NumIds];
   logic [BankAddrWidth-1:0] mid_len_q[NumIds];
   // Length after the potential output
-  logic [BankAddrWidth-1:0] mid_len_after_out[NumIds];
+  logic [BankAddrWidth-1:0] msg_len_after_out[NumIds];
 
-  // Update heads, mids and tails according to the piggyback and update signals
+  // Update heads, msg_heads and tails according to the piggyback and update signals
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : pointers_update
-    assign mids_d[i_id] = pgbk_m_with_h[i_id] ? heads_d[i_id] : mids[i_id];
-    assign mids[i_id] = update_m_from_ram_q[i_id] ? meta_ram_out_data_mid.nxt_elem : mids_q[i_id];
+    assign msg_heads_d[i_id] = pgbk_m_with_h[i_id] ? rsv_heads_d[i_id] : msg_heads[i_id];
+    assign msg_heads[i_id] =
+        update_m_from_ram_q[i_id] ? meta_ram_out_data_mid.nxt_elem : msg_heads_q[i_id];
 
     always_comb begin : prev_tail_d_assignment
       // The next previous tail is either piggybacked with the head, or follows the tail, or keeps
@@ -117,12 +118,12 @@ module simmem_resp_bank (
         prev_tails_d[i_id] = prev_tails[i_id];
       end
     end : prev_tail_d_assignment
-    assign prev_tails[i_id] = pgbk_pt_with_m_q[i_id] ? mids[i_id] : prev_tails_q[i_id];
+    assign prev_tails[i_id] = pgbk_pt_with_m_q[i_id] ? msg_heads[i_id] : prev_tails_q[i_id];
 
-    assign tails_d[i_id] = pgbk_t_w_h[i_id] ? heads_d[i_id] : tails[i_id];
+    assign tails_d[i_id] = pgbk_t_w_h[i_id] ? rsv_heads_d[i_id] : tails[i_id];
     always_comb begin : tail_assignment
       if (pgbk_t_with_m_q[i_id]) begin
-        tails[i_id] = mids[i_id];
+        tails[i_id] = msg_heads[i_id];
       end else if (update_t_from_ram_q[i_id]) begin
         tails[i_id] = meta_ram_out_data_tail.nxt_elem;
       end else begin
@@ -130,7 +131,7 @@ module simmem_resp_bank (
       end
     end : tail_assignment
 
-    assign heads_d[i_id] = update_heads[i_id] ? nxt_free_addr : heads_q[i_id];
+    assign rsv_heads_d[i_id] = update_heads[i_id] ? nxt_free_addr : rsv_heads_q[i_id];
   end
 
 
@@ -278,12 +279,12 @@ module simmem_resp_bank (
     // The queue is called initiated if the reservation is made for this identifier, and the length
     // condition is satisfied, namely if there is at least one reserved cell in the queue or there
     // will be at least one actual stored element in the queue after the possible output.
-    assign queue_initiated_id[i_id] =
-        rsv_req_id_onehot_i[i_id] && (|rsv_len_q[i_id] || |mid_len_after_out[i_id]);
+    assign queue_initiated[i_id] =
+        rsv_req_id_onehot_i[i_id] && (|rsv_len_q[i_id] || |msg_len_after_out[i_id]);
   end : req_meta_in_id_assignment
 
   // New metadata input is coming when there is a reservation and the queue is already initiated
-  assign meta_ram_in_req = rsv_valid_i && rsv_ready_o && |queue_initiated_id;
+  assign meta_ram_in_req = rsv_valid_i && rsv_ready_o && |queue_initiated;
 
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding tails from RAM) or input data coming (to potentially update the corresponding
@@ -321,7 +322,7 @@ module simmem_resp_bank (
       always_comb begin : nxt_addr_mhot_assignment
         // Fundamentally, the next address to release needs to belong to a non-empty AXI
         // identifier and must be enabled for release
-        nxt_addr_mhot_id[i_id][i_addr] = |(mid_len_after_out[i_id]) && release_en_i[i_addr];
+        nxt_addr_mhot_id[i_id][i_addr] = |(msg_len_after_out[i_id]) && release_en_i[i_addr];
 
         // The address must additionally be, depending on the situation, the previous tail or the
         // tail of the corresponding queue
@@ -404,7 +405,7 @@ module simmem_resp_bank (
 
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign mid_len_after_out[i_id] = out_data_valid_o && out_data_ready_i &&
+    assign msg_len_after_out[i_id] = out_data_valid_o && out_data_ready_i &&
         cur_out_id_onehot[i_id] ? mid_len_q[i_id] - 1 : mid_len_q[i_id];
   end : gen_len_after_output
 
@@ -422,7 +423,7 @@ module simmem_resp_bank (
       // Default assignments
       mid_len_d[i_id] = mid_len_q[i_id];
       rsv_len_d[i_id] = rsv_len_q[i_id];
-      is_middle_emptybox_d[i_id] = is_middle_emptybox_q[i_id];
+      is_msg_head_emptybox_d[i_id] = is_msg_head_emptybox_q[i_id];
 
       update_t_from_ram_d[i_id] = 1'b0;
       update_m_from_ram_d[i_id] = 1'b0;
@@ -460,10 +461,10 @@ module simmem_resp_bank (
         mid_len_d[i_id] = mid_len_d[i_id] + 1;
         rsv_len_d[i_id] = rsv_len_d[i_id] - 1;
 
-        if (mids[i_id] == heads_q[i_id]) begin
+        if (msg_heads[i_id] == rsv_heads_q[i_id]) begin
           pgbk_m_with_h[i_id] = 1'b1;
           // Fullbox if could not move forward
-          is_middle_emptybox_d[i_id] = heads_d[i_id] != heads_q[i_id];
+          is_msg_head_emptybox_d[i_id] = rsv_heads_d[i_id] != rsv_heads_q[i_id];
         end else begin
           // If the reservation head is ahead of the middle pointer, then one can follow the
           // pointer from the metadata RAM
@@ -471,22 +472,22 @@ module simmem_resp_bank (
         end
 
         // Manage more piggybacking on input acquisition
-        if (tails[i_id] == mids[i_id]) begin
-          if (mid_len_after_out[i_id] == 0) begin
+        if (tails[i_id] == msg_heads[i_id]) begin
+          if (msg_len_after_out[i_id] == 0) begin
             pgbk_t_with_m_d[i_id] = 1'b1;
-            if (!is_middle_emptybox_q[i_id]) begin
+            if (!is_msg_head_emptybox_q[i_id]) begin
               pgbk_pt_with_m_d[i_id] = 1'b1;
             end
-          end else if (mid_len_after_out[i_id] == 1 && prev_tails[i_id] == tails[i_id]) begin
+          end else if (msg_len_after_out[i_id] == 1 && prev_tails[i_id] == tails[i_id]) begin
             pgbk_t_with_m_d[i_id] = 1'b1;
           end
         end
 
         // Store the data
-        msg_ram_in_addr_id[i_id] = mids[i_id];
+        msg_ram_in_addr_id[i_id] = msg_heads[i_id];
 
         // Update the middle pointer position
-        meta_ram_out_addr_mid_id[i_id] = mids[i_id];
+        meta_ram_out_addr_mid_id[i_id] = msg_heads[i_id];
       end
 
       if (rsv_valid_i && rsv_ready_o && rsv_req_id_onehot_i[i_id]) begin : reservation_handshake
@@ -496,24 +497,24 @@ module simmem_resp_bank (
 
         // If the queue is already initiated, then update the head position in the RAM and manage
         // the piggybacking properly
-        if (|rsv_len_q[i_id] || |mid_len_after_out[i_id]) begin : reservation_initiated_queue
-          meta_ram_in_addr_id[i_id] = heads_q[i_id];
+        if (|rsv_len_q[i_id] || |msg_len_after_out[i_id]) begin : reservation_initiated_queue
+          meta_ram_in_addr_id[i_id] = rsv_heads_q[i_id];
           meta_ram_in_content_id[i_id].nxt_elem = nxt_free_addr;
 
-          if (heads_q[i_id] == mids[i_id]) begin
+          if (rsv_heads_q[i_id] == msg_heads[i_id]) begin
             if (rsv_len_q[i_id] == 0) begin
-              if (mid_len_after_out[i_id] == 0) begin
+              if (msg_len_after_out[i_id] == 0) begin
                 pgbk_m_with_h[i_id] = 1'b1;
                 pgbk_pt_with_h[i_id] = 1'b1;
                 pgbk_t_w_h[i_id] = 1'b1;
-                is_middle_emptybox_d[i_id] = 1'b1;
-              end else if (mid_len_after_out[i_id] == 1) begin
+                is_msg_head_emptybox_d[i_id] = 1'b1;
+              end else if (msg_len_after_out[i_id] == 1) begin
                 pgbk_m_with_h[i_id] = 1'b1;
                 pgbk_t_w_h[i_id] = 1'b1;
-                is_middle_emptybox_d[i_id] = 1'b1;
+                is_msg_head_emptybox_d[i_id] = 1'b1;
               end else begin
                 pgbk_m_with_h[i_id] = 1'b1;
-                is_middle_emptybox_d[i_id] = 1'b1;
+                is_msg_head_emptybox_d[i_id] = 1'b1;
               end
             end
           end
@@ -523,14 +524,14 @@ module simmem_resp_bank (
           pgbk_m_with_h[i_id] = 1'b1;
           pgbk_pt_with_h[i_id] = 1'b1;
           pgbk_t_w_h[i_id] = 1'b1;
-          is_middle_emptybox_d[i_id] = 1'b1;
+          is_msg_head_emptybox_d[i_id] = 1'b1;
         end
       end : reservation_handshake
 
       if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
         mid_len_d[i_id] = mid_len_d[i_id] - 1;
         update_pt_from_t[i_id] = 1'b1;  // Update the previous tail
-        if (mids[i_id] != tails[i_id]) begin
+        if (msg_heads[i_id] != tails[i_id]) begin
           // If possible, read the next tail address from RAM
           update_t_from_ram_d[i_id] = 1'b1;
           meta_ram_out_addr_tail_id[i_id] = tails[i_id];
@@ -544,8 +545,8 @@ module simmem_resp_bank (
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      mids_q <= '{default: '0};
-      heads_q <= '{default: '0};
+      msg_heads_q <= '{default: '0};
+      rsv_heads_q <= '{default: '0};
       prev_tails_q <= '{default: '0};
       tails_q <= '{default: '0};
       mid_len_q <= '{default: '0};
@@ -554,13 +555,13 @@ module simmem_resp_bank (
       update_t_from_ram_q <= '{default: '0};
       update_m_from_ram_q <= '{default: '0};
 
-      is_middle_emptybox_q <= '{default: '1};
+      is_msg_head_emptybox_q <= '{default: '1};
 
       pgbk_pt_with_m_q <= '{default: '0};
       pgbk_t_with_m_q <= '{default: '0};
     end else begin
-      mids_q <= mids_d;
-      heads_q <= heads_d;
+      msg_heads_q <= msg_heads_d;
+      rsv_heads_q <= rsv_heads_d;
       prev_tails_q <= prev_tails_d;
       tails_q <= tails_d;
       mid_len_q <= mid_len_d;
@@ -569,7 +570,7 @@ module simmem_resp_bank (
       update_t_from_ram_q <= update_t_from_ram_d;
       update_m_from_ram_q <= update_m_from_ram_d;
 
-      is_middle_emptybox_q <= is_middle_emptybox_d;
+      is_msg_head_emptybox_q <= is_msg_head_emptybox_d;
 
       pgbk_pt_with_m_q <= pgbk_pt_with_m_d;
       pgbk_t_with_m_q <= pgbk_t_with_m_d;
@@ -649,7 +650,7 @@ module simmem_resp_bank (
   .Width(WriteRespMetadataWidth),
   .DataBitsPerMask(1),
   .Depth(TotCapa)
-) i_meta_ram_out_mid (
+) i_meta_ram_out_msg__head (
   .clk_a_i     (clk_i),
   .clk_b_i     (clk_i),
   

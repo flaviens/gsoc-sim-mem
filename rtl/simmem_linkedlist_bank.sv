@@ -32,8 +32,8 @@ module simmem_linkedlist_bank #(
   // Head, tail and length signals
 
   // Heads are the pointers to the last reserved address
-  logic [BankAddrWidth-1:0] heads_d[NumIds];
-  logic [BankAddrWidth-1:0] heads_q[NumIds];
+  logic [BankAddrWidth-1:0] rsv_heads_d[NumIds];
+  logic [BankAddrWidth-1:0] rsv_heads_q[NumIds];
 
   // Previous tails are the pointers to the next addresses to release
   logic [BankAddrWidth-1:0] prev_tails_d[NumIds];
@@ -56,7 +56,7 @@ module simmem_linkedlist_bank #(
 
   // Determines, for each AXI identifier, whether the queue already exists in RAM. If the queue
   // does not exist in RAM, all the pointers should be piggybacked with the head.
-  logic [NumIds-1:0] queue_initiated_id;
+  logic [NumIds-1:0] queue_initiated;
 
   // Lengths of the respective linkedlists
   logic [BankAddrWidth-1:0] list_len_d[NumIds];
@@ -80,7 +80,7 @@ module simmem_linkedlist_bank #(
       end
     end : prev_tail_d_assignment
 
-    assign tails_d[i_id] = !|list_len_after_out[i_id] ? heads_d[i_id] : tails[i_id];
+    assign tails_d[i_id] = !|list_len_after_out[i_id] ? rsv_heads_d[i_id] : tails[i_id];
     always_comb begin : tail_assignment
       if (update_t_from_ram_q[i_id]) begin
         tails[i_id] = meta_ram_out_data.nxt_elem;
@@ -89,7 +89,7 @@ module simmem_linkedlist_bank #(
       end
     end : tail_assignment
 
-    assign heads_d[i_id] = update_heads[i_id] ? nxt_free_addr : heads_q[i_id];
+    assign rsv_heads_d[i_id] = update_heads[i_id] ? nxt_free_addr : rsv_heads_q[i_id];
   end
 
 
@@ -226,11 +226,11 @@ module simmem_linkedlist_bank #(
 
   // Assign the queue_initiated signal, to compute whether the metadata RAM should be requested
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : req_meta_in_id_assignment
-    assign queue_initiated_id[i_id] = |list_len_after_out[i_id];
+    assign queue_initiated[i_id] = |list_len_after_out[i_id];
   end : req_meta_in_id_assignment
 
   // New metadata input is coming when there is a reservation and the queue is already initiated
-  assign meta_ram_in_req = in_data_ready_o && in_data_valid_i && |queue_initiated_id;
+  assign meta_ram_in_req = in_data_ready_o && in_data_valid_i && |queue_initiated;
 
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding tails from RAM) or input data coming (to potentially update the corresponding
@@ -392,11 +392,11 @@ module simmem_linkedlist_bank #(
         list_len_d[i_id] = list_len_d[i_id] + 1;
 
         // Store the data
-        msg_ram_in_addr_id[i_id] = heads_q[i_id];
+        msg_ram_in_addr_id[i_id] = rsv_heads_q[i_id];
 
         // Update the metadata if the queue was initiated
-        if (|queue_initiated_id[i_id]) begin
-          meta_ram_in_addr_id[i_id] = heads_q[i_id];
+        if (|queue_initiated[i_id]) begin
+          meta_ram_in_addr_id[i_id] = rsv_heads_q[i_id];
           meta_ram_in_content_id[i_id].nxt_elem = nxt_free_addr;
         end
       end
@@ -418,14 +418,14 @@ module simmem_linkedlist_bank #(
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      heads_q <= '{default: '0};
+      rsv_heads_q <= '{default: '0};
       prev_tails_q <= '{default: '0};
       tails_q <= '{default: '0};
       list_len_q <= '{default: '0};
 
       update_t_from_ram_q <= '{default: '0};
     end else begin
-      heads_q <= heads_d;
+      rsv_heads_q <= rsv_heads_d;
       prev_tails_q <= prev_tails_d;
       tails_q <= tails_d;
       list_len_q <= list_len_d;
