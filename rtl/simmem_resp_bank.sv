@@ -6,10 +6,10 @@
 
 // Does not support direct replacement (simultaneous write and read in the RAM)
 
-module simmem_read_data_bank #(
-    parameter int MaxBurstLen = 1,
+module simmem_resp_bank #(
+    parameter int MaxBurstLen = 4,
     parameter int TotCapa = simmem_pkg::ReadDataBankTotalCapacity,
-    parameter type DataType = simmem_pkg::wresp_t
+    parameter type DataType = simmem_pkg::rdata_t
 
 ) (
   input logic clk_i,
