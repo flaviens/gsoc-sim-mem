@@ -2,7 +2,11 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 //
-// Linkedlist bank for delays in the simulated memory controller 
+// Linkedlist bank for delays in the simulated memory controller
+
+// The delay bank takes delays as inputs and outputs a multihot signal corresponding to which
+// response can be released by the message bank.
+// It contains one counter per response identifier (corresponding to RAM addresses).
 
 module simmem_delay_bank (
   input logic clk_i,
