@@ -47,7 +47,7 @@ struct WriteResponse {
   static const uint64_t content_off, content_w;
 
   uint64_t id;
-  uint64_t content;
+  uint64_t payload;
 
   uint64_t to_packed();
   void from_packed(uint64_t packed_val);

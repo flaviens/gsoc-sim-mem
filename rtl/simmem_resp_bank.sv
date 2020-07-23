@@ -491,7 +491,7 @@ module simmem_resp_bank (
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsvd[i_id] = data_i.merged_content.id == i_id && |(rsv_len_q[i_id]);
+    assign is_id_rsvd[i_id] = data_i.merged_payload.id == i_id && |(rsv_len_q[i_id]);
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
@@ -556,8 +556,8 @@ module simmem_resp_bank (
 
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
   assign out_data_valid_o = |cur_out_valid_q;
-  assign data_o.merged_content.id = cur_out_id_bin_q;
-  assign data_o.merged_content.content = msg_out_ram_data;
+  assign data_o.merged_payload.id = cur_out_id_bin_q;
+  assign data_o.merged_payload.payload = msg_out_ram_data;
 
 
   ////////////////
@@ -615,7 +615,7 @@ module simmem_resp_bank (
       end
 
       // Input handshake
-      if (in_data_ready_o && in_data_valid_i && data_i.merged_content.id == i_id
+      if (in_data_ready_o && in_data_valid_i && data_i.merged_payload.id == i_id
           ) begin : in_handshake
 
         mid_len_d[i_id] = mid_len_d[i_id] + 1;
@@ -772,7 +772,7 @@ module simmem_resp_bank (
     .a_write_i   (msg_ram_in_write),
     .a_wmask_i   (msg_ram_in_wmask),
     .a_addr_i    (msg_ram_in_addr),
-    .a_wdata_i   (data_i.merged_content.content),
+    .a_wdata_i   (data_i.merged_payload.payload),
     .a_rdata_o   (),
     
     .b_req_i     (msg_ram_out_req),

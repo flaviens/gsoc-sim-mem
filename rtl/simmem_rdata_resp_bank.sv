@@ -171,7 +171,7 @@ module simmem_resp_bank #(
         cur_out_addr_onehot_q[i_addr] && out_data_valid_o && out_data_ready_i;
     for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_cnt_in_mask
       assign cnt_in_mask_id[i_addr][i_id] =
-          data_i.merged_content.id == i_id && msg_heads[i_id] == i_addr;
+          data_i.merged_payload.id == i_id && msg_heads[i_id] == i_addr;
     end : gen_cnt_in_mask
     assign cnt_in_mask[i_addr] = in_data_ready_o && in_data_valid_i && |cnt_in_mask_id[i_addr];
 
@@ -420,7 +420,7 @@ module simmem_resp_bank #(
 
   // Fill input with the input message. The irrelevant input will be filtered out using the wmasks
   for (genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin : gen_msg_ram_in_data
-    assign msg_ram_in_data[i_burst] = data_i.merged_content.content;
+    assign msg_ram_in_data[i_burst] = data_i.merged_payload.payload;
   end : gen_msg_ram_in_data
 
   // Fill input with the input message. The irrelevant input will be filtered out using the wmasks
@@ -495,7 +495,7 @@ module simmem_resp_bank #(
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsvd[i_id] = data_i.merged_content.id == i_id & |(rsv_len_q[i_id]);
+    assign is_id_rsvd[i_id] = data_i.merged_payload.id == i_id & |(rsv_len_q[i_id]);
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
@@ -551,8 +551,8 @@ module simmem_resp_bank #(
 
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
   assign out_data_valid_o = |cur_out_valid_q;
-  assign data_o.merged_content.id = cur_out_id_bin_q;
-  assign data_o.merged_content.content = msg_ram_out_data;
+  assign data_o.merged_payload.id = cur_out_id_bin_q;
+  assign data_o.merged_payload.payload = msg_ram_out_data;
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
 
@@ -616,7 +616,7 @@ module simmem_resp_bank #(
       end
 
       // Input handshake
-      if (in_data_ready_o && in_data_valid_i && data_i.merged_content.id == i_id
+      if (in_data_ready_o && in_data_valid_i && data_i.merged_payload.id == i_id
           ) begin : in_handshake
 
         // If this is the last data of the burst, then update the pointers

@@ -355,7 +355,7 @@ module simmem_linkedlist_bank #(
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
   assign out_data_valid_o = |cur_out_valid_q;
   assign data_o.id = cur_out_id_bin_q;
-  assign data_o.content = msg_out_ram_data;
+  assign data_o.payload = msg_out_ram_data;
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
 
@@ -467,7 +467,7 @@ module simmem_linkedlist_bank #(
       .a_write_i   (msg_ram_in_write),
       .a_wmask_i   (msg_ram_in_wmask),
       .a_addr_i    (msg_ram_in_addr),
-      .a_wdata_i   (data_i.content),
+      .a_wdata_i   (data_i.payload),
       .a_rdata_o   (),
       
       .b_req_i     (msg_ram_out_req),

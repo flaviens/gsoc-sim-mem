@@ -93,7 +93,7 @@ module simmem_linkedlist_bank_core #(
         ram_valid_out_mask[current_addr] && |ram_valid_apply_out_mask_id_packed);
   end
 
-  // Expose the content of all the output buffers
+  // Expose the payload of all the output buffers
   logic [StructWidth-IDWidth-1:0] buf_data_o[2**IDWidth-1:0];
   logic buf_data_valid[2**IDWidth-1:0];
   

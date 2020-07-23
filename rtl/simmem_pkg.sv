@@ -80,23 +80,23 @@ package simmem_pkg;
   } rdata_all_fields_t;
 
   typedef struct packed {
-    logic [$bits(rdata_all_fields_t)-IDWidth-1:0] content;
+    logic [$bits(rdata_all_fields_t)-IDWidth-1:0] payload;
     logic [IDWidth-1:0] id;
-  } rdata_merged_content_t;
+  } rdata_merged_payload_t;
 
   typedef union packed {
     rdata_all_fields_t all_fields;
-    rdata_merged_content_t merged_content;
+    rdata_merged_payload_t merged_payload;
   } rdata_t;
 
   typedef struct packed {
     // logic [BUserWidth-1:0] user_signal;
-    logic [XRespWidth-1:0] content;
+    logic [XRespWidth-1:0] payload;
     logic [IDWidth-1:0] id;
-  } wresp_merged_content_t;
+  } wresp_merged_payload_t;
 
   // For the write response, the union is only a wrapper helping generic message bank implementation
-  typedef union packed {wresp_merged_content_t merged_content;} wresp_t;
+  typedef union packed {wresp_merged_payload_t merged_payload;} wresp_t;
 
 
   ////////////////////////////

@@ -175,7 +175,7 @@ void WriteResponse::from_packed(uint64_t packed) {
 
   if (content_w) {
     low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - content_w);
-    content = low_mask & ((packed & (low_mask << content_off)) >> content_off);
+    payload = low_mask & ((packed & (low_mask << content_off)) >> content_off);
   }
 }
 
@@ -191,7 +191,7 @@ uint64_t WriteResponse::to_packed() {
   if (content_w) {
     low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - content_w));
     packed &= ~(low_mask << content_off);
-    packed |= (low_mask & content) << content_off;
+    packed |= (low_mask & payload) << content_off;
   }
 
   return packed;

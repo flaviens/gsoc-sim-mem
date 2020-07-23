@@ -125,16 +125,16 @@ class WriteRespBankTestbench {
    * Applies valid input data.
    *
    * @param identifier the AXI identifier of the incoming data
-   * @param content the rest (payload) of the incoming data
+   * @param payload the rest (payload) of the incoming data
    *
    * @return the data as seen by the design under test instance
    */
-  uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t content) {
+  uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t payload) {
     // Checks if the given values are not too big
-    assert(!(content >> kMsgWidth));
+    assert(!(payload >> kMsgWidth));
     assert(!(identifier >> kIdWidth));
 
-    uint32_t in_data = content << kIdWidth | identifier;
+    uint32_t in_data = payload << kIdWidth | identifier;
     module_->data_i = in_data;
     module_->in_data_valid_i = 1;
     return in_data;
@@ -277,7 +277,7 @@ void sequential_test(WriteRespBankTestbench *tb) {
 
 /**
  * Performs a complete test for a single AXI identifier. Reservation, input and
- * output requests, as well as the data content (except for the AXI identifier)
+ * output requests, as well as the data payload (except for the AXI identifier)
  * are randomized.
  *
  * @param tb a pointer to a fresh testbench instance
@@ -387,7 +387,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
 
 /**
  * Performs a complete test for multiple AXI identifiers. Reservation, input and
- * output requests, as well as the data content (except for the AXI identifier)
+ * output requests, as well as the data payload (except for the AXI identifier)
  * are randomized.
  *
  * @param tb a pointer to a fresh testbench instance

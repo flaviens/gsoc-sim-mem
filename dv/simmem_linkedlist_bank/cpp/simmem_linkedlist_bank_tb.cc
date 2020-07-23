@@ -211,7 +211,7 @@ void sequential_test(WriteRespBankTestbench *tb) {
 
 /**
  * Performs a complete test for a single AXI identifier. Input and output
- * requests, as well as the data content (except for the AXI identifier) are
+ * requests, as well as the data payload (except for the AXI identifier) are
  * randomized.
  *
  * @param tb a pointer to a fresh testbench instance
@@ -310,7 +310,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
 
 /**
  * Performs a complete test for multiple AXI identifiers. Input and output
- * requests, as well as the data content (except for the AXI identifier) are
+ * requests, as well as the data payload (except for the AXI identifier) are
  * randomized.
  *
  * @param tb a pointer to a fresh testbench instance

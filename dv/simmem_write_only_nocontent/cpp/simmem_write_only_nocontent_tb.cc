@@ -239,7 +239,7 @@ class RealMemoryController {
   void add_waddr(WriteAddressRequest waddr) {
     WriteResponse new_resp;
     new_resp.id = waddr.id;
-    new_resp.content =  // Copy the low order content of the incoming waddr in
+    new_resp.payload =  // Copy the low order payload of the incoming waddr in
                         // the corresponding wresp
         (waddr.to_packed() >> WriteAddressRequest::id_w) &
         ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::content_w));
