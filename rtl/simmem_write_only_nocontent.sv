@@ -57,8 +57,8 @@ module simmem_write_only_nocontent (
   logic wresp_res_req_valid;
   logic wresp_res_req_ready;
 
-  logic [WriteRespBankTotalCapacity-1:0] wresp_release_en;
-  logic [WriteRespBankTotalCapacity-1:0] wresp_released_addr_onehot;
+  logic [WriteRespBankCapacity-1:0] wresp_release_en;
+  logic [WriteRespBankCapacity-1:0] wresp_released_addr_onehot;
 
   wresp_t wresp_bank_in_data;
   wresp_t wresp_bank_out_data;
@@ -135,8 +135,8 @@ module simmem_write_only_nocontent (
   logic [WriteRespBankAddrWidth-1:0] dbank_in_local_id;
   logic [DelayWidth-1:0] dbank_in_delay;
   logic dbank_in_valid;
-  logic [WriteRespBankTotalCapacity-1:0] dbank_in_released_onehot;
-  logic [WriteRespBankTotalCapacity-1:0] dbank_out_release_en;
+  logic [WriteRespBankCapacity-1:0] dbank_in_released_onehot;
+  logic [WriteRespBankCapacity-1:0] dbank_out_release_en;
 
   simmem_delay_bank i_simmem_delay_bank (
       .clk_i,

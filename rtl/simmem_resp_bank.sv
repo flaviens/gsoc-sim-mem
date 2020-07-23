@@ -87,7 +87,7 @@ module simmem_resp_bank (
 
   import simmem_pkg::*;
 
-  localparam TotCapa = WriteRespBankTotalCapacity;
+  localparam TotCapa = WriteRespBankCapacity;
   localparam BankAddrWidth = WriteRespBankAddrWidth;
 
   localparam MsgRamWidth = $bits(wresp_t) - IDWidth;

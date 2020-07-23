@@ -5,7 +5,7 @@
 // Linkedlist bank for messages in the simulated memory controller 
 
 module simmem_linkedlist_bank #(
-    parameter TotCapa = simmem_pkg::WriteRespBankTotalCapacity,
+    parameter TotCapa = simmem_pkg::WriteRespBankCapacity,
     parameter BankAddrWidth = simmem_pkg::WriteRespBankAddrWidth,
     parameter RspWidth = WriteRespWidth - IDWidth
 ) (

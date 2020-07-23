@@ -6,6 +6,23 @@
 
 package simmem_pkg;
 
+  ///////////////////////
+  // System parameters //
+  ///////////////////////
+
+  localparam GlobalMemoryCapaWidth = 16;
+  localparam RowBufferLenWidth = 8;
+
+  localparam RowHitCost = 10;  // Cycles (must be at least 1)
+  localparam PrechargeCost = 50;  // Cycles
+  localparam ActivationCost = 45;  // Cycles
+
+  localparam MaxRBurstLen = 4;
+  localparam MaxWBurstLen = 4;
+
+  localparam MaxReadBurstWidth = $clog2(MaxRBurstLen);
+  localparam MaxWriteBurstWidth = $clog2(MaxWBurstLen);
+
   /////////////////
   // AXI signals //
   /////////////////
@@ -14,7 +31,7 @@ package simmem_pkg;
   localparam NumIds = 2 ** IDWidth;
 
   // Address field widths
-  localparam AxAddrWidth = 8;
+  localparam AxAddrWidth = GlobalMemoryCapaWidth;
   localparam AxLenWidth = 8;
   localparam AxSizeWidth = 3;
   localparam AxBurstWidth = 2;
@@ -103,14 +120,13 @@ package simmem_pkg;
   // Dimensions for modules //
   ////////////////////////////
 
-  localparam WriteRespBankTotalCapacity = 32;
-  localparam ReadDataBankTotalCapacity = 32;
+  localparam WriteRespBankCapacity = 32;
+  localparam ReadDataBankCapacity = 32;
 
-  localparam WriteRespBankAddrWidth = $clog2(WriteRespBankTotalCapacity);
-  localparam ReadDataBankAddrWidth = $clog2(ReadDataBankTotalCapacity);
-
-  localparam MaxReadDataBurstLen = 4;
+  localparam WriteRespBankAddrWidth = $clog2(WriteRespBankCapacity);
+  localparam ReadDataBankAddrWidth = $clog2(ReadDataBankCapacity);
 
   localparam DelayWidth = 6;
+  localparam TimestampWidth = 20;
 
 endpackage

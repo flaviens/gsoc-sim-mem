@@ -17,8 +17,8 @@ module simmem_delay_bank (
   input logic in_valid_i,
   
   // Signals at output
-  input  logic [simmem_pkg::WriteRespBankTotalCapacity-1:0] address_released_onehot_i,
-  output logic [simmem_pkg::WriteRespBankTotalCapacity-1:0] release_en_o
+  input  logic [simmem_pkg::WriteRespBankCapacity-1:0] address_released_onehot_i,
+  output logic [simmem_pkg::WriteRespBankCapacity-1:0] release_en_o
 );
 
   import simmem_pkg::*;
@@ -27,19 +27,19 @@ module simmem_delay_bank (
   // Local identifiers to add to the releasable list //
   /////////////////////////////////////////////////////
 
-  logic [WriteRespBankTotalCapacity-1:0] new_addresses_to_release_multihot;
+  logic [WriteRespBankCapacity-1:0] new_addresses_to_release_multihot;
 
 
   ///////////////////
   // Entry signals //
   ///////////////////
 
-  logic [DelayWidth-1:0] counters_d[WriteRespBankTotalCapacity];
-  logic [DelayWidth-1:0] counters_q[WriteRespBankTotalCapacity];
+  logic [DelayWidth-1:0] counters_d[WriteRespBankCapacity];
+  logic [DelayWidth-1:0] counters_q[WriteRespBankCapacity];
 
   // Entry signal management
   for (
-      genvar curr_entry = 0; curr_entry < WriteRespBankTotalCapacity; curr_entry = curr_entry + 1
+      genvar curr_entry = 0; curr_entry < WriteRespBankCapacity; curr_entry = curr_entry + 1
   ) begin : counter_update
     always_comb begin : counter_update_comb
       new_addresses_to_release_multihot[curr_entry] = 1'b0;
@@ -72,7 +72,7 @@ module simmem_delay_bank (
   // Update the release_en_i signals //
   /////////////////////////////////////
 
-  logic [WriteRespBankTotalCapacity-1:0] release_en_d;
+  logic [WriteRespBankCapacity-1:0] release_en_d;
 
   always_comb begin : update_release_en_signals
     release_en_d = release_en_o;
@@ -88,7 +88,7 @@ module simmem_delay_bank (
   //////////////////////////////////
 
   for (
-      genvar curr_entry = 0; curr_entry < WriteRespBankTotalCapacity; curr_entry = curr_entry + 1
+      genvar curr_entry = 0; curr_entry < WriteRespBankCapacity; curr_entry = curr_entry + 1
   ) begin : sequential_signal_update
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (!rst_ni) begin

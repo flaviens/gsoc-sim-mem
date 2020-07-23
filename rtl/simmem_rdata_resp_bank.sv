@@ -6,7 +6,7 @@
 
 module simmem_resp_bank #(
     parameter int MaxBurstLen = 4,
-    parameter int TotCapa = simmem_pkg::ReadDataBankTotalCapacity,
+    parameter int TotCapa = simmem_pkg::ReadDataBankCapacity,
     parameter type DataType = simmem_pkg::rdata_t
 
 ) (
