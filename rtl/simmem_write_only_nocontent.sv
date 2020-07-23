@@ -48,7 +48,7 @@ module simmem_write_only_nocontent (
   assign waddr_data_o = waddr_data_i;
 
   ///////////////////////////
-  // Message bank instance //
+  // Response bank instance //
   ///////////////////////////
 
   logic [IDWidth-1:0] wresp_res_req_id;
@@ -84,8 +84,8 @@ module simmem_write_only_nocontent (
       .wresp_released_addr_onehot_o(wresp_released_addr_onehot),
 
       // Interface with the real memory controller
-      .wresp_data_i(wresp_bank_in_data), // AXI message excluding handshake
-      .wresp_data_o(wresp_bank_out_data), // AXI message excluding handshake
+      .wresp_data_i(wresp_bank_in_data), // AXI response excluding handshake
+      .wresp_data_o(wresp_bank_out_data), // AXI response excluding handshake
       .wresp_in_data_valid_i(wresp_bank_in_data_valid),
       .wresp_in_data_ready_o(wresp_bank_in_data_ready),
 

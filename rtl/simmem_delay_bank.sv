@@ -5,7 +5,7 @@
 // Linkedlist bank for delays in the simulated memory controller
 
 // The delay bank takes delays as inputs and outputs a multihot signal corresponding to which
-// response can be released by the message bank.
+// response can be released by the response bank.
 // It contains one counter per response identifier (corresponding to RAM addresses).
 
 module simmem_delay_bank (

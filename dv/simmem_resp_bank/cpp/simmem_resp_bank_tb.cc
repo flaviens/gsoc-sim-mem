@@ -14,12 +14,12 @@
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
-const bool kTransactionsVerbose = true;
-const bool kPairsVerbose = true;
+const bool kTransactionsVerbose = false;
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kMsgWidth = 10;  // Whole message width
+const int kRspWidth = 10;  // Whole response width
 const int kIdWidth = 4;
 
 typedef enum {
@@ -56,7 +56,7 @@ class WriteRespBankTestbench {
 
     // Puts ones at the fields' places
     id_mask_ = ~((1 << 31) >> (31 - kIdWidth));
-    content_mask_ = ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~id_mask_;
+    content_mask_ = ~((1 << 31) >> (31 - kRspWidth - kIdWidth)) & ~id_mask_;
   }
 
   ~WriteRespBankTestbench(void) { simmem_close_trace(); }
@@ -130,7 +130,7 @@ class WriteRespBankTestbench {
    */
   uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t payload) {
     // Checks if the given values are not too big
-    assert(!(payload >> kMsgWidth));
+    assert(!(payload >> kRspWidth));
     assert(!(identifier >> kIdWidth));
 
     uint32_t in_data = payload << kIdWidth | identifier;

@@ -95,7 +95,7 @@ package simmem_pkg;
     logic [IDWidth-1:0] id;
   } wresp_merged_payload_t;
 
-  // For the write response, the union is only a wrapper helping generic message bank implementation
+  // For the write response, the union is only a wrapper helping generic response bank implementation
   typedef union packed {wresp_merged_payload_t merged_payload;} wresp_t;
 
 

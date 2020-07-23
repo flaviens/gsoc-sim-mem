@@ -38,116 +38,71 @@ const uint64_t WriteAddressRequest::prot_off =
 const uint64_t WriteAddressRequest::qos_off =
     WriteAddressRequest::prot_off + WriteAddressRequest::prot_w;
 
-void WriteAddressRequest::from_packed(uint64_t packed) {
+/**
+ * Helper function to parse a packed structure representation
+ *
+ * @param packed the packed structure representation
+ * @param field_w the field representation width (bits)
+ * @param field_off the field representation offset (bits)
+ * @return the field value read from the packed representation
+ */
+uint64_t single_from_packed(uint64_t packed, uint64_t field_w,
+                            uint64_t field_off) {
   uint64_t low_mask;
 
-  if (id_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - id_w);
-    id = low_mask & ((packed & (low_mask << id_off)) >> id_off);
+  if (field_w) {
+    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - field_w);
+    return low_mask & ((packed & (low_mask << field_off)) >> field_off);
   }
+  return 0;
+}
 
-  if (addr_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - addr_w);
-    addr = low_mask & ((packed & (low_mask << addr_off)) >> addr_off);
-  }
+/**
+ * Helper function that fills a partial packed structure representation from
+ * a single field.
+ *
+ * @param packed the partial packed structure representation, modified in place
+ * @param field the field value
+ * @param field_w the field representation width (bits)
+ * @param field_off the field representation offset (bits)
+ */
+void single_to_packed(uint64_t &packed, uint64_t field, uint64_t field_w,
+                      uint64_t field_off) {
+  uint64_t low_mask;
 
-  if (burst_len_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - burst_len_w);
-    burst_len =
-        low_mask & ((packed & (low_mask << burst_len_off)) >> burst_len_off);
+  if (field_w) {
+    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - field_w));
+    // Clean the space dedicated to the field
+    packed &= ~(low_mask << field_off);
+    // Populate the space dedicated to the field
+    packed |= (low_mask & field) << field_off;
   }
+}
 
-  if (burst_size_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - burst_size_w);
-    burst_size =
-        low_mask & ((packed & (low_mask << burst_size_off)) >> burst_size_off);
-  }
-
-  if (burst_type_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - burst_type_w);
-    burst_type =
-        low_mask & ((packed & (low_mask << burst_type_off)) >> burst_type_off);
-  }
-
-  if (lock_type_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - lock_type_w);
-    lock_type =
-        low_mask & ((packed & (low_mask << lock_type_off)) >> lock_type_off);
-  }
-
-  if (memtype_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - memtype_w);
-    memtype = low_mask & ((packed & (low_mask << memtype_off)) >> memtype_off);
-  }
-
-  if (prot_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - prot_w);
-    prot = low_mask & ((packed & (low_mask << prot_off)) >> prot_off);
-  }
-
-  if (qos_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - qos_w);
-    qos = low_mask & ((packed & (low_mask << qos_off)) >> qos_off);
-  }
+void WriteAddressRequest::from_packed(uint64_t packed) {
+  id = single_from_packed(packed, id_w, id_off);
+  addr = single_from_packed(packed, addr_w, addr_off);
+  burst_len = single_from_packed(packed, burst_len_w, burst_len_off);
+  burst_size = single_from_packed(packed, burst_size_w, burst_size_off);
+  burst_type = single_from_packed(packed, burst_type_w, burst_type_off);
+  lock_type = single_from_packed(packed, lock_type_w, lock_type_off);
+  memtype = single_from_packed(packed, memtype_w, memtype_off);
+  prot = single_from_packed(packed, prot_w, prot_off);
+  qos = single_from_packed(packed, qos_w, qos_off);
 }
 
 uint64_t WriteAddressRequest::to_packed() {
   uint64_t packed = 0UL;
-  uint64_t low_mask;
 
-  if (id_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - id_w));
-    packed &= ~(low_mask << id_off);
-    packed |= (low_mask & id) << id_off;
-  }
-
-  if (addr_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - addr_w));
-    packed &= ~(low_mask << addr_off);
-    packed |= (low_mask & addr) << addr_off;
-  }
-
-  if (burst_len_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - burst_len_w));
-    packed &= ~(low_mask << burst_len_off);
-    packed |= (low_mask & burst_len) << burst_len_off;
-  }
-
-  if (burst_size_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - burst_size_w));
-    packed &= ~(low_mask << burst_size_off);
-    packed |= (low_mask & burst_size) << burst_size_off;
-  }
-
-  if (burst_type_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - burst_type_w));
-    packed &= ~(low_mask << burst_type_off);
-    packed |= (low_mask & burst_type) << burst_type_off;
-  }
-
-  if (lock_type_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - lock_type_w));
-    packed &= ~(low_mask << lock_type_off);
-    packed |= (low_mask & lock_type) << lock_type_off;
-  }
-
-  if (memtype_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - memtype_w));
-    packed &= ~(low_mask << memtype_off);
-    packed |= (low_mask & memtype) << memtype_off;
-  }
-
-  if (prot_w) {
-    low_mask = ~(1L << ((PackedW - 1)) >> (PackedW - 1 - prot_w));
-    packed &= ~(low_mask << prot_off);
-    packed |= (low_mask & prot) << prot_off;
-  }
-
-  if (qos_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - qos_w));
-    packed &= ~(low_mask << qos_off);
-    packed |= (low_mask & qos) << qos_off;
-  }
+  single_to_packed(packed, id, id_w, id_off);
+  single_to_packed(packed, addr, addr_w, addr_off);
+  single_to_packed(packed, burst_len, burst_len_w, burst_len_off);
+  single_to_packed(packed, burst_size, burst_size_w, burst_size_off);
+  single_to_packed(packed, burst_type, burst_type_w, burst_type_off);
+  single_to_packed(packed, lock_type, lock_type_w, lock_type_off);
+  single_to_packed(packed, memtype, memtype_w, memtype_off);
+  single_to_packed(packed, prot, prot_w, prot_off);
+  single_to_packed(packed, qos, qos_w, qos_off);
 
   return packed;
 }
@@ -158,41 +113,25 @@ uint64_t WriteAddressRequest::to_packed() {
 
 // Static constant definition (widths)
 const uint64_t WriteResponse::id_w = IDWidth;
-const uint64_t WriteResponse::content_w = XRespWidth;
+const uint64_t WriteResponse::payload_w = XRespWidth;
 
 // Static constant definition (offsets)
 const uint64_t WriteResponse::id_off = 0UL;
-const uint64_t WriteResponse::content_off =
+const uint64_t WriteResponse::payload_off =
     WriteResponse::id_off + WriteResponse::id_w;
 
 void WriteResponse::from_packed(uint64_t packed) {
   uint64_t low_mask;
 
-  if (id_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - id_w);
-    id = low_mask & ((packed & (low_mask << id_off)) >> id_off);
-  }
-
-  if (content_w) {
-    low_mask = ~(1L << (PackedW - 1)) >> (PackedW - 1 - content_w);
-    payload = low_mask & ((packed & (low_mask << content_off)) >> content_off);
-  }
+  id = single_from_packed(packed, id_w, id_off);
+  payload = single_from_packed(packed, payload_w, payload_off);
 }
 
 uint64_t WriteResponse::to_packed() {
   uint64_t packed = 0UL;
-  uint64_t low_mask;
-  if (id_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - id_w));
-    packed &= ~(low_mask << id_off);
-    packed |= (low_mask & id) << id_off;
-  }
 
-  if (content_w) {
-    low_mask = ~((1L << (PackedW - 1)) >> (PackedW - 1 - content_w));
-    packed &= ~(low_mask << content_off);
-    packed |= (low_mask & payload) << content_off;
-  }
+  single_to_packed(packed, id, id_w, id_off);
+  single_to_packed(packed, payload, payload_w, payload_off);
 
   return packed;
 }

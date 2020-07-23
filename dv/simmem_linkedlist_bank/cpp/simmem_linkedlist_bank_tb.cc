@@ -19,7 +19,7 @@ const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kMsgWidth = 3;
+const int kRspWidth = 3;
 const int kIdWidth = 4;
 
 typedef enum {
@@ -55,8 +55,8 @@ class WriteRespBankTestbench {
     }
 
     // Puts ones at the fields' places
-    content_mask_ = ~((1 << 31) >> (31 - kMsgWidth));
-    id_mask_ = ~((1 << 31) >> (31 - kMsgWidth - kIdWidth)) & ~content_mask_;
+    content_mask_ = ~((1 << 31) >> (31 - kRspWidth));
+    id_mask_ = ~((1 << 31) >> (31 - kRspWidth - kIdWidth)) & ~content_mask_;
   }
 
   ~WriteRespBankTestbench(void) { simmem_close_trace(); }
@@ -399,7 +399,7 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
       if (tb->simmem_output_data_fetch(current_output)) {
         output_queues[identifiers[(current_output &
                                    tb->simmem_get_identifier_mask()) >>
-                                  kMsgWidth]]
+                                  kRspWidth]]
             .push(current_output);
 
         if (kTransactionsVerbose) {

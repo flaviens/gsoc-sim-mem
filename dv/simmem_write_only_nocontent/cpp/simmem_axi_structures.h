@@ -44,7 +44,7 @@ struct WriteAddressRequest {
 struct WriteResponse {
   // Shift offsets and widths in the packed representations
   static const uint64_t id_off, id_w;
-  static const uint64_t content_off, content_w;
+  static const uint64_t payload_off, payload_w;
 
   uint64_t id;
   uint64_t payload;

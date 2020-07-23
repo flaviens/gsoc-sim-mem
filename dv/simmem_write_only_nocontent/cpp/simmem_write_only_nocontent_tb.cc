@@ -29,7 +29,7 @@ const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 typedef Vsimmem_write_only_nocontent Module;
 
 typedef std::map<uint64_t, std::queue<WriteResponse>> wresp_queue_map_t;
-// Maps mapping AXI identifiers to queues of pairs (timestamp, message)
+// Maps mapping AXI identifiers to queues of pairs (timestamp, response)
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>
     waddr_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
@@ -242,7 +242,7 @@ class RealMemoryController {
     new_resp.payload =  // Copy the low order payload of the incoming waddr in
                         // the corresponding wresp
         (waddr.to_packed() >> WriteAddressRequest::id_w) &
-        ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::content_w));
+        ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::payload_w));
 
     wresp_out_queues[waddr.id].push(new_resp);
   }
@@ -504,7 +504,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
     tb->simmem_tick();
   }
 
-  // Time of message entrance and output
+  // Time of response entrance and output
   size_t in_time, out_time;
   WriteAddressRequest in_req;
   WriteResponse out_res;

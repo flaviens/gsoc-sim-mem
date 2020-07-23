@@ -7,7 +7,7 @@
 module simmem_linkedlist_bank #(
     parameter TotCapa = simmem_pkg::WriteRespBankTotalCapacity,
     parameter BankAddrWidth = simmem_pkg::WriteRespBankAddrWidth,
-    parameter MsgWidth = WriteRespWidth - IDWidth
+    parameter RspWidth = WriteRespWidth - IDWidth
 ) (
     input logic clk_i,
     input logic rst_ni,
@@ -35,24 +35,24 @@ module simmem_linkedlist_bank #(
   logic [BankAddrWidth-1:0] rsv_heads_d[NumIds];
   logic [BankAddrWidth-1:0] rsv_heads_q[NumIds];
 
-  // Previous tails are the pointers to the next addresses to release
-  logic [BankAddrWidth-1:0] prev_tails_d[NumIds];
-  logic [BankAddrWidth-1:0] prev_tails_q[NumIds];
+  // Previous pre_tails are the pointers to the next addresses to release
+  logic [BankAddrWidth-1:0] tails_d[NumIds];
+  logic [BankAddrWidth-1:0] tails_q[NumIds];
 
   // Tails are the pointers to the next next addresses to release. They are used when two
   // successive releases are made on the same AXI identifier, and only in this case
-  logic [BankAddrWidth-1:0] tails_d[NumIds];
-  logic [BankAddrWidth-1:0] tails_q[NumIds];  // Before update from RAM
-  logic [BankAddrWidth-1:0] tails[NumIds];
+  logic [BankAddrWidth-1:0] pre_tails_d[NumIds];
+  logic [BankAddrWidth-1:0] pre_tails_q[NumIds];  // Before update from RAM
+  logic [BankAddrWidth-1:0] pre_tails[NumIds];
 
-  logic update_pt_from_t[NumIds];  // Update previous tail from tail
+  logic update_t_from_pt[NumIds];  // Update tail from tail
   logic update_t_from_ram_q[NumIds];
   logic update_t_from_ram_d[NumIds];  // Update tail from RAM
 
   logic update_heads[NumIds];
 
   // Signals whether the tail has to stick to the head until the next cycle
-  logic pgbk_t_with_h[NumIds];
+  logic pgbk_pt_with_rsv[NumIds];
 
   // Determines, for each AXI identifier, whether the queue already exists in RAM. If the queue
   // does not exist in RAM, all the pointers should be piggybacked with the head.
@@ -65,27 +65,27 @@ module simmem_linkedlist_bank #(
   // Length after the potential output
   logic [BankAddrWidth-1:0] list_len_after_out[NumIds];
 
-  // Update heads, and tails according to the update signals
+  // Update heads, and pre_tails according to the update signals
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : pointers_update
     always_comb begin : prev_tail_d_assignment
-      // The next previous tail is either piggybacked with the head, or follows the tail, or keeps
+      // The next tail is either piggybacked with the head, or follows the tail, or keeps
       // its value. If it is piggybacked by the middle pointer, the update is done in the next cycle
       // The order of the conditions is important here.
       if (!|list_len_after_out[i_id]) begin
-        prev_tails_d[i_id] = nxt_free_addr;
-      end else if (update_pt_from_t[i_id]) begin
-        prev_tails_d[i_id] = tails[i_id];
+        tails_d[i_id] = nxt_free_addr;
+      end else if (update_t_from_pt[i_id]) begin
+        tails_d[i_id] = pre_tails[i_id];
       end else begin
-        prev_tails_d[i_id] = prev_tails_q[i_id];
+        tails_d[i_id] = tails_q[i_id];
       end
     end : prev_tail_d_assignment
 
-    assign tails_d[i_id] = !|list_len_after_out[i_id] ? rsv_heads_d[i_id] : tails[i_id];
+    assign pre_tails_d[i_id] = !|list_len_after_out[i_id] ? rsv_heads_d[i_id] : pre_tails[i_id];
     always_comb begin : tail_assignment
       if (update_t_from_ram_q[i_id]) begin
-        tails[i_id] = meta_ram_out_data.nxt_elem;
+        pre_tails[i_id] = meta_ram_out_data.nxt_elem;
       end else begin
-        tails[i_id] = tails_q[i_id];
+        pre_tails[i_id] = pre_tails_q[i_id];
       end
     end : tail_assignment
 
@@ -153,33 +153,33 @@ module simmem_linkedlist_bank #(
   // RAM management signals //
   ////////////////////////////
 
-  logic msg_ram_in_req, msg_ram_out_req;
+  logic payload_ram_in_req, payload_ram_out_req;
   logic meta_ram_in_req, meta_ram_out_req;
 
-  logic msg_ram_in_write, msg_ram_out_write;
+  logic payload_ram_in_write, payload_ram_out_write;
   logic meta_ram_in_write, meta_ram_out_write;
 
-  logic [MsgWidth-1:0] msg_ram_in_wmask, msg_ram_out_wmask;
+  logic [RspWidth-1:0] payload_ram_in_wmask, payload_ram_out_wmask;
   logic [BankAddrWidth-1:0] meta_ram_in_wmask, meta_ram_out_wmask;
 
-  logic [MsgWidth-1:0] msg_out_ram_data;
+  logic [RspWidth-1:0] rsp_out_ram_data;
   wresp_metadata_e meta_ram_out_data;
 
   wresp_metadata_e meta_ram_in_content;
   wresp_metadata_e meta_ram_in_content_id[NumIds];
   logic [NumIds - 1:0] meta_ram_in_content_msk_rot90[WriteRespMetadataWidth];
 
-  // RAM address and aggregation message
-  logic [BankAddrWidth-1:0] msg_ram_in_addr;
-  logic [BankAddrWidth-1:0] msg_ram_out_addr;
+  // RAM address and aggregation response
+  logic [BankAddrWidth-1:0] payload_ram_in_addr;
+  logic [BankAddrWidth-1:0] payload_ram_out_addr;
   logic [BankAddrWidth-1:0] meta_ram_in_addr;
   logic [BankAddrWidth-1:0] meta_ram_out_addr;
-  logic [BankAddrWidth-1:0] msg_ram_in_addr_id[NumIds];
-  logic [BankAddrWidth-1:0] msg_ram_out_addr_id[NumIds];
+  logic [BankAddrWidth-1:0] payload_ram_in_addr_id[NumIds];
+  logic [BankAddrWidth-1:0] payload_ram_out_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_out_addr_id[NumIds];
-  logic [BankAddrWidth-1:0][NumIds-1:0] msg_ram_in_addr_rot90;
-  logic [BankAddrWidth-1:0][NumIds-1:0] msg_ram_out_addr_rot90;
+  logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_in_addr_rot90;
+  logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_out_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_rot90;
 
@@ -188,15 +188,15 @@ module simmem_linkedlist_bank #(
     for (
         genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1
     ) begin : rotate_ram_address_inner
-      assign msg_ram_in_addr_rot90[i_bit][i_id] = msg_ram_in_addr_id[i_id][i_bit];
-      assign msg_ram_out_addr_rot90[i_bit][i_id] = msg_ram_out_addr_id[i_id][i_bit];
+      assign payload_ram_in_addr_rot90[i_bit][i_id] = payload_ram_in_addr_id[i_id][i_bit];
+      assign payload_ram_out_addr_rot90[i_bit][i_id] = payload_ram_out_addr_id[i_id][i_bit];
       assign meta_ram_in_addr_rot90[i_bit][i_id] = meta_ram_in_addr_id[i_id][i_bit];
       assign meta_ram_out_addr_rot90[i_bit][i_id] = meta_ram_out_addr_id[i_id][i_bit];
     end : rotate_ram_address_inner
   end : rotate_ram_address
   for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_address
-    assign msg_ram_in_addr[i_bit] = |msg_ram_in_addr_rot90[i_bit];
-    assign msg_ram_out_addr[i_bit] = |msg_ram_out_addr_rot90[i_bit];
+    assign payload_ram_in_addr[i_bit] = |payload_ram_in_addr_rot90[i_bit];
+    assign payload_ram_out_addr[i_bit] = |payload_ram_out_addr_rot90[i_bit];
     assign meta_ram_in_addr[i_bit] = |meta_ram_in_addr_rot90[i_bit];
     assign meta_ram_out_addr[i_bit] = |meta_ram_out_addr_rot90[i_bit];
   end : aggregate_ram_address
@@ -212,17 +212,17 @@ module simmem_linkedlist_bank #(
   end : aggregate_meta_in
 
   // RAM write masks, filled with ones
-  assign msg_ram_in_wmask = {MsgWidth{1'b1}};
-  assign msg_ram_out_wmask = {MsgWidth{1'b1}};
+  assign payload_ram_in_wmask = {RspWidth{1'b1}};
+  assign payload_ram_out_wmask = {RspWidth{1'b1}};
   assign meta_ram_in_wmask = {BankAddrWidth{1'b1}};
   assign meta_ram_out_wmask = {BankAddrWidth{1'b1}};
 
   // RAM request signals
-  // The message RAM input is triggered iff there is a successful data input handshake
-  assign msg_ram_in_req = in_data_ready_o && in_data_valid_i;
+  // The response RAM input is triggered iff there is a successful data input handshake
+  assign payload_ram_in_req = in_data_ready_o && in_data_valid_i;
 
-  // The message RAM output is triggered iff there is data to output at the next cycle
-  assign msg_ram_out_req = |nxt_id_to_release_onehot;
+  // The response RAM output is triggered iff there is data to output at the next cycle
+  assign payload_ram_out_req = |nxt_id_to_release_onehot;
 
   // Assign the queue_initiated signal, to compute whether the metadata RAM should be requested
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : req_meta_in_id_assignment
@@ -233,14 +233,14 @@ module simmem_linkedlist_bank #(
   assign meta_ram_in_req = in_data_ready_o && in_data_valid_i && |queue_initiated;
 
   // Metadata output is requested when there is output to be released (to potentially update the
-  // corresponding tails from RAM) or input data coming (to potentially update the corresponding
+  // corresponding pre_tails from RAM) or input data coming (to potentially update the corresponding
   // middle pointer from RAM).
   // This signal could be more fine-grained by excluding cases where the output from RAM will not
   // be taken into account.
   assign meta_ram_out_req = 1;
 
-  assign msg_ram_in_write = 1'b1;
-  assign msg_ram_out_write = 1'b0;
+  assign payload_ram_in_write = 1'b1;
+  assign payload_ram_out_write = 1'b0;
   assign meta_ram_in_write = 1'b1;
   assign meta_ram_out_write = 1'b0;
 
@@ -270,12 +270,12 @@ module simmem_linkedlist_bank #(
         // identifier and must be enabled for release
         nxt_addr_mhot_id[i_id][i_addr] = |(list_len_after_out[i_id]);
 
-        // The address must additionally be, depending on the situation, the previous tail or the
+        // The address must additionally be, depending on the situation, the tail or the
         // tail of the corresponding queue
         if (out_data_ready_i && out_data_valid_o && cur_out_id_onehot[i_id]) begin
-          nxt_addr_mhot_id[i_id][i_addr] &= tails[i_id] == i_addr;
+          nxt_addr_mhot_id[i_id][i_addr] &= pre_tails[i_id] == i_addr;
         end else begin
-          nxt_addr_mhot_id[i_id][i_addr] &= prev_tails_q[i_id] == i_addr;
+          nxt_addr_mhot_id[i_id][i_addr] &= tails_q[i_id] == i_addr;
         end
       end : nxt_addr_mhot_assignment
 
@@ -355,7 +355,7 @@ module simmem_linkedlist_bank #(
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
   assign out_data_valid_o = |cur_out_valid_q;
   assign data_o.id = cur_out_id_bin_q;
-  assign data_o.payload = msg_out_ram_data;
+  assign data_o.payload = rsp_out_ram_data;
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
 
@@ -365,10 +365,10 @@ module simmem_linkedlist_bank #(
 
       update_t_from_ram_d[i_id] = 1'b0;
       update_heads[i_id] = 1'b0;
-      update_pt_from_t[i_id] = 1'b0;
+      update_t_from_pt[i_id] = 1'b0;
 
-      msg_ram_in_addr_id[i_id] = '0;
-      msg_ram_out_addr_id[i_id] = '0;
+      payload_ram_in_addr_id[i_id] = '0;
+      payload_ram_out_addr_id[i_id] = '0;
       meta_ram_in_addr_id[i_id] = '0;
       meta_ram_out_addr_id[i_id] = '0;
 
@@ -379,9 +379,9 @@ module simmem_linkedlist_bank #(
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
         if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin
-          msg_ram_out_addr_id[i_id] = tails[i_id];
+          payload_ram_out_addr_id[i_id] = pre_tails[i_id];
         end else begin
-          msg_ram_out_addr_id[i_id] = prev_tails_q[i_id];
+          payload_ram_out_addr_id[i_id] = tails_q[i_id];
         end
       end
 
@@ -392,7 +392,7 @@ module simmem_linkedlist_bank #(
         list_len_d[i_id] = list_len_d[i_id] + 1;
 
         // Store the data
-        msg_ram_in_addr_id[i_id] = rsv_heads_q[i_id];
+        payload_ram_in_addr_id[i_id] = rsv_heads_q[i_id];
 
         // Update the metadata if the queue was initiated
         if (|queue_initiated[i_id]) begin
@@ -403,14 +403,14 @@ module simmem_linkedlist_bank #(
 
       if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
         list_len_d[i_id] = list_len_d[i_id] - 1;
-        update_pt_from_t[i_id] = 1'b1;  // Update the previous tail
+        update_t_from_pt[i_id] = 1'b1;  // Update the tail
         if (!|list_len_after_out[i_id]) begin
           // If possible, read the next tail address from RAM
           update_t_from_ram_d[i_id] = 1'b1;
-          meta_ram_out_addr_id[i_id] = tails[i_id];
+          meta_ram_out_addr_id[i_id] = pre_tails[i_id];
         end else begin
           // Else, stick to the head
-          pgbk_t_with_h[i_id] = 1'b1;
+          pgbk_pt_with_rsv[i_id] = 1'b1;
         end
       end : ouptut_handshake
     end
@@ -419,15 +419,15 @@ module simmem_linkedlist_bank #(
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       rsv_heads_q <= '{default: '0};
-      prev_tails_q <= '{default: '0};
       tails_q <= '{default: '0};
+      pre_tails_q <= '{default: '0};
       list_len_q <= '{default: '0};
 
       update_t_from_ram_q <= '{default: '0};
     end else begin
       rsv_heads_q <= rsv_heads_d;
-      prev_tails_q <= prev_tails_d;
       tails_q <= tails_d;
+      pre_tails_q <= pre_tails_d;
       list_len_q <= list_len_d;
 
       update_t_from_ram_q <= update_t_from_ram_d;
@@ -454,28 +454,28 @@ module simmem_linkedlist_bank #(
     end
   end
 
-  // Message RAM instance
+  // Response RAM instance
   prim_generic_ram_2p #(
-      .Width(MsgWidth),
+      .Width(RspWidth),
       .DataBitsPerMask(1),
       .Depth(TotCapa)
-    ) i_msg_ram (
+    ) i_payload_ram (
       .clk_a_i     (clk_i),
       .clk_b_i     (clk_i),
       
-      .a_req_i     (msg_ram_in_req),
-      .a_write_i   (msg_ram_in_write),
-      .a_wmask_i   (msg_ram_in_wmask),
-      .a_addr_i    (msg_ram_in_addr),
+      .a_req_i     (payload_ram_in_req),
+      .a_write_i   (payload_ram_in_write),
+      .a_wmask_i   (payload_ram_in_wmask),
+      .a_addr_i    (payload_ram_in_addr),
       .a_wdata_i   (data_i.payload),
       .a_rdata_o   (),
       
-      .b_req_i     (msg_ram_out_req),
-      .b_write_i   (msg_ram_out_write),
-      .b_wmask_i   (msg_ram_out_wmask),
-      .b_addr_i    (msg_ram_out_addr),
+      .b_req_i     (payload_ram_out_req),
+      .b_write_i   (payload_ram_out_write),
+      .b_wmask_i   (payload_ram_out_wmask),
+      .b_addr_i    (payload_ram_out_addr),
       .b_wdata_i   (),
-      .b_rdata_o   (msg_out_ram_data)
+      .b_rdata_o   (rsp_out_ram_data)
     );
 
   // Metadata RAM instance
