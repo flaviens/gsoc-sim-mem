@@ -315,7 +315,7 @@ void sequential_test(DelayCalculatorTestbench *tb) {
 
   tb->simmem_input_wdata_apply();
 
-  tb->simmem_tick(10);
+  tb->simmem_tick(100);
 }
 
 int main(int argc, char **argv, char **env) {

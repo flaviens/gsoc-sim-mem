@@ -2,7 +2,8 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-// TODO: Add the management of read data
+// FUTURE: Add support for wrap bursts
+// FUTURE: Improve implementation by using reductions
 
 module simmem_delay_calculator (
   input logic clk_i,
@@ -36,19 +37,42 @@ module simmem_delay_calculator (
 
   import simmem_pkg::*;
 
-  function automatic logic [DelayWidth-1:0] determine_cost(
+  // Compresses the actual cost to have min reductions on fewer bits
+  typedef enum logic [1:0]{
+    COST_CAS = 0,
+    COST_ACTIVATION_CAS = 1,
+    COST_PRECHARGE_ACTIVATION_CAS = 2
+  } mem_compressed_cost_e;
+
+  function automatic mem_compressed_cost_e determine_compressed_cost(
       logic [GlobalMemoryCapaWidth-1:0] address, logic is_row_open,
       logic [GlobalMemoryCapaWidth-1:0] open_row_start_address);
     logic [GlobalMemoryCapaWidth-1:0] mask;
-    mask = {{(GlobalMemoryCapaWidth - RowBufferLenWidth) {1'b0}}, {RowBufferLenWidth{1'b1}}};
+    mask = {{(GlobalMemoryCapaWidth - RowBufferLenWidth) {1'b1}}, {RowBufferLenWidth{1'b0}}};
     if (is_row_open && (address & mask) == (open_row_start_address & mask)) begin
-      return RowHitCost;
+      return COST_CAS;
     end else if (!is_row_open) begin
-      return RowHitCost + ActivationCost;
+      return COST_ACTIVATION_CAS;
     end else begin
-      return RowHitCost + ActivationCost + PrechargeCost;
+      return COST_PRECHARGE_ACTIVATION_CAS;
     end
-  endfunction : determine_cost
+  endfunction : determine_compressed_cost
+
+  // Takes a compressed cost and outputs the actual cost in cycles
+  function automatic logic [DelayWidth-1:0] decompress_mem_cost(
+      mem_compressed_cost_e compressed_cost);
+    case (compressed_cost)
+      COST_CAS: begin
+        return RowHitCost;
+      end
+      COST_ACTIVATION_CAS: begin
+        return RowHitCost + ActivationCost;
+      end
+      default: begin
+        return RowHitCost + ActivationCost + PrechargeCost;
+      end
+    endcase
+  endfunction : decompress_mem_cost
 
   localparam NumWSlots = 6;
   localparam NumRSlots = 6;
@@ -85,7 +109,7 @@ module simmem_delay_calculator (
   r_slot_t r_slt_d[NumRSlots];
   r_slot_t r_slt_q[NumRSlots];
 
-  // TODO: Remove debug signals
+  // FUTURE: Remove debug signals
 
   // logic [NumWSlots-1:0] w_v_dbg;
   // logic [WriteRespBankAddrWidth-1:0][NumWSlots-1:0] w_id_dbg;
@@ -193,13 +217,11 @@ module simmem_delay_calculator (
 
   // Select the optimal address for each slot
 
-  // TODO: Compress the costs during the optimization by using enum types
-
   logic [MaxWBurstLen-1:0] opti_w_bit_per_slot_onehot[NumWSlots];
   logic [MaxRBurstLen-1:0] opti_r_bit_per_slot_onehot[NumRSlots];
 
-  logic [DelayWidth-1:0] opti_w_cost_per_slot[NumWSlots];
-  logic [DelayWidth-1:0] opti_r_cost_per_slot[NumRSlots];
+  mem_compressed_cost_e opti_w_cost_per_slot[NumWSlots];
+  mem_compressed_cost_e opti_r_cost_per_slot[NumRSlots];
 
   logic [TimestampWidth-1:0] opti_w_tstp_per_slot[NumWSlots];
 
@@ -210,24 +232,25 @@ module simmem_delay_calculator (
     always_comb begin : gen_opti_w_cost_per_slot
 
       logic is_opti_valid = 1'b0;
-      logic [DelayWidth-1:0] curr_cost;
+      mem_compressed_cost_e curr_cost;
 
       opti_w_bit_per_slot_onehot[i_slt] = '0;
-      opti_w_cost_per_slot[i_slt] = '0;
-      opti_w_tstp_per_slot[i_slt] = '0;
+      opti_w_cost_per_slot[i_slt] = ~'0;
+      opti_w_tstp_per_slot[i_slt] = ~'0;
 
       for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-        curr_cost =
-            determine_cost(w_addrs_per_slot[i_slt][i_bit], is_row_open_q, open_row_start_address_q);
+        curr_cost = determine_compressed_cost(w_addrs_per_slot[i_slt][i_bit], is_row_open_q,
+                                              open_row_start_address_q);
 
-        is_opti_valid = is_opti_valid || w_slt_q[i_slt].data_v[i_bit];
+        is_opti_valid = is_opti_valid || (w_slt_q[i_slt].data_v[i_bit] && !w_slt_q[i_slt
+                                          ].mem_pending[i_bit] && !w_slt_q[i_slt].mem_done[i_bit]);
 
         // FUTURE: The strict inequality may not suffice to guarantee oldest first in wrapped bursts
 
-        if (w_slt_q[i_slt].data_v[i_bit] && (
-            !is_opti_valid || curr_cost < opti_w_cost_per_slot[i_slt] || (
-                curr_cost == opti_w_cost_per_slot[i_slt] &&
-                    w_slt_q[i_slt].data_tstp[i_bit] < opti_w_tstp_per_slot[i_slt]))) begin
+        if ((w_slt_q[i_slt].data_v[i_bit] && !w_slt_q[i_slt].mem_pending[i_bit] && !w_slt_q[i_slt
+             ].mem_done[i_bit]) && (!is_opti_valid || curr_cost < opti_w_cost_per_slot[i_slt] || (
+                                    curr_cost == opti_w_cost_per_slot[i_slt] && w_slt_q[i_slt
+                                        ].data_tstp[i_bit] < opti_w_tstp_per_slot[i_slt]))) begin
           opti_w_cost_per_slot[i_slt] = curr_cost;
           opti_w_bit_per_slot_onehot[i_slt] = '0;
           opti_w_bit_per_slot_onehot[i_slt][i_bit] = 1'b1;
@@ -242,19 +265,21 @@ module simmem_delay_calculator (
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_opti_r_addrs_per_slt
     always_comb begin : gen_opti_r_cost_per_slot
       logic is_opti_valid = 1'b0;
-      logic [DelayWidth-1:0] curr_cost;
+      mem_compressed_cost_e curr_cost;
 
       opti_r_bit_per_slot_onehot[i_slt] = '0;
-      opti_r_cost_per_slot[i_slt] = '0;
+      opti_r_cost_per_slot[i_slt] = ~'0;
 
       for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-        curr_cost =
-            determine_cost(r_addrs_per_slot[i_slt][i_bit], is_row_open_q, open_row_start_address_q);
+        curr_cost = determine_compressed_cost(r_addrs_per_slot[i_slt][i_bit], is_row_open_q,
+                                              open_row_start_address_q);
 
-        is_opti_valid = is_opti_valid || r_slt_q[i_slt].data_v[i_bit];
+        is_opti_valid = is_opti_valid || (r_slt_q[i_slt].data_v[i_bit] && !r_slt_q[i_slt
+                                          ].mem_pending[i_bit] && !r_slt_q[i_slt].mem_done[i_bit]);
 
-        if (r_slt_q[i_slt].data_v[i_bit] && (
-            !is_opti_valid || curr_cost < opti_r_cost_per_slot[i_slt])) begin
+        if ((r_slt_q[i_slt].data_v[i_bit] && !r_slt_q[i_slt].mem_pending[i_bit] && !r_slt_q[
+             i_slt].mem_done[i_bit]) && (!is_opti_valid || curr_cost < opti_r_cost_per_slot[i_slt])
+            ) begin
           opti_r_cost_per_slot[i_slt] = curr_cost;
           opti_r_bit_per_slot_onehot[i_slt] = '0;
           opti_r_bit_per_slot_onehot[i_slt][i_bit] = 1'b1;
@@ -269,18 +294,15 @@ module simmem_delay_calculator (
   logic [$clog2(NumWSlots)-1:0] opti_w_slot;
   logic [$clog2(NumRSlots)-1:0] opti_r_slot;
 
-
-  // TODO: Add timestamps to all the WRITE data, although may require massive amount of flip-flops
-
   logic opti_w_slot_valid;
   logic opti_r_slot_valid;
-  logic [DelayWidth-1:0] opti_w_cost;
-  logic [DelayWidth-1:0] opti_r_cost;
+  mem_compressed_cost_e opti_w_cost;
+  mem_compressed_cost_e opti_r_cost;
   logic [TimestampWidth-1:0] opti_w_tstp;
   logic [TimestampWidth-1:0] opti_r_tstp;
 
   always_comb begin : gen_opti_slot
-    logic [DelayWidth-1:0] curr_cost;
+    mem_compressed_cost_e curr_cost;
     logic [TimestampWidth-1:0] curr_tstp;
 
     opti_w_slot_valid = 1'b0;
@@ -294,30 +316,31 @@ module simmem_delay_calculator (
     for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
       curr_cost = opti_w_cost_per_slot[i_slt];
       curr_tstp = opti_w_tstp_per_slot[i_slt];
-      if (w_slt_q[i_slt].v && (!opti_w_slot_valid || curr_cost < opti_w_cost || (
-                               curr_cost == opti_w_cost && curr_tstp < opti_w_tstp))) begin
+      if ((w_slt_q[i_slt].v && |opti_w_bit_per_slot_onehot[i_slt]) && (
+          !opti_w_slot_valid || curr_cost < opti_w_cost || (
+              curr_cost == opti_w_cost && curr_tstp < opti_w_tstp))) begin
         opti_w_slot = i_slt[$clog2(NumWSlots) - 1:0];
         opti_w_cost = curr_cost;
         opti_w_tstp = curr_tstp;
       end
-      opti_w_slot_valid = opti_w_slot_valid || w_slt_q[i_slt].v;
+      opti_w_slot_valid =
+          opti_w_slot_valid || (w_slt_q[i_slt].v && |opti_w_bit_per_slot_onehot[i_slt]);
     end
 
     // Reads
-    opti_r_slot_valid = 1'b0;
-
     for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
       curr_cost = opti_r_cost_per_slot[i_slt];
       curr_tstp = r_slt_q[i_slt].tstp;  // All read data in a burst has the same timestamp.
-      if (r_slt_q[i_slt].v && (!opti_r_slot_valid || curr_cost < opti_r_cost || (
-                               curr_cost == opti_r_cost && curr_tstp == opti_r_tstp))) begin
+      if ((r_slt_q[i_slt].v && |opti_r_bit_per_slot_onehot[i_slt]) && (
+          !opti_r_slot_valid || curr_cost < opti_r_cost || (
+              curr_cost == opti_r_cost && curr_tstp == opti_r_tstp))) begin
         opti_r_slot = i_slt[$clog2(NumRSlots) - 1:0];
         opti_r_cost = curr_cost;
         opti_r_tstp = curr_tstp;
       end
-      opti_r_slot_valid = opti_r_slot_valid || r_slt_q[i_slt].v;
+      opti_r_slot_valid =
+          opti_r_slot_valid || (r_slt_q[i_slt].v && |opti_r_bit_per_slot_onehot[i_slt]);
     end
-
   end : gen_opti_slot
 
   // Select between read and write
@@ -359,7 +382,6 @@ module simmem_delay_calculator (
         w_slt_d[i_slt].iid = waddr_iid_i;
         w_slt_d[i_slt].addr = waddr_req_i.addr;
         w_slt_d[i_slt].burst_size = waddr_req_i.burst_size;
-
         w_slt_d[i_slt].mem_pending = '0;
 
         // FUTURE: Implement support for wrap burst here and in the read slot input
@@ -384,7 +406,6 @@ module simmem_delay_calculator (
         r_slt_d[i_slt].iid = raddr_iid_i;
         r_slt_d[i_slt].addr = raddr_req_i.addr;
         r_slt_d[i_slt].burst_size = raddr_req_i.burst_size;
-
         r_slt_d[i_slt].mem_pending = '0;
 
         for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
@@ -409,11 +430,11 @@ module simmem_delay_calculator (
       end
     end
 
-    // Update of the rank counter    
+    // Update of the rank counter
     if (rank_delay_cnt_q == 0) begin
       // If there is a request to serve
-      if (serve_w && opti_w_slot_valid) begin
-        rank_delay_cnt_d = opti_w_cost;
+      if (serve_w) begin
+        rank_delay_cnt_d = decompress_mem_cost(opti_w_cost);
 
         for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
           w_slt_d[i_slt].mem_pending |= opti_w_bit_per_slot_onehot[i_slt] & {
@@ -421,7 +442,7 @@ module simmem_delay_calculator (
         end
         is_row_open_d = 1'b1;
       end else if (!serve_w && opti_r_slot_valid) begin
-        rank_delay_cnt_d = opti_r_cost;
+        rank_delay_cnt_d = decompress_mem_cost(opti_r_cost);
 
         for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
           r_slt_d[i_slt].mem_pending |= opti_r_bit_per_slot_onehot[i_slt] & {
