@@ -119,7 +119,7 @@ class SimmemWriteOnlyNoBurstTestbench {
   }
 
   /**
-   * Stops feeding a valid input write address request as the requester.
+   * Stops applying a valid input write address request as the requester.
    */
   void simmem_requester_waddr_stop(void) { module_->waddr_in_valid_i = 0; }
 
@@ -170,7 +170,7 @@ class SimmemWriteOnlyNoBurstTestbench {
   }
 
   /**
-   * Stops feeding a valid input write response as the real memory controller.
+   * Stops applying a valid input write response as the real memory controller.
    */
   void simmem_realmem_wresp_stop(void) { module_->wresp_in_valid_i = 0; }
 
@@ -239,10 +239,10 @@ class RealMemoryController {
   void add_waddr(WriteAddressRequest waddr) {
     WriteResponse new_resp;
     new_resp.id = waddr.id;
-    new_resp.payload =  // Copy the low order payload of the incoming waddr in
-                        // the corresponding wresp
+    new_resp.rsp =  // Copy the low order rsp of the incoming waddr in
+                    // the corresponding wresp
         (waddr.to_packed() >> WriteAddressRequest::id_w) &
-        ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::payload_w));
+        ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::rsp_w));
 
     wresp_out_queues[waddr.id].push(new_resp);
   }

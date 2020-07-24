@@ -4,6 +4,8 @@
 //
 // simmem package
 
+// Values must match those in simmem_axi_dimensions.h
+
 package simmem_pkg;
 
   ///////////////////////
@@ -44,7 +46,7 @@ package simmem_pkg;
   localparam ArUserWidth = 0;
 
   // Data & response field widths
-  localparam XDataWidth = 14;
+  localparam XDataWidth = 16;
   localparam XLastWidth = 1;
   // TODO: Set XRespWidth to 3 when all tests are passed
   localparam XRespWidth = 10;

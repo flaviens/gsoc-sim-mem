@@ -124,16 +124,17 @@ class WriteRespBankTestbench {
    * Applies valid input data.
    *
    * @param identifier the AXI identifier of the incoming data
-   * @param payload the rest (payload) of the incoming data
+   * @param rsp the rest (rsp) of the incoming
+   * data
    *
    * @return the data as seen by the design under test instance
    */
-  uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t payload) {
+  uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t rsp) {
     // Checks if the given values are not too big
-    assert(!(payload >> kRspWidth));
+    assert(!(rsp >> kRspWidth));
     assert(!(identifier >> kIdWidth));
 
-    uint32_t in_data = payload << kIdWidth | identifier;
+    uint32_t in_data = rsp << kIdWidth | identifier;
     module_->data_i = in_data;
     module_->in_data_valid_i = 1;
     return in_data;
@@ -162,7 +163,7 @@ class WriteRespBankTestbench {
   }
 
   /**
-   * Stops feeding data to the DUT instance.
+   * Stops applying data to the DUT instance.
    */
   void simmem_input_data_stop(void) { module_->in_data_valid_i = 0; }
 
@@ -276,8 +277,8 @@ void sequential_test(WriteRespBankTestbench *tb) {
 
 /**
  * Performs a complete test for a single AXI identifier. Reservation, input and
- * output requests, as well as the data payload (except for the AXI identifier)
- * are randomized.
+ * output requests, as well as the data rsp (except for the AXI
+ * identifier) are randomized.
  *
  * @param tb a pointer to a fresh testbench instance
  * @param seed the seed used for the random request generation
@@ -386,8 +387,8 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
 
 /**
  * Performs a complete test for multiple AXI identifiers. Reservation, input and
- * output requests, as well as the data payload (except for the AXI identifier)
- * are randomized.
+ * output requests, as well as the data rsp (except for the AXI
+ * identifier) are randomized.
  *
  * @param tb a pointer to a fresh testbench instance
  * @param num_identifiers the number of AXI identifiers to use in the test, must

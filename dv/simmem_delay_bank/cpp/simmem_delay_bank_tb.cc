@@ -23,7 +23,7 @@ const int kIdWidth = 4;
 const size_t kMinDelay = 3;
 const size_t kMaxDelay = 10;
 const size_t kNbLocalIdentifiers = 32;
-const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delayh
+const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 
 typedef Vsimmem_delay_bank Module;
 
@@ -101,7 +101,7 @@ class DelayBankTestbench {
   }
 
   /**
-   * Stops feeding data to the DUT instance.
+   * Stops applying data to the DUT instance.
    */
   void simmem_input_data_stop(void) { module_->in_valid_i = 0; }
 
