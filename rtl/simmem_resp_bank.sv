@@ -173,8 +173,8 @@ module simmem_resp_bank (
   logic update_t_from_pt[NumIds];  // Update tail from tail
   logic update_t_from_ram_q[NumIds];
   logic update_t_from_ram_d[NumIds];  // Update tail from RAM
-  logic update_m_from_ram_d[NumIds];  // Update response from RAM
-  logic update_m_from_ram_q[NumIds];
+  logic update_rsp_from_ram_d[NumIds];  // Update response from RAM
+  logic update_rsp_from_ram_q[NumIds];
 
   logic update_rsv_heads[NumIds];
 
@@ -198,7 +198,7 @@ module simmem_resp_bank (
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : pointers_update
     assign rsp_heads_d[i_id] = pgbk_rsp_with_rsv[i_id] ? rsv_heads_d[i_id] : rsp_heads[i_id];
     assign rsp_heads[i_id] =
-        update_m_from_ram_q[i_id] ? meta_ram_out_data_mid.nxt_elem : rsp_heads_q[i_id];
+        update_rsp_from_ram_q[i_id] ? meta_ram_out_data_mid.nxt_elem : rsp_heads_q[i_id];
 
     always_comb begin : prev_tail_d_assignment
       // The next tail is either piggybacked with the head, or follows the pre_tail, or keeps
@@ -414,9 +414,13 @@ module simmem_resp_bank (
 
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding pre_tails from RAM) or input data coming (to potentially update the corresponding
-  // response head pointer from RAM). This signal could be more fine-grained by excluding cases where the
-  // output from RAM will not be taken into account.
-  assign meta_ram_out_req = 1;
+  // response head pointer from RAM). 
+  always_comb begin : meta_ram_out_req_assignment
+    meta_ram_out_req = 1'b0;
+    for (int unsigned i_id = 0; i_id < NumIds; i_id = i_id + 1) begin
+      meta_ram_out_req |= update_rsp_from_ram_d[i_id] | update_t_from_ram_d[i_id];
+    end
+  end : meta_ram_out_req_assignment
 
   assign payload_ram_in_write = 1'b1;
   assign payload_ram_out_write = 1'b0;
@@ -586,7 +590,7 @@ module simmem_resp_bank (
       is_rsp_head_emptybox_d[i_id] = is_rsp_head_emptybox_q[i_id];
 
       update_t_from_ram_d[i_id] = 1'b0;
-      update_m_from_ram_d[i_id] = 1'b0;
+      update_rsp_from_ram_d[i_id] = 1'b0;
       update_rsv_heads[i_id] = 1'b0;
       update_t_from_pt[i_id] = 1'b0;
 
@@ -626,7 +630,7 @@ module simmem_resp_bank (
         // from the metadata RAM. Else, the only way to potentially keep it up to date is to
         // piggyback it with the reservation head pointer.
         if (rsp_heads[i_id] != rsv_heads_q[i_id]) begin
-          update_m_from_ram_d[i_id] = 1'b1;
+          update_rsp_from_ram_d[i_id] = 1'b1;
         end else begin
           pgbk_rsp_with_rsv[i_id] = 1'b1;
           // Fullbox if could not move forward
@@ -726,7 +730,7 @@ module simmem_resp_bank (
       rsv_len_q <= '{default: '0};
 
       update_t_from_ram_q <= '{default: '0};
-      update_m_from_ram_q <= '{default: '0};
+      update_rsp_from_ram_q <= '{default: '0};
 
       is_rsp_head_emptybox_q <= '{default: '1};
 
@@ -741,7 +745,7 @@ module simmem_resp_bank (
       rsv_len_q <= rsv_len_d;
 
       update_t_from_ram_q <= update_t_from_ram_d;
-      update_m_from_ram_q <= update_m_from_ram_d;
+      update_rsp_from_ram_q <= update_rsp_from_ram_d;
 
       is_rsp_head_emptybox_q <= is_rsp_head_emptybox_d;
 

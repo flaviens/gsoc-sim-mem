@@ -89,8 +89,8 @@ module simmem_resp_bank #(
   logic update_t_from_pt[NumIds];  // Update tail from tail
   logic update_t_from_ram_q[NumIds];
   logic update_t_from_ram_d[NumIds];  // Update tail from RAM
-  logic update_m_from_ram_d[NumIds];  // Update middle from RAM
-  logic update_m_from_ram_q[NumIds];
+  logic update_rsp_from_ram_d[NumIds];  // Update middle from RAM
+  logic update_rsp_from_ram_q[NumIds];
 
   logic is_rsp_head_emptybox_d[NumIds];  // Signal that determines the right piggybacking strategy
   logic is_rsp_head_emptybox_q[NumIds];
@@ -115,7 +115,7 @@ module simmem_resp_bank #(
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : pointers_update
     assign rsp_heads_d[i_id] = pgbk_rsp_with_rsv[i_id] ? rsv_heads_d[i_id] : rsp_heads[i_id];
     assign rsp_heads[i_id] =
-        update_m_from_ram_q[i_id] ? meta_ram_out_data_mid.nxt_elem : rsp_heads_q[i_id];
+        update_rsp_from_ram_q[i_id] ? meta_ram_out_data_mid.nxt_elem : rsp_heads_q[i_id];
 
     always_comb begin : prev_tail_d_assignment
       // The next tail is either piggybacked with the head, or follows the tail, or keeps
@@ -565,7 +565,7 @@ module simmem_resp_bank #(
       is_rsp_head_emptybox_d[i_id] = is_rsp_head_emptybox_q[i_id];
 
       update_t_from_ram_d[i_id] = 1'b0;
-      update_m_from_ram_d[i_id] = 1'b0;
+      update_rsp_from_ram_d[i_id] = 1'b0;
       update_heads[i_id] = 1'b0;
       update_t_from_pt[i_id] = 1'b0;
 
@@ -634,7 +634,7 @@ module simmem_resp_bank #(
           end else begin
             // If the reservation head is ahead of the middle pointer, then one can follow the
             // pointer from the metadata RAM
-            update_m_from_ram_d[i_id] = 1'b1;
+            update_rsp_from_ram_d[i_id] = 1'b1;
           end
 
           // Manage more piggybacking on input acquisition
@@ -734,7 +734,7 @@ module simmem_resp_bank #(
       rsp_cnt_q <= '{default: '0};
 
       update_t_from_ram_q <= '{default: '0};
-      update_m_from_ram_q <= '{default: '0};
+      update_rsp_from_ram_q <= '{default: '0};
       payload_ram_out_wmask_q <= '{default: '0};
 
       is_rsp_head_emptybox_q <= '{default: '1};
@@ -752,7 +752,7 @@ module simmem_resp_bank #(
       rsp_cnt_q <= rsp_cnt_d;
 
       update_t_from_ram_q <= update_t_from_ram_d;
-      update_m_from_ram_q <= update_m_from_ram_d;
+      update_rsp_from_ram_q <= update_rsp_from_ram_d;
       payload_ram_out_wmask_q <= payload_ram_out_wmask_d;
 
       is_rsp_head_emptybox_q <= is_rsp_head_emptybox_d;
