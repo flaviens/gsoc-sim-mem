@@ -367,6 +367,7 @@ module simmem_delay_calculator (
       end
     end
 
+
     // Input signals from message banks about released signals
 
     wresp_release_en_d ^= wresp_released_addr_onehot_i;
@@ -375,20 +376,17 @@ module simmem_delay_calculator (
 
     // Outputs and entry flushing
 
-    // Updated at delay 2 to accommodate the one-cycle additional latency due to the response bank
-    if (rank_delay_cnt_q == 2) begin
-      for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
-        // If all the memory requests of a burst have been satisfied
-        w_slt_d[i_slt].v &= !&w_slt_q[i_slt].mem_done;
-        for (int unsigned i_addr = 0; i_addr < WriteRespBankAddrWidth; i_addr = i_addr + 1) begin
-          wresp_release_en_d[i_addr] |=
-        end
+    for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
+      // If all the memory requests of a burst have been satisfied
+      w_slt_d[i_slt].v &= !&w_slt_q[i_slt].mem_done;
+      for (int unsigned i_addr = 0; i_addr < WriteRespBankAddrWidth; i_addr = i_addr + 1) begin
+        wresp_release_en_d[i_addr] |= wresp_release_en_d[i_addr];
       end
-      for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
-        // Mark memory operation as done
-        r_slt_d[i_slt].mem_done = r_slt_q[i_slt].mem_done | r_slt_q[i_slt].mem_pending;
-        r_slt_d[i_slt].mem_pending = '0;
-      end
+    end
+    for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
+      // Mark memory operation as done
+      r_slt_d[i_slt].mem_done = r_slt_q[i_slt].mem_done | r_slt_q[i_slt].mem_pending;
+      r_slt_d[i_slt].mem_pending = '0;
     end
 
 

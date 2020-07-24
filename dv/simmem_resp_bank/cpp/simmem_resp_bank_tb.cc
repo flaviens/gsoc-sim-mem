@@ -14,8 +14,8 @@
 #include <verilated_fst_c.h>
 
 const bool kIterationVerbose = false;
-const bool kTransactionsVerbose = true;
-const bool kPairsVerbose = true;
+const bool kTransactionsVerbose = false;
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
