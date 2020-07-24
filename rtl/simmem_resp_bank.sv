@@ -424,9 +424,9 @@ module simmem_resp_bank (
     end
   end : meta_ram_out_req_assignment
 
-  assign payload_ram_in_write = 1'b1;
+  assign payload_ram_in_write = payload_ram_in_req;
   assign payload_ram_out_write = 1'b0;
-  assign meta_ram_in_write = 1'b1;
+  assign meta_ram_in_write = meta_ram_in_req;
   assign meta_ram_out_write = 1'b0;
 
 
