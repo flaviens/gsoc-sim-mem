@@ -13,7 +13,7 @@ package simmem_pkg;
   localparam GlobalMemoryCapaWidth = 16;
   localparam RowBufferLenWidth = 8;
 
-  localparam RowHitCost = 10;  // Cycles (must be at least 1)
+  localparam RowHitCost = 10;  // Cycles (must be at least 3)
   localparam PrechargeCost = 50;  // Cycles
   localparam ActivationCost = 45;  // Cycles
 

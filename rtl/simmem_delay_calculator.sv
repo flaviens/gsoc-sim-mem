@@ -266,6 +266,11 @@ module simmem_delay_calculator (
   logic [DelayWidth-1:0] rank_delay_cnt_d;
   logic [DelayWidth-1:0] rank_delay_cnt_q;
 
+  // Outputs
+
+  output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_d;
+  output logic [simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_d;
+
   // Delay calculator management logic
 
   // TODO: Update to done when it is relevant to do so.
@@ -274,6 +279,8 @@ module simmem_delay_calculator (
 
     is_row_open_d = is_row_open_q;
     open_row_start_address_d = open_row_start_address_q;
+    wresp_release_en_d = wresp_release_en_q;
+    rdata_release_en_d = rdata_release_en_q;
 
     // Write slot input
 
@@ -346,9 +353,8 @@ module simmem_delay_calculator (
       rank_delay_cnt_d = rank_delay_cnt_q - 1;
     end
 
-    // TODO: Update the entries
-    // Updated at delay 2 to accommodate the one-cycle additional latency due to the response bank
-    if (rank_delay_cnt_q == 2) begin
+    // Updated at delay 3 to accommodate the one-cycle additional latency due to the response bank
+    if (rank_delay_cnt_q == 3) begin
       for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
         // Mark memory operation as done
         w_slt_d[i_slt].mem_done = w_slt_q[i_slt].mem_done | w_slt_q[i_slt].mem_pending;
@@ -361,7 +367,30 @@ module simmem_delay_calculator (
       end
     end
 
-    // TODO: Outputs
+    // Input signals from message banks about released signals
+
+    wresp_release_en_d ^= wresp_released_addr_onehot_i;
+    rdata_release_en_d ^= rdata_released_addr_onehot_i;
+
+
+    // Outputs and entry flushing
+
+    // Updated at delay 2 to accommodate the one-cycle additional latency due to the response bank
+    if (rank_delay_cnt_q == 2) begin
+      for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
+        // If all the memory requests of a burst have been satisfied
+        w_slt_d[i_slt].v &= !&w_slt_q[i_slt].mem_done;
+        for (int unsigned i_addr = 0; i_addr < WriteRespBankAddrWidth; i_addr = i_addr + 1) begin
+          wresp_release_en_d[i_addr] |=
+        end
+      end
+      for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
+        // Mark memory operation as done
+        r_slt_d[i_slt].mem_done = r_slt_q[i_slt].mem_done | r_slt_q[i_slt].mem_pending;
+        r_slt_d[i_slt].mem_pending = '0;
+      end
+    end
+
 
 
   end : del_calc_mgmt_comb
