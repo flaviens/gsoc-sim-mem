@@ -7,7 +7,7 @@
 // from the real memory controller. The FIFOs are implemented as linked lists, sharing the same
 // memory space.
 //
-// Response structure: The terms 'response' is used to refer to the AXI response coming back from
+// Response structure: The term 'response' is used to refer to the AXI response coming back from
 //  the real memory controller, excluding handshake signals. Each response starts with an AXI
 //  identifier of a specific length IDWidth (on the LSB side). The rest of the response bits is
 //  referred to as 'payload'. As there is one linked list per AXI identifier, only the payload is
