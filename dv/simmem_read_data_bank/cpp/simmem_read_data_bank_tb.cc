@@ -136,8 +136,8 @@ class WriteRespBankTestbench {
     assert(!(identifier >> kIdWidth));
 
     uint32_t in_data = rsp << kIdWidth | identifier;
-    module_->data_i = in_data;
-    module_->in_data_valid_i = 1;
+    module_->rsp_i = in_data;
+    module_->in_rsp_valid_i = 1;
     return in_data;
   }
 
@@ -152,7 +152,7 @@ class WriteRespBankTestbench {
    */
   bool simmem_input_data_check(void) {
     module_->eval();
-    return (bool)(module_->in_data_ready_o);
+    return (bool)(module_->in_rsp_ready_o);
   }
 
   /**
@@ -166,7 +166,7 @@ class WriteRespBankTestbench {
   /**
    * Stops applying data to the DUT instance.
    */
-  void simmem_input_data_stop(void) { module_->in_data_valid_i = 0; }
+  void simmem_input_data_stop(void) { module_->in_rsp_valid_i = 0; }
 
   /**
    * Allows all the data output from a releaser module standpoint.
@@ -181,7 +181,7 @@ class WriteRespBankTestbench {
   /**
    * Sets the ready signal to one on the output side.
    */
-  void simmem_output_data_request(void) { module_->out_data_ready_i = 1; }
+  void simmem_output_data_request(void) { module_->out_rsp_ready_i = 1; }
 
   /**
    * Tries to fetch output data. Requires the ready signal to be one at the DUT
@@ -193,16 +193,16 @@ class WriteRespBankTestbench {
    */
   bool simmem_output_data_fetch(uint32_t &out_data) {
     module_->eval();
-    assert(module_->out_data_ready_i);
+    assert(module_->out_rsp_ready_i);
 
-    out_data = (uint32_t)module_->data_o;
-    return (bool)(module_->out_data_valid_o);
+    out_data = (uint32_t)module_->rsp_o;
+    return (bool)(module_->out_rsp_valid_o);
   }
 
   /**
    * Sets the ready signal to zero on the output side.
    */
-  void simmem_output_data_stop(void) { module_->out_data_ready_i = 0; }
+  void simmem_output_data_stop(void) { module_->out_rsp_ready_i = 0; }
 
   /**
    * Informs the testbench that all the requests have been performed and

@@ -13,14 +13,14 @@ module simmem_linkedlist_bank #(
     input logic rst_ni,
 
     // Interface with the real memory controller
-    input  simmem_pkg::waddr_req_t data_i,
-    output simmem_pkg::waddr_req_t data_o,
+    input  simmem_pkg::waddr_req_t rsp_i,
+    output simmem_pkg::waddr_req_t rsp_o,
 
-    input  logic in_data_valid_i,
-    output logic in_data_ready_o,
+    input  logic in_rsp_valid_i,
+    output logic in_rsp_ready_o,
 
-    input  logic out_data_ready_i,
-    output logic out_data_valid_o
+    input  logic out_rsp_ready_i,
+    output logic out_rsp_valid_o
 );
 
   import simmem_pkg::*;
@@ -107,9 +107,9 @@ module simmem_linkedlist_bank #(
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : ram_v_update
 
     // Generate the ram valid masks
-    assign ram_v_in_mask[i_addr] = nxt_free_addr == i_addr && in_data_ready_o && in_data_valid_i;
+    assign ram_v_in_mask[i_addr] = nxt_free_addr == i_addr && in_rsp_ready_o && in_rsp_valid_i;
     assign ram_v_out_mask[i_addr] =
-        cur_out_addr_onehot_q[i_addr] && out_data_valid_o && out_data_ready_i;
+        cur_out_addr_onehot_q[i_addr] && out_rsp_valid_o && out_rsp_ready_i;
 
     always_comb begin
       ram_v_d[i_addr] = ram_v_q[i_addr];
@@ -219,7 +219,7 @@ module simmem_linkedlist_bank #(
 
   // RAM request signals
   // The response RAM input is triggered iff there is a successful data input handshake
-  assign payload_ram_in_req = in_data_ready_o && in_data_valid_i;
+  assign payload_ram_in_req = in_rsp_ready_o && in_rsp_valid_i;
 
   // The response RAM output is triggered iff there is data to output at the next cycle
   assign payload_ram_out_req = |nxt_id_to_release_onehot;
@@ -230,7 +230,7 @@ module simmem_linkedlist_bank #(
   end : req_meta_in_id_assignment
 
   // New metadata input is coming when there is a reservation and the queue is already initiated
-  assign meta_ram_in_req = in_data_ready_o && in_data_valid_i && |queue_initiated;
+  assign meta_ram_in_req = in_rsp_ready_o && in_rsp_valid_i && |queue_initiated;
 
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding pre_tails from RAM) or input data coming (to potentially update the corresponding
@@ -272,7 +272,7 @@ module simmem_linkedlist_bank #(
 
         // The address must additionally be, depending on the situation, the tail or the
         // tail of the corresponding queue
-        if (out_data_ready_i && out_data_valid_o && cur_out_id_onehot[i_id]) begin
+        if (out_rsp_ready_i && out_rsp_valid_o && cur_out_id_onehot[i_id]) begin
           nxt_addr_mhot_id[i_id][i_addr] &= pre_tails[i_id] == i_addr;
         end else begin
           nxt_addr_mhot_id[i_id][i_addr] &= tails_q[i_id] == i_addr;
@@ -308,8 +308,8 @@ module simmem_linkedlist_bank #(
 
 
   // Input is ready if there is room and data is not flowing out
-  assign in_data_ready_o = in_data_valid_i &&
-      !(out_data_valid_o && out_data_ready_i);  // AXI 4 allows ready to depend on the valid signal
+  assign in_rsp_ready_o = in_rsp_valid_i &&
+      !(out_rsp_valid_o && out_rsp_ready_i);  // AXI 4 allows ready to depend on the valid signal
 
 
   /////////////
@@ -345,7 +345,7 @@ module simmem_linkedlist_bank #(
 
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign list_len_after_out[i_id] = out_data_valid_o && out_data_ready_i &&
+    assign list_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i &&
         cur_out_id_onehot[i_id] ? list_len_q[i_id] - 1 : list_len_q[i_id];
   end : gen_len_after_output
 
@@ -353,9 +353,9 @@ module simmem_linkedlist_bank #(
   assign cur_out_valid_d = |nxt_id_to_release_onehot;
 
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
-  assign out_data_valid_o = |cur_out_valid_q;
-  assign data_o.id = cur_out_id_bin_q;
-  assign data_o.payload = rsp_out_ram_data;
+  assign out_rsp_valid_o = |cur_out_valid_q;
+  assign rsp_o.id = cur_out_id_bin_q;
+  assign rsp_o.payload = rsp_out_ram_data;
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
 
@@ -378,7 +378,7 @@ module simmem_linkedlist_bank #(
       if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
         // The tail points not to the current output to provide, but to the next.
         // Give the right output according to the output handshake
-        if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin
+        if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
           payload_ram_out_addr_id[i_id] = pre_tails[i_id];
         end else begin
           payload_ram_out_addr_id[i_id] = tails_q[i_id];
@@ -386,7 +386,7 @@ module simmem_linkedlist_bank #(
       end
 
       // Input handshake
-      if (in_data_ready_o && in_data_valid_i && data_i.id == i_id) begin : in_handshake
+      if (in_rsp_ready_o && in_rsp_valid_i && rsp_i.id == i_id) begin : in_handshake
 
         update_heads[i_id] = 1'b1;
         list_len_d[i_id] = list_len_d[i_id] + 1;
@@ -401,7 +401,7 @@ module simmem_linkedlist_bank #(
         end
       end
 
-      if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
+      if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
         list_len_d[i_id] = list_len_d[i_id] - 1;
         update_t_from_pt[i_id] = 1'b1;  // Update the tail
         if (!|list_len_after_out[i_id]) begin
@@ -467,7 +467,7 @@ module simmem_linkedlist_bank #(
       .a_write_i   (payload_ram_in_write),
       .a_wmask_i   (payload_ram_in_wmask),
       .a_addr_i    (payload_ram_in_addr),
-      .a_wdata_i   (data_i.payload),
+      .a_wdata_i   (rsp_i.payload),
       .a_rdata_o   (),
       
       .b_req_i     (payload_ram_out_req),

@@ -42,8 +42,8 @@ module simmem_write_only_nocontent (
 
   // Response handshakes
 
-  assign wresp_in_ready_o = wresp_bank_in_data_ready;
-  assign wresp_out_valid_o = wresp_bank_out_data_valid;
+  assign wresp_in_ready_o = wresp_bank_in_rsp_ready;
+  assign wresp_out_valid_o = wresp_bank_out_rsp_valid;
 
   assign waddr_data_o = waddr_data_i;
 
@@ -63,11 +63,11 @@ module simmem_write_only_nocontent (
   wresp_t wresp_bank_in_data;
   wresp_t wresp_bank_out_data;
 
-  logic wresp_bank_in_data_valid;
-  logic wresp_bank_in_data_ready;
+  logic wresp_bank_in_rsp_valid;
+  logic wresp_bank_in_rsp_ready;
 
-  logic wresp_bank_out_data_valid;
-  logic wresp_bank_out_data_ready;
+  logic wresp_bank_out_rsp_valid;
+  logic wresp_bank_out_rsp_ready;
 
   simmem_message_banks i_simmem_message_banks (
       .clk_i,
@@ -86,20 +86,20 @@ module simmem_write_only_nocontent (
       // Interface with the real memory controller
       .wresp_data_i(wresp_bank_in_data), // AXI response excluding handshake
       .wresp_data_o(wresp_bank_out_data), // AXI response excluding handshake
-      .wresp_in_data_valid_i(wresp_bank_in_data_valid),
-      .wresp_in_data_ready_o(wresp_bank_in_data_ready),
+      .wresp_in_rsp_valid_i(wresp_bank_in_rsp_valid),
+      .wresp_in_rsp_ready_o(wresp_bank_in_rsp_ready),
 
       // Interface with the requester
-      .wresp_out_data_ready_i(wresp_bank_out_data_ready),
-      .wresp_out_data_valid_o(wresp_bank_out_data_valid)
+      .wresp_out_rsp_ready_i(wresp_bank_out_rsp_ready),
+      .wresp_out_rsp_valid_o(wresp_bank_out_rsp_valid)
     );
 
   assign wresp_res_req_id = waddr_data_i.id;
   assign wresp_res_req_valid = waddr_handshake;
   assign wresp_release_en = dbank_out_release_en;
   assign wresp_bank_in_data = wresp_data_i;
-  assign wresp_bank_in_data_valid = wresp_in_valid_i;
-  assign wresp_bank_out_data_ready = wresp_out_ready_i;
+  assign wresp_bank_in_rsp_valid = wresp_in_valid_i;
+  assign wresp_bank_out_rsp_ready = wresp_out_ready_i;
 
   assign wresp_data_o = wresp_bank_out_data;
 
