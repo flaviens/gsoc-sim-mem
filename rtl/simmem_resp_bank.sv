@@ -1,90 +1,103 @@
 // Copyright lowRISC contributors. Licensed under the Apache License, Version 2.0, see LICENSE for
 // details. SPDX-License-Identifier: Apache-2.0
 //
-// Linkedlist bank for messages in the simulated memory controller 
+// Linked list bank for responses in the simulated memory controller 
 
-// Response banks provide a FIFO storage with reservation functionality for response messages coming
+// Response banks provide a multi-FIFO storage with reservation functionality for responses coming
 // from the real memory controller. The FIFOs are implemented as linked lists, sharing the same
 // memory space.
 //
-// Response structure: The terms 'response' is used to refer to the
-//  AXI response coming back from the real memory controller, excluding handshake signals. Each
-//  response is made of an AXI identifier of a specific length IDWidth (on the LSB side). The rest of
-//  the response bits is referred to as 'payload'. As there is one linked list per AXI identifier,
-//  only the payload is stored in RAM.
+// Response structure: The terms 'response' is used to refer to the AXI response coming back from
+//  the real memory controller, excluding handshake signals. Each response starts with an AXI
+//  identifier of a specific length IDWidth (on the LSB side). The rest of the response bits is
+//  referred to as 'payload'. As there is one linked list per AXI identifier, only the payload is
+//  stored in RAM.
 //
 // A response bank uses three RAMs:
 //  * The payload RAM, containing the response response payloads.
-//  * The metadata RAM, containing pointers that form the concurrent linkedlists (there is one
-//    linkedlist per AXI identifier). The metadata RAM is duplicated to make concurrent input and
+//  * The metadata RAM, containing pointers that form the concurrent linked lists (there is one
+//    linked list per AXI identifier). The metadata RAM is duplicated to make concurrent input and
 //    output possible.
 //
 // Linked list implementation: Each linked list is supported by four pointers, which, outside of
-//   corner cases, can be described as follows:
-//   a) Reservation head (rsv_heads_q):  Points to the last reserved address.
-//   b) Response head (rsp_heads):        Points to the next RAM address where a payload of the
-//     corresponding AXI identifier will be stored.
-//   c) Pre_tail (pre_tails): Points to the next RAM address to release to the requester,
-//     when there is a current output handshake implying this specific AXI identifier.
-//   d) Tail (tails): Points to the next RAM address to release to the requester,
-//     when there is no current output handshake implying this specific AXI identifier.
-//   The order of the pointers must always be respected (they can be equal but never overtake each
-//   other, in the order defined by the linked list).
+//   corner cases, can be described as follows: 
+//  * Reservation head (rsv_heads_q): Points to the last reserved address.
+//  * Response head (rsp_heads): Points to the next RAM address where a payload of the corresponding
+//    AXI identifier will be stored.
+//  * Pre_tail (pre_tails): Points to the second-to-last cell hosting a response in the linked list.
+//  * Tail (tails): Points to the last cell hosting a response in the linked list.
+//
+//  The order of the pointers must always be respected. They can be equal but never overtake each
+//    other, in the order defined by the linked list.
 //
 // Reservation flow: When the reservation handshake succeeds, a new RAM cell is reserved and the
 //  corresponding address is advertised, as it is externally used as a request/response identifier.
 //  The reservation head pointer of the corresponding head is moved to the next free RAM entry, and
-//  the corresponding linkedlist pointer is written into the metadata RAM.
+//  the corresponding linked list pointer (which links the current reservation head to the new
+//  reservation head address) is written into the metadata RAM.
 //
 // Response input flow: When the input handshake succeeds, the RAM cell pointed by the response head
-//  of the corresponding AXI identifier stores the response payload. The response head pointer follows
-//  the pointer in the metadata RAM (except for some corner cases).
+//  of the corresponding AXI identifier stores the response payload. The response head pointer
+//  follows the pointer in the metadata RAM (except for some corner cases).
 //
 // Response output flow: When the output handshake succeeds, the RAM output is transmitted to the
-//  requester. The pre_tail pointer follows the pointer in the metadata RAM and the tail takes
-//  the value of the pre_tail (except for some corner cases)
+//  requester. The pre_tail pointer follows the pointer in the metadata RAM and the tail takes the
+//  value of the pre_tail (except for some corner cases)
 //
-// Tail vs. pre_tail: The two distinct tail pointers are required to dynamically manage the two
+// Tail vs. pre_tail: Two distinct tail pointers are required to dynamically manage the two
 //  following cases:
-//    * The pre_tail address is given as input to the payload RAM if there is a successful
-//      output handshake and the value at the output has an AXI id corresponding to the AXI id of
-//      the considered linked list. It points to the second-to-last occupied element of the queue.
+//    * The pre_tail address is given as input to the payload RAM if there is a successful output
+//      handshake and the value at the output has an AXI id corresponding to the AXI id of the
+//      considered linked list. It must point to:
+//      - The second-to-last element of the linked list if the list contains two reponses or more,
+//      - The last element element of the linked list if the list contains just one response,
+//      - rsp_head if the list contains no responses.
+
 //    * The tail address is given as input to the payload RAM in all other cases. This case
 //      disjunction prevents an output data from being output twice, and prevents any bandwidth drop
-//      at the output. It points to the last occupied element of the queue.
+//      at the output. It must point to:
+//      - The last element element of the linked list if the list contains one response or more,
+//      - pre_tail if the list contains no responses.
 //
 //  Corner cases and vector piggybacking: Several corner cases appear when linked list pointers
 //    cannot be updated in the regular way. In this case, a process called pointer piggybacking is
 //    implemented. For two pointers a and b, the signal 'pgbk_a_with_b' or 'pgbk_a_with_b_q' means,
 //    at level 1'b1, that if the pointer b is updated during the current clock cycle, then the
-//    pointer a must be updated with the same value.
+//    pointer a must be updated with the same value. Piggyback is a lazy operation (in the sense
+//    that if the pointer b is not updated, then a remains untouched as well) that maintains
+//    the pointer ordering.
 
 module simmem_resp_bank (
   input logic clk_i,
   input logic rst_ni,
 
-  // Interface with the reservation manager
-
-  // Identifier for which the reseration request is being done
+  // Reservation interface
+  // AXI identifier for which the reseration request is being done.
   input  logic [NumIds-1:0] rsv_req_id_onehot_i,
-  output logic [BankAddrWidth-1:0] rsv_addr_o, // Reserved address
+  // Information about currently reserved address. Will be stored by other modules as an internal
+  // identifier to uniquely identify the response (or response burst in case of read data).
+  output logic [BankAddrWidth-1:0] rsv_addr_o,
   // Reservation handshake signals
   input  logic rsv_valid_i,
   output logic rsv_ready_o, 
 
   // Interface with the releaser
-  input  logic [TotCapa-1:0] release_en_i,  // Multi-hot signal
-  output logic [TotCapa-1:0] released_addr_onehot_o,
+  // Multi-hot signal that enables the release for given internal addresses (i.e., RAM addresses).
+  input  logic [TotCapa-1:0] release_en_i,
+  // Signals which address has been released, if any. One-hot signal.
+  output logic [TotCapa-1:0] released_addr_o,
 
   // Interface with the real memory controller
-  input  simmem_pkg::wresp_t data_i, // AXI response excluding handshake
-  output simmem_pkg::wresp_t data_o, // AXI response excluding handshake
-  input  logic in_data_valid_i,
-  output logic in_data_ready_o,
+  // AXI response excluding handshake
+  input  simmem_pkg::wresp_t rsp_o,
+  output simmem_pkg::wresp_t rsp_o,
+  // Response acquisition handshake signal
+  input  logic in_rsp_valid_i,
+  output logic in_rsp_ready_o,
 
   // Interface with the requester
-  input  logic out_data_ready_i,
-  output logic out_data_valid_o
+  input  logic out_rsp_ready_i,
+  output logic out_rsp_valid_o
 );
 
   import simmem_pkg::*;
@@ -100,16 +113,16 @@ module simmem_resp_bank (
   // RAM pointers //
   //////////////////
 
-  //  In this part, the linkedlist related pointers are declared and updated.
+  //  In this part, the linked list related pointers are declared and updated.
   //
   //  Response heads: 
   //    * rsp_heads_d, rsp_heads_q: Next response head, except if the response head will be updated
   //      from RAM.
-  //    * rsp_heads: The actual response head, after potential update from RAM.
+  //    * rsp_heads: The actual current response head, after potential update from RAM.
   //
   //  Reservation heads:
   //    * rsv_heads_d: Next reservation head.
-  //    * rsv_heads_q: The actual reservation head.
+  //    * rsv_heads_q: The actual current reservation head.
   //
   //  Tails:
   //    * tails_d, tails_q: Next tail, except that it does not take piggyback
@@ -119,16 +132,16 @@ module simmem_resp_bank (
   //  Pre_tails:
   //    * pre_tails_d, pre_tails_q: Next pre_tail, except that it does not take piggyback with the
   //      response head pointer into account.
-  //    * pre_tails: The actual tail.
+  //    * pre_tails: The actual current tail.
   //
   //  Linked list lengths: Linked list lengths are maintained, as they help treat corner cases where
   //  lined list pointers are close to each other in the linked list:
-  //    * rsv_len_d, rsv_len_q:       The number of entries reserved in the linked list, that are
-  //      not occupied by messages yet.
+  //    * rsv_len_d, rsv_len_q: The number of entries reserved in the linked list, that are
+  //      not occupied by responses yet.
   //    * rsp_len_d, rsp_len_q: The number of RAM cells in the linked list that contain
-  //      messagees.
-  //    * rsp_len_after_out:       The number of RAM cells in the linked list that contain
-  //      messagees, minus one if one of the cells is currently being output.
+  //      responses.
+  //    * rsp_len_after_out: The number of RAM cells in the linked list that contain
+  //      responses, minus one if one of the cells is currently being output.
   //
   //  Miscellaneous signals: Some additional signals are required to smoothly treat corner cases.
   //    * queue_initiated: The linked list is called initiated if the reservation is made for this
@@ -200,7 +213,7 @@ module simmem_resp_bank (
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : pointers_update
     assign rsp_heads_d[i_id] = pgbk_rsp_with_rsv[i_id] ? rsv_heads_d[i_id] : rsp_heads[i_id];
     assign rsp_heads[i_id] =
-        update_rsp_from_ram_q[i_id] ? meta_ram_out_data_mid.nxt_elem : rsp_heads_q[i_id];
+        update_rsp_from_ram_q[i_id] ? meta_ram_out_data_rsp_head.nxt_elem : rsp_heads_q[i_id];
 
     always_comb begin : prev_tail_d_assignment
       // The next tail is either piggybacked with the head, or follows the pre_tail, or keeps
@@ -254,7 +267,7 @@ module simmem_resp_bank (
     // Generate the ram valid masks
     assign ram_v_rsv_mask[i_addr] = nxt_free_addr == i_addr && rsv_ready_o && rsv_valid_i;
     assign ram_v_out_mask[i_addr] =
-        cur_out_addr_onehot_q[i_addr] && out_data_valid_o && out_data_ready_i;
+        cur_out_addr_onehot_q[i_addr] && out_rsp_valid_o && out_rsp_ready_i;
 
     always_comb begin
       ram_v_d[i_addr] = ram_v_q[i_addr];
@@ -264,7 +277,7 @@ module simmem_resp_bank (
       ram_v_d[i_addr] ^= ram_v_out_mask[i_addr];
     end
   end
-  assign released_addr_onehot_o = ram_v_out_mask;
+  assign released_addr_o = ram_v_out_mask;
 
 
   /////////////////////////
@@ -315,7 +328,7 @@ module simmem_resp_bank (
   //    handshake, read from response head metadata RAM and write to payload RAM. c) On output
   //    handshake, read from tail metadata RAM and read from payload RAM.
   //
-  //  Some signals are set globally, and others are aggregated from all linkedlists. The latter are:
+  //  Some signals are set globally, and others are aggregated from all linked lists. The latter are:
   //    * payload_ram_in_addr_id,         as the address should be the response head pointer value.
   //    * payload_ram_out_addr_id,        as the address should be the pre_tail or tail pointer
   //      value.
@@ -336,7 +349,7 @@ module simmem_resp_bank (
   logic [BankAddrWidth-1:0] meta_ram_in_wmask, meta_ram_out_wmask;
 
   logic [MsgRamWidth-1:0] rsp_out_ram_data;
-  metadata_e meta_ram_out_data_tail, meta_ram_out_data_mid;
+  metadata_e meta_ram_out_data_tail, meta_ram_out_data_rsp_head;
 
   metadata_e meta_ram_in_content;
   metadata_e meta_ram_in_content_id[NumIds];
@@ -347,7 +360,7 @@ module simmem_resp_bank (
   logic [BankAddrWidth-1:0] payload_ram_out_addr;
   logic [BankAddrWidth-1:0] meta_ram_in_addr;
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail;
-  logic [BankAddrWidth-1:0] meta_ram_out_addr_mid;
+  logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_head;
   logic [BankAddrWidth-1:0] payload_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] payload_ram_out_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_in_addr_id[NumIds];
@@ -357,7 +370,7 @@ module simmem_resp_bank (
   logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_out_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_tail_rot90;
-  logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_mid_rot90;
+  logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_rsp_head_rot90;
 
   // RAM address aggregation
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_address
@@ -368,7 +381,7 @@ module simmem_resp_bank (
       assign payload_ram_out_addr_rot90[i_bit][i_id] = payload_ram_out_addr_id[i_id][i_bit];
       assign meta_ram_in_addr_rot90[i_bit][i_id] = meta_ram_in_addr_id[i_id][i_bit];
       assign meta_ram_out_addr_tail_rot90[i_bit][i_id] = meta_ram_out_addr_tail_id[i_id][i_bit];
-      assign meta_ram_out_addr_mid_rot90[i_bit][i_id] = meta_ram_out_addr_rsp_id[i_id][i_bit];
+      assign meta_ram_out_addr_rsp_head_rot90[i_bit][i_id] = meta_ram_out_addr_rsp_id[i_id][i_bit];
     end : rotate_ram_address_inner
   end : rotate_ram_address
   for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_address
@@ -376,7 +389,7 @@ module simmem_resp_bank (
     assign payload_ram_out_addr[i_bit] = |payload_ram_out_addr_rot90[i_bit];
     assign meta_ram_in_addr[i_bit] = |meta_ram_in_addr_rot90[i_bit];
     assign meta_ram_out_addr_tail[i_bit] = |meta_ram_out_addr_tail_rot90[i_bit];
-    assign meta_ram_out_addr_mid[i_bit] = |meta_ram_out_addr_mid_rot90[i_bit];
+    assign meta_ram_out_addr_rsp_head[i_bit] = |meta_ram_out_addr_rsp_head_rot90[i_bit];
   end : aggregate_ram_address
 
   // RAM meta in aggregation
@@ -397,7 +410,7 @@ module simmem_resp_bank (
 
   // RAM request signals The payload RAM input is triggered iff there is a successful data input
   // handshake
-  assign payload_ram_in_req = in_data_ready_o && in_data_valid_i;
+  assign payload_ram_in_req = in_rsp_ready_o && in_rsp_valid_i;
 
   // The payload RAM output is triggered iff there is data to output at the next cycle
   assign payload_ram_out_req = |nxt_id_to_release_onehot;
@@ -466,7 +479,7 @@ module simmem_resp_bank (
 
         // The address must additionally be, depending on the situation, the pre_tail or the
         // tail of the corresponding queue
-        if (out_data_ready_i && out_data_valid_o && cur_out_id_onehot[i_id]) begin
+        if (out_rsp_ready_i && out_rsp_valid_o && cur_out_id_onehot[i_id]) begin
           nxt_addr_mhot_id[i_id][i_addr] &= pre_tails[i_id] == i_addr;
         end else begin
           nxt_addr_mhot_id[i_id][i_addr] &= tails[i_id] == i_addr;
@@ -498,12 +511,12 @@ module simmem_resp_bank (
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsvd[i_id] = data_i.merged_payload.id == i_id && |(rsv_len_q[i_id]);
+    assign is_id_rsvd[i_id] = rsp_o.merged_payload.id == i_id && |(rsv_len_q[i_id]);
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
-  assign in_data_ready_o =
-      in_data_valid_i && |is_id_rsvd;  // AXI 4 allows ready to depend on the valid signal
+  assign in_rsp_ready_o =
+      in_rsp_valid_i && |is_id_rsvd;  // AXI 4 allows ready to depend on the valid signal
   assign rsv_ready_o = |(~ram_v_q);
 
 
@@ -554,17 +567,17 @@ module simmem_resp_bank (
 
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign rsp_len_after_out[i_id] = out_data_valid_o && out_data_ready_i &&
-        cur_out_id_onehot[i_id] ? rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
+    assign rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] ?
+        rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
   end : gen_len_after_output
 
   // Recall if the current output is valid
   assign cur_out_valid_d = |nxt_id_to_release_onehot;
 
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
-  assign out_data_valid_o = |cur_out_valid_q;
-  assign data_o.merged_payload.id = cur_out_id_bin_q;
-  assign data_o.merged_payload.payload = rsp_out_ram_data;
+  assign out_rsp_valid_o = |cur_out_valid_q;
+  assign rsp_o.merged_payload.id = cur_out_id_bin_q;
+  assign rsp_o.merged_payload.payload = rsp_out_ram_data;
 
 
   ////////////////
@@ -612,9 +625,10 @@ module simmem_resp_bank (
 
       // Output preparation
       if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
-        // The pre_tail points not to the current output to provide, but to the next. Give the right
-        // output according to the output handshake.
-        if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin
+        // The pre_tail points not to the current output to provide, but to the next. If we currently provide
+        // output (handshake), make sure to be ready in the next cycle. The RAM has a read latency of one
+        // clock cycle.
+        if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
           payload_ram_out_addr_id[i_id] = pre_tails[i_id];
         end else begin
           payload_ram_out_addr_id[i_id] = tails[i_id];
@@ -622,8 +636,7 @@ module simmem_resp_bank (
       end
 
       // Input handshake
-      if (in_data_ready_o && in_data_valid_i && data_i.merged_payload.id == i_id
-          ) begin : in_handshake
+      if (in_rsp_ready_o && in_rsp_valid_i && rsp_o.merged_payload.id == i_id) begin : in_handshake
 
         rsp_len_d[i_id] = rsp_len_d[i_id] + 1;
 
@@ -631,16 +644,13 @@ module simmem_resp_bank (
         // it must be decremented on response input.
         rsv_len_d[i_id] = rsv_len_d[i_id] - 1;
 
-        // If the reservation head is ahead of the response head pointer, then it can follow the pointer
-        // from the metadata RAM. Else, the only way to potentially keep it up to date is to
-        // piggyback it with the reservation head pointer, to maintain (when possible) the response
-        // head pointer on the address of the next reserved and non-occupied RAM address in the
-        // corresponding linkedlist. 
         if (rsp_heads[i_id] != rsv_heads_q[i_id]) begin
+          // If the reservation head is ahead of the response head, then the rsp_head can follow
+          // the pointer from the metadata RAM.
           update_rsp_from_ram_d[i_id] = 1'b1;
         end else begin
+          // Else, both rsp_head needs to be updated by piggybacking with rsp_head.
           pgbk_rsp_with_rsv[i_id] = 1'b1;
-          // Fullbox if could not move forward
           is_rsp_head_emptybox_d[i_id] = rsv_heads_d[i_id] != rsv_heads_q[i_id];
         end
 
@@ -684,7 +694,7 @@ module simmem_resp_bank (
             // If rsv_heads_q==rsp_heads_q AND the reservation length is zero, this means that the
             // response head is placed on a RAM address which has been reserved, but the response
             // head could not be updated to its regular position (which is the next reserved address
-            // in the linkedlist) because there is, precisely, no next reserved address yet.
+            // in the linked list) because there is, precisely, no next reserved address yet.
             if (rsv_len_q[i_id] == 0) begin
               // Piggyback the response head with the reservation head, as it is supposed to point
               // to the next inoccupied reserved address. This guarantees that if a reservation is
@@ -714,35 +724,22 @@ module simmem_resp_bank (
       end : reservation_handshake
 
       // Output handshake
-      if (out_data_valid_o && out_data_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
+      if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
         rsp_len_d[i_id] = rsp_len_d[i_id] - 1;
         // Update the tail to take the current value of the pre_tail.
         update_t_from_pt[i_id] = 1'b1;
 
-        // The short update mechanism below does all the possible to guarantee the regular placement of the pre_tail, which
-        // musst point to the second-to-last non-released-yet element of the linked list whenever
-        // the linkedlist contains at least two responses (else, it points to the only response if
-        // there is one, else to the response head).
-
-        // If the response head is not at the same address as the pre_tail, then the pre_tail can be
-        //  safely updated from the RAM without risking to overtake the response pointer. If however
-        //  the pre_tail points to the same value as the response head, then to respect the pointer
-        //  ordering (precisely here, pre_tail <= rsp_head in the order defined by the linked list),
-        //  the pre_tail must be updated only if the response head is updated. The latter,
-        //  piggybacking case also covers the case "pre_tail == rsp_head == rsv_head AND current
-        //  reservation handshake is taking place". In this latter case, the three pointers must be updated
-        //  by piggybacking from the reservation head, which is granted by the transitivity of the
-        //  piggybacking operation.
         if (rsp_heads[i_id] != pre_tails[i_id]) begin
-          // If possible, update the fail from the linkedlist pointers stored in RAM.
+          // If the response head is not at the same address as the pre_tail, then the pre_tail can be
+          //  safely updated from the RAM without risking to overtake the response pointer. 
           update_pt_from_ram_d[i_id] = 1'b1;
           meta_ram_out_addr_tail_id[i_id] = pre_tails[i_id];
         end else begin
-          // Else, piggyback the pre_tail pointer with the response head. This leads to two possible
-          // outcomes in the next cycle: (a) If the response head has been updated between this
-          // cycle and the next, then the previous tail will take its value as well. (b) If the
-          // response head does not change until the end of the next cycle, then the pre_tail
-          // remains blocked with it.
+          // If the pre_tail points to the same value as the rsp_head, then to respect the pointer
+          // ordering (precisely here, pre_tail <= rsp_head in the order defined by the linked list),
+          // the pre_tail must be updated only if the response head is updated (piggybacking). This
+          // also covers the case  "pre_tail == rsp_head == rsv_head AND current reservation
+          // handshake is taking place".
           pgbk_pt_with_rsp_d[i_id] = 1'b1;
         end
       end : ouptut_handshake
@@ -816,15 +813,15 @@ module simmem_resp_bank (
     .a_write_i   (payload_ram_in_write),
     .a_wmask_i   (payload_ram_in_wmask),
     .a_addr_i    (payload_ram_in_addr),
-    .a_wdata_i   (data_i.merged_payload.payload),
-    .a_rdata_o   (),
+    .a_wrsp_o   (rsp_o.merged_payload.payload),
+    .rsp_o   (),
     
     .b_req_i     (payload_ram_out_req),
     .b_write_i   (payload_ram_out_write),
     .b_wmask_i   (payload_ram_out_wmask),
     .b_addr_i    (payload_ram_out_addr),
-    .b_wdata_i   (),
-    .b_rdata_o   (rsp_out_ram_data)
+    .b_wrsp_o   (),
+    .rsp_o   (rsp_out_ram_data)
   );
 
   // Metadata RAM instance
@@ -840,15 +837,15 @@ module simmem_resp_bank (
     .a_write_i   (meta_ram_in_write),
     .a_wmask_i   (meta_ram_in_wmask),
     .a_addr_i    (meta_ram_in_addr),
-    .a_wdata_i   (meta_ram_in_content),
-    .a_rdata_o   (),
+    .a_wrsp_o   (meta_ram_in_content),
+    .rsp_o   (),
     
     .b_req_i     (meta_ram_out_req),
     .b_write_i   (meta_ram_out_write),
     .b_wmask_i   (meta_ram_out_wmask),
     .b_addr_i    (meta_ram_out_addr_tail),
-    .b_wdata_i   (),
-    .b_rdata_o   (meta_ram_out_data_tail)
+    .b_wrsp_o   (),
+    .rsp_o   (meta_ram_out_data_tail)
   );
 
   // Metadata RAM instance
@@ -864,15 +861,15 @@ module simmem_resp_bank (
     .a_write_i   (meta_ram_in_write),
     .a_wmask_i   (meta_ram_in_wmask),
     .a_addr_i    (meta_ram_in_addr),
-    .a_wdata_i   (meta_ram_in_content),
-    .a_rdata_o   (),
+    .a_wrsp_o   (meta_ram_in_content),
+    .rsp_o   (),
     
     .b_req_i     (meta_ram_out_req),
     .b_write_i   (meta_ram_out_write),
     .b_wmask_i   (meta_ram_out_wmask),
-    .b_addr_i    (meta_ram_out_addr_mid),
-    .b_wdata_i   (),
-    .b_rdata_o   (meta_ram_out_data_mid)
+    .b_addr_i    (meta_ram_out_addr_rsp_head),
+    .b_wrsp_o   (),
+    .rsp_o   (meta_ram_out_data_rsp_head)
   );
 
 endmodule
