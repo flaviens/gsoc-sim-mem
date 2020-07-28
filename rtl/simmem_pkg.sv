@@ -19,11 +19,12 @@ package simmem_pkg;
   localparam PrechargeCost = 50;  // Cycles
   localparam ActivationCost = 45;  // Cycles
 
-  localparam MaxRBurstLen = 4;
-  localparam MaxWBurstLen = 4;
+  // Example
+  localparam MaxRBurstLen = AxLenWidth >> 1;
+  localparam MaxWBurstLen = AxLenWidth >> 1;
 
-  localparam MaxReadBurstWidth = $clog2(MaxRBurstLen);
-  localparam MaxWriteBurstWidth = $clog2(MaxWBurstLen);
+  localparam MaxRBurstLenWidth = $clog2(MaxRBurstLen);
+  localparam MaxWBurstLenWidth = $clog2(MaxWBurstLen);
 
   /////////////////
   // AXI signals //

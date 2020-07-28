@@ -98,7 +98,6 @@ class DelayCalculatorTestbench {
   void simmem_input_waddr_apply(uint64_t local_identifier,
                                 WriteAddressRequest waddr_req) {
     module_->waddr_iid_i = local_identifier;
-    module_->wdata_immediate_cnt_i = 0;
     module_->waddr_req_i = waddr_req.to_packed();
     module_->waddr_valid_i = 1;
   }
@@ -141,6 +140,37 @@ class DelayCalculatorTestbench {
   std::unique_ptr<Module> module_;
   VerilatedFstC *trace_;
 };
+
+/**
+ * Simulates a FR-FCFS-based delay calculator
+ */
+// class DelayCalculatorSimulator {
+//   // TODO Continue here
+
+//  public:
+//   DelayCalculatorSimulator();
+
+//   /**
+//    * Funtion to call to apply an input
+//    */
+//   void input_write_addr(uint64_t iid, uint64_t addr) {}
+
+//   /**
+//    * Funtion to call to apply an input
+//    */
+//   void input_write_msg(uint64_t iid) {}
+
+//   void input_read_msg(uint64_t iid, uint64_t addr) {}
+
+//   /**
+//    * Funtion to call everytime that the
+//    */
+//   void tick();
+
+//  private:
+//   bool releasableWrites[WriteRespBankCapacity];
+//   bool releasableReads[ReadDataBankCapacity];
+// }
 
 // /**
 //  * Performs a complete and randomized test.

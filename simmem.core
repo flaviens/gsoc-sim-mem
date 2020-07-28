@@ -59,6 +59,7 @@ filesets:
   files_rtl_delay_calculator:
     files:
       - rtl/simmem_pkg.sv
+      - rtl/simmem_delay_calculator_core.sv
       - rtl/simmem_delay_calculator.sv
     file_type: systemVerilogSource
 

@@ -41,4 +41,11 @@ const uint64_t WStrbWidth = XDataWidth >> 3;
 
 const unsigned int PackedW = 64;
 
+////////////////////////////
+// Dimensions for modules //
+////////////////////////////
+
+const uint64_t WriteRespBankCapacity = 32;
+const uint64_t ReadDataBankCapacity = 32;
+
 #endif  // SIMMEM_DV_AXI_DIMENSIONS
