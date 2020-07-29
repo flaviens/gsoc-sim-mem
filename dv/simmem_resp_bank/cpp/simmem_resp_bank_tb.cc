@@ -15,7 +15,7 @@
 
 const bool kIterationVerbose = false;
 const bool kTransactionsVerbose = false;
-const bool kPairsVerbose = false;
+const bool kPairsVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -113,6 +113,7 @@ class WriteRespBankTestbench {
   void simmem_reservation_start(uint32_t axi_id) {
     module_->rsv_valid_i = 1;
     module_->rsv_req_id_onehot_i = 1 << axi_id;
+    module_->rsv_burst_len_i = 4;
   }
 
   /**
@@ -506,6 +507,9 @@ size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
             iteration_announced = true;
             std::cout << std::endl << "Step " << std::dec << i << std::endl;
           }
+          std::cout << "Output mask: " << std::hex
+                    << tb->simmem_get_identifier_mask() << std::endl;
+
           std::cout << std::dec
                     << (uint32_t)(current_output &
                                   tb->simmem_get_identifier_mask())
@@ -566,13 +570,13 @@ int main(int argc, char **argv, char **env) {
   // Counts the number of mismatches during the whole test
   size_t total_nb_mismatches = 0;
 
-  for (unsigned int seed = 0; seed < 100; seed++) {
+  for (unsigned int seed = 0; seed < 1000; seed++) {
     // Counts the number of mismatches during the loop iteration
     size_t local_nb_mismatches;
 
     // Instantiate the DUT instance
     WriteRespBankTestbench *tb =
-        new WriteRespBankTestbench(100, true, "resp_bank.fst");
+        new WriteRespBankTestbench(100, true, "rdata_bank.fst");
 
     // Perform one test for the given seed
     if (kTestStrategy == SINGLE_ID_TEST) {
