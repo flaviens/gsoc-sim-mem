@@ -340,12 +340,12 @@ output logic out_rsp_valid_o
   logic [TotCapa-1:0][MaxBurstLenWidth-1:0] rsv_cnt_addr[NumIds];
   logic [TotCapa-1:0][MaxBurstLenWidth-1:0] rsp_cnt_addr[NumIds];
   logic [TotCapa-1:0][MaxBurstLenWidth-1:0] pre_tail_cnt_addr[NumIds];
-  logic [TotCapa-1:0][MaxBurstLenWidth-1:0] prev_tail_cnt_addr[NumIds];
+  logic [TotCapa-1:0][MaxBurstLenWidth-1:0] tail_cnt_addr[NumIds];
   // Intermediate aggregation signals
   logic [MaxBurstLenWidth-1:0][TotCapa-1:0] rsv_cnt_addr_rot90[NumIds];
   logic [MaxBurstLenWidth-1:0][TotCapa-1:0] rsp_cnt_addr_rot90[NumIds];
   logic [MaxBurstLenWidth-1:0][TotCapa-1:0] pre_tail_cnt_addr_rot90[NumIds];
-  logic [MaxBurstLenWidth-1:0][TotCapa-1:0] prev_tail_cnt_addr_rot90[NumIds];
+  logic [MaxBurstLenWidth-1:0][TotCapa-1:0] tail_cnt_addr_rot90[NumIds];
   // Actual counts per linked list
   logic [MaxBurstLenWidth-1:0] rsv_cnt_id[NumIds];
   logic [MaxBurstLenWidth-1:0] rsp_cnt_id[NumIds];
@@ -361,7 +361,7 @@ output logic out_rsp_valid_o
           MaxBurstLenWidth{rsp_heads[i_id] == i_addr && (|rsv_len_q[i_id] || |rsp_len_q[i_id])}};
       assign pre_tail_cnt_addr[i_id][i_addr] =
           rsp_cnt_q[i_addr] & {MaxBurstLenWidth{pre_tails[i_id] == i_addr}};
-      assign prev_tail_cnt_addr[i_id][i_addr] =
+      assign tail_cnt_addr[i_id][i_addr] =
           rsp_cnt_q[i_addr] & {MaxBurstLenWidth{tails[i_id] == i_addr}};
 
       for (genvar i_bit = 0; i_bit < MaxBurstLenWidth; i_bit = i_bit + 1) begin : gen_cnt_addr_rot
@@ -369,8 +369,7 @@ output logic out_rsp_valid_o
         assign rsp_cnt_addr_rot90[i_id][i_bit][i_addr] = rsp_cnt_addr[i_id][i_addr][i_bit];
         assign
             pre_tail_cnt_addr_rot90[i_id][i_bit][i_addr] = pre_tail_cnt_addr[i_id][i_addr][i_bit];
-        assign
-            prev_tail_cnt_addr_rot90[i_id][i_bit][i_addr] = prev_tail_cnt_addr[i_id][i_addr][i_bit];
+        assign tail_cnt_addr_rot90[i_id][i_bit][i_addr] = tail_cnt_addr[i_id][i_addr][i_bit];
       end : gen_cnt_addr_rot
     end : gen_cnt_addr
 
@@ -378,7 +377,7 @@ output logic out_rsp_valid_o
       assign rsv_cnt_id[i_id][i_bit] = |rsv_cnt_addr_rot90[i_id][i_bit];
       assign rsp_cnt_id[i_id][i_bit] = |rsp_cnt_addr_rot90[i_id][i_bit];
       assign pre_tail_cnt_id[i_id][i_bit] = |pre_tail_cnt_addr_rot90[i_id][i_bit];
-      assign tail_cnt_id[i_id][i_bit] = |prev_tail_cnt_addr_rot90[i_id][i_bit];
+      assign tail_cnt_id[i_id][i_bit] = |tail_cnt_addr_rot90[i_id][i_bit];
     end : gen_cnt_after_rot
   end : gen_cnt
 

@@ -213,7 +213,7 @@ module simmem_resp_bank (
     assign rsp_heads[i_id] =
         update_rsp_from_ram_q[i_id] ? meta_ram_out_rsp_rsp_head.nxt_elem : rsp_heads_q[i_id];
 
-    always_comb begin : prev_tail_d_assignment
+    always_comb begin : tail_d_assignment
       // The next tail is either piggybacked with the head, or follows the pre_tail, or keeps
       // its value. If it is piggybacked by the response head pointer, then the update is done in the next cycle.
       if (pgbk_t_with_rsv[i_id]) begin
@@ -223,7 +223,7 @@ module simmem_resp_bank (
       end else begin
         tails_d[i_id] = tails[i_id];
       end
-    end : prev_tail_d_assignment
+    end : tail_d_assignment
     assign tails[i_id] = pgbk_t_with_rsp_q[i_id] ? rsp_heads[i_id] : tails_q[i_id];
 
     assign pre_tails_d[i_id] = pgbk_pt_with_rsv[i_id] ? rsv_heads_d[i_id] : pre_tails[i_id];
