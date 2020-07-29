@@ -27,7 +27,7 @@ module simmem_delay_calculator (
   output logic [simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_onehot_o,
 
   input  logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_released_addr_onehot_i,
-  input  logic [simmem_pkg::ReadDataBankCapacity-1:0] rdata_released_addr_onehot_i
+  input  logic [simmem_pkg::ReadDataBankCapacity-1:0] rdata_released_addr_onehot_i // TODO Fired for each read data output in a burst.
 );
 
   import simmem_pkg::*;

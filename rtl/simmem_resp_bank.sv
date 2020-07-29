@@ -92,8 +92,9 @@ module simmem_resp_bank #(
   // Interface with the releaser
   // Multi-hot signal that enables the release for given internal addresses (i.e., RAM addresses).
   input  logic [TotCapa-1:0] release_en_i,
-  // Signals which address has been released, if any. One-hot signal.
-  output logic [TotCapa-1:0] released_addr_o,
+  // Signals which address has been released, if any. One-hot signal. Is set to one for each
+  // released response in a burst.
+  output logic [TotCapa-1:0] released_addr_onehot_o,
 
   // Interface with the real memory controller
   // AXI response excluding handshake
@@ -196,7 +197,7 @@ module simmem_resp_bank #(
 
   // Update signals are used to update pointers regular operation, following the linked list order.
   logic update_t_from_pt[NumIds];
-  logic update_t_from_ram_q[NumIds];
+  logic update_pt_from_ram_q[NumIds];
   logic update_pt_from_ram_d[NumIds];
   logic update_rsp_from_ram_d[NumIds];
   logic update_rsp_from_ram_q[NumIds];
@@ -236,10 +237,11 @@ module simmem_resp_bank #(
     end : tail_d_assignment
     assign tails[i_id] = pgbk_t_with_rsp_q[i_id] ? rsp_heads[i_id] : tails_q[i_id];
 
+    assign pre_tails_d[i_id] = pgbk_pt_with_rsv[i_id] ? rsv_heads_d[i_id] : pre_tails[i_id];
     always_comb begin : tail_assignment
       if (pgbk_pt_with_rsp_q[i_id]) begin
         pre_tails[i_id] = rsp_heads[i_id];
-      end else if (update_t_from_ram_q[i_id]) begin
+      end else if (update_pt_from_ram_q[i_id]) begin
         pre_tails[i_id] = meta_ram_out_rsp_tail.nxt_elem;
       end else begin
         pre_tails[i_id] = pre_tails_q[i_id];
@@ -790,7 +792,7 @@ module simmem_resp_bank #(
       rsv_len_d[i_id] = rsv_len_q[i_id];
       is_rsp_head_emptybox_d[i_id] = is_rsp_head_emptybox_q[i_id];
 
-      update_t_from_ram_d[i_id] = 1'b0;
+      update_pt_from_ram_d[i_id] = 1'b0;
       update_rsp_from_ram_d[i_id] = 1'b0;
       update_rsv_heads[i_id] = 1'b0;
       update_t_from_pt[i_id] = 1'b0;
@@ -846,51 +848,6 @@ module simmem_resp_bank #(
       end
 
       // Input handshake
-      // if (in_rsp_ready_o && in_rsp_valid_i && rsp_i.merged_payload.id == i_id) begin : in_handshake
-
-      //   // If this is the last data of the burst, then update the pointers
-      //   if (rsv_cnt_id[i_id] == 1) begin
-
-      //     rsp_len_d[i_id] = rsp_len_d[i_id] + 1;
-      //     rsv_len_d[i_id] = rsv_len_d[i_id] - 1;
-
-      //     if (rsp_heads[i_id] == rsv_heads_q[i_id]) begin
-      //       pgbk_rsp_with_rsv[i_id] = 1'b1;
-      //       // Fullbox if could not move forward
-      //       is_rsp_head_emptybox_d[i_id] = rsv_heads_d[i_id] != rsv_heads_q[i_id];
-      //     end else begin
-      //       // If the reservation head is ahead of the middle pointer, then one can follow the
-      //       // pointer from the metadata RAM
-      //       update_rsp_from_ram_d[i_id] = 1'b1;
-      //     end
-
-      //     // Manage more piggybacking on input acquisition
-      //     if (pre_tails[i_id] == rsp_heads[i_id]) begin
-      //       if (rsp_len_after_out[i_id] == 0) begin
-      //         pgbk_pt_with_rsp_d[i_id] = 1'b1;
-      //         if (!is_rsp_head_emptybox_q[i_id]) begin
-      //           pgbk_t_with_rsp_d[i_id] = 1'b1;
-      //         end
-      //       end else if (rsp_len_after_out[i_id] == 1 && tails[i_id] == pre_tails[i_id]) begin
-      //         pgbk_pt_with_rsp_d[i_id] = 1'b1;
-      //       end
-      //     end
-      //   end
-
-      //   // Store the data
-      //   payload_ram_in_addr_id[i_id] = rsp_heads[i_id];
-
-      //   // Set the payload RAM input wmask
-      //   for (int unsigned i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin
-      //     payload_ram_in_wmask_id[i_id][i_burst] =
-      //         rsp_cnt_id[i_id] == i_burst[MaxBurstLenWidth - 1:0];
-      //   end
-
-      //   // Update the middle pointer position
-      //   meta_ram_out_addr_rsp_id[i_id] = rsp_heads[i_id];
-      // end
-
-      // Input handshake
       if (in_rsp_ready_o && in_rsp_valid_i && rsp_i.merged_payload.id == i_id) begin : in_handshake
 
         // If this is the last data of the burst, then update the pointers
@@ -941,41 +898,6 @@ module simmem_resp_bank #(
         end
       end
 
-      // if (rsv_valid_i && rsv_ready_o && rsv_req_id_onehot_i[i_id]) begin : reservation_handshake
-
-      //   rsv_len_d[i_id] = rsv_len_d[i_id] + 1;
-      //   update_rsv_heads[i_id] = 1'b1;
-
-      //   // If the queue is already initiated, then update the head position in the RAM and manage
-      //   // the piggybacking properly
-      //   if (|rsv_len_q[i_id] || |rsp_len_after_out[i_id]) begin : reservation_initiated_queue
-      //     meta_ram_in_addr_id[i_id] = rsv_heads_q[i_id];
-      //     meta_ram_in_content_id[i_id].nxt_elem = nxt_free_addr;
-
-      //     if (rsv_heads_q[i_id] == rsp_heads[i_id]) begin
-      //       if (rsv_len_q[i_id] == 0) begin
-      //         if (rsp_len_after_out[i_id] == 0) begin
-      //           pgbk_rsp_with_rsv[i_id] = 1'b1;
-      //           pgbk_t_with_rsv[i_id] = 1'b1;
-      //           is_rsp_head_emptybox_d[i_id] = 1'b1;
-      //         end else if (rsp_len_after_out[i_id] == 1) begin
-      //           pgbk_rsp_with_rsv[i_id] = 1'b1;
-      //           is_rsp_head_emptybox_d[i_id] = 1'b1;
-      //         end else begin
-      //           pgbk_rsp_with_rsv[i_id] = 1'b1;
-      //           is_rsp_head_emptybox_d[i_id] = 1'b1;
-      //         end
-      //       end
-      //     end
-      //   end else begin
-      //     // Else, piggyback everything as a new queue is created from scratch, with no memoryof
-      //     // the past
-      //     pgbk_rsp_with_rsv[i_id] = 1'b1;
-      //     pgbk_t_with_rsv[i_id] = 1'b1;
-      //     is_rsp_head_emptybox_d[i_id] = 1'b1;
-      //   end
-      // end : reservation_handshake
-
       // Reservation handshake
       if (rsv_valid_i && rsv_ready_o && rsv_req_id_onehot_i[i_id]) begin : reservation_handshake
 
@@ -1013,26 +935,6 @@ module simmem_resp_bank #(
           is_rsp_head_emptybox_d[i_id] = 1'b1;
         end
       end : reservation_handshake
-
-
-      // // Output handshake
-      // if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
-
-      //   // If this is the last burst, then update the pointers
-      //   if (tail_cnt_id[i_id] == 1) begin
-
-      //     rsp_len_d[i_id] = rsp_len_d[i_id] - 1;
-      //     update_t_from_pt[i_id] = 1'b1;  // Update the tail
-      //     if (rsp_heads[i_id] != pre_tails[i_id]) begin
-      //       // If possible, read the next tail address from RAM
-      //       update_t_from_ram_d[i_id] = 1'b1;
-      //       meta_ram_out_addr_tail_id[i_id] = pre_tails[i_id];
-      //     end else begin
-      //       // Else, piggyback
-      //       pgbk_pt_with_rsp_d[i_id] = 1'b1;
-      //     end
-      //   end
-      // end : ouptut_handshake
 
       // Output handshake
       if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
@@ -1074,7 +976,7 @@ module simmem_resp_bank #(
       rsv_cnt_q <= '{default: '0};
       rsp_cnt_q <= '{default: '0};
 
-      update_t_from_ram_q <= '{default: '0};
+      update_pt_from_ram_q <= '{default: '0};
       update_rsp_from_ram_q <= '{default: '0};
       payload_ram_out_wmask_q <= '{default: '0};
 
@@ -1092,7 +994,7 @@ module simmem_resp_bank #(
       rsv_cnt_q <= rsv_cnt_d;
       rsp_cnt_q <= rsp_cnt_d;
 
-      update_t_from_ram_q <= update_t_from_ram_d;
+      update_pt_from_ram_q <= update_pt_from_ram_d;
       update_rsp_from_ram_q <= update_rsp_from_ram_d;
       payload_ram_out_wmask_q <= payload_ram_out_wmask_d;
 

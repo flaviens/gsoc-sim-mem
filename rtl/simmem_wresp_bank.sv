@@ -186,7 +186,7 @@ module simmem_resp_bank (
 
   // Update signals are used to update pointers regular operation, following the linked list order.
   logic update_t_from_pt[NumIds];
-  logic update_t_from_ram_q[NumIds];
+  logic update_pt_from_ram_q[NumIds];
   logic update_pt_from_ram_d[NumIds];
   logic update_rsp_from_ram_d[NumIds];
   logic update_rsp_from_ram_q[NumIds];
@@ -230,7 +230,7 @@ module simmem_resp_bank (
     always_comb begin : tail_assignment
       if (pgbk_pt_with_rsp_q[i_id]) begin
         pre_tails[i_id] = rsp_heads[i_id];
-      end else if (update_t_from_ram_q[i_id]) begin
+      end else if (update_pt_from_ram_q[i_id]) begin
         pre_tails[i_id] = meta_ram_out_rsp_tail.nxt_elem;
       end else begin
         pre_tails[i_id] = pre_tails_q[i_id];
@@ -751,7 +751,7 @@ module simmem_resp_bank (
       rsp_len_q <= '{default: '0};
       rsv_len_q <= '{default: '0};
 
-      update_t_from_ram_q <= '{default: '0};
+      update_pt_from_ram_q <= '{default: '0};
       update_rsp_from_ram_q <= '{default: '0};
 
       is_rsp_head_emptybox_q <= '{default: '1};
@@ -766,7 +766,7 @@ module simmem_resp_bank (
       rsp_len_q <= rsp_len_d;
       rsv_len_q <= rsv_len_d;
 
-      update_t_from_ram_q <= update_pt_from_ram_d;
+      update_pt_from_ram_q <= update_pt_from_ram_d;
       update_rsp_from_ram_q <= update_rsp_from_ram_d;
 
       is_rsp_head_emptybox_q <= is_rsp_head_emptybox_d;
