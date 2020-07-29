@@ -329,7 +329,7 @@ module simmem_resp_bank (
   //    * payload_ram_out_addr_id,    as the address should be the pre_tail or tail pointer value.
   //    * meta_ram_in_addr_id,        as the address may be the reservation head pointer value.
   //    * meta_ram_out_addr_tail_id,  as the address should be the tail pointer value.
-  //    * meta_ram_out_addr_rsp_id,   as the address should be the response head pointer value.
+  //    * meta_ram_out_addr_rsp_head_id,   as the address should be the response head pointer value.
   //
   //  Rotated signals are used to aggregate the signals, where the dimensions have to be transposed.
 
@@ -359,7 +359,7 @@ module simmem_resp_bank (
   logic [BankAddrWidth-1:0] payload_ram_out_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail_id[NumIds];
-  logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_id[NumIds];
+  logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_head_id[NumIds];
   logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_out_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_in_addr_rot90;
@@ -375,7 +375,8 @@ module simmem_resp_bank (
       assign payload_ram_out_addr_rot90[i_bit][i_id] = payload_ram_out_addr_id[i_id][i_bit];
       assign meta_ram_in_addr_rot90[i_bit][i_id] = meta_ram_in_addr_id[i_id][i_bit];
       assign meta_ram_out_addr_tail_rot90[i_bit][i_id] = meta_ram_out_addr_tail_id[i_id][i_bit];
-      assign meta_ram_out_addr_rsp_head_rot90[i_bit][i_id] = meta_ram_out_addr_rsp_id[i_id][i_bit];
+      assign meta_ram_out_addr_rsp_head_rot90[i_bit][i_id] =
+          meta_ram_out_addr_rsp_head_id[i_id][i_bit];
     end : rotate_ram_address_inner
   end : rotate_ram_address
   for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_address
@@ -619,7 +620,7 @@ module simmem_resp_bank (
       payload_ram_out_addr_id[i_id] = '0;
       meta_ram_in_addr_id[i_id] = '0;
       meta_ram_out_addr_tail_id[i_id] = '0;
-      meta_ram_out_addr_rsp_id[i_id] = '0;
+      meta_ram_out_addr_rsp_head_id[i_id] = '0;
 
       meta_ram_in_content_id[i_id] = '0;
 
@@ -674,7 +675,7 @@ module simmem_resp_bank (
         payload_ram_in_addr_id[i_id] = rsp_heads[i_id];
 
         // Update the response head pointer position
-        meta_ram_out_addr_rsp_id[i_id] = rsp_heads[i_id];
+        meta_ram_out_addr_rsp_head_id[i_id] = rsp_heads[i_id];
       end
 
       // Reservation handshake
