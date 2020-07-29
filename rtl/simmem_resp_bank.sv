@@ -461,9 +461,7 @@ module simmem_resp_bank (
   logic [NumIds-1:0][TotCapa-1:0] nxt_addr_mhot_id;
   logic [TotCapa-1:0][NumIds-1:0] nxt_addr_1hot_rot;
   logic [TotCapa-1:0] nxt_addr_1hot_id[NumIds];
-  // Next address to release, multihot
   logic [NumIds-1:0] nxt_id_mhot;
-  //
   logic [NumIds-1:0] nxt_id_to_release_onehot;
 
   // Next id and address to release from RAM

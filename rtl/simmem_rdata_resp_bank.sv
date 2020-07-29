@@ -118,7 +118,8 @@ output logic out_rsp_valid_o
   localparam MaxBurstLenWidth = $clog2(MaxBurstLen + 1);
   localparam BankAddrWidth = $clog2(TotCapa);
   localparam DataWidth = $bits(DataType);
-  localparam MsgRamWidth = MaxBurstLen * (DataWidth - IDWidth);
+  localparam PayloadWidth = DataWidth - IDWidth;
+  localparam PayloadRamWidth = MaxBurstLen * PayloadWidth;
 
   typedef struct packed {logic [BankAddrWidth-1:0] nxt_elem;} metadata_e;
 
@@ -459,13 +460,15 @@ output logic out_rsp_valid_o
   //  Mask management: The metadata RAM uses a fully passing mask. However, the treatment of the
   //  payload RAM mask requires more care. The payload RAM wmasks (payload_ram_in_wmask and
   //  payload_ram_out_wmask_d) are determined by a cooperation between the linked lists (through
-  //  payload_ram_in_wmask_id and payload_ram_out_wmask_id).
+  //  payload_ram_in_wmask_id and payload_ram_out_wmask_id). The output mask must be stored because
+  //  it is calculated one clock cycle before its use.
   //
   //  Mask expansion: As the RAMs require masks as wide as the data words, payload RAM masks are expanded to fit
-  //  with the required format. 
+  //  with the required format.
   //
-  //
-  //
+  //  Payload RAM input and output data: The input data (payload_ram_in_burst_data) is the input payload repeated periodically.
+  //  The mask indicates the location of the data. The output data (payload_ram_burst_data) is extracted from the payload RAM
+  //  data from the payload RAM (payload_ram_out_burst_data) using the mask information.
 
   logic payload_ram_in_req, payload_ram_out_req;
   logic meta_ram_in_req, meta_ram_out_req;
@@ -480,15 +483,14 @@ output logic out_rsp_valid_o
   logic [MaxBurstLen-1:0][NumIds-1:0] payload_ram_in_wmask_id_rot90;
   logic [MaxBurstLen-1:0][NumIds-1:0] payload_ram_out_wmask_id_rot90;
   // The signal to be provided to the payload RAM, which requires the wmask to be as long as the  
-  logic [MsgRamWidth-1:0] payload_ram_in_wmask_expanded;
-  logic [MsgRamWidth-1:0] payload_ram_out_wmask_expanded;
+  logic [PayloadRamWidth-1:0] payload_ram_in_wmask_expanded;
+  logic [PayloadRamWidth-1:0] payload_ram_out_wmask_expanded;
 
   logic [BankAddrWidth-1:0] meta_ram_in_wmask, meta_ram_out_wmask;
 
   metadata_e meta_ram_in_content;
   metadata_e meta_ram_in_content_id[NumIds];
   logic [NumIds - 1:0] meta_ram_in_content_msk_rot90[BankAddrWidth];
-
 
   // Aggregate the read/write masks
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : aggregate_wmask_id
@@ -502,9 +504,7 @@ output logic out_rsp_valid_o
     assign payload_ram_out_wmask_d[i_bit] = |payload_ram_out_wmask_id_rot90[i_bit];
   end : aggregate_wmask
 
-  logic [DataWidth-IDWidth-1:0] payload_ram_out_data;
   metadata_e meta_ram_out_rsp_tail, meta_ram_out_rsp_head;
-
 
   // RAM address and aggregation
   logic [BankAddrWidth-1:0] payload_ram_in_addr;
@@ -512,11 +512,13 @@ output logic out_rsp_valid_o
   logic [BankAddrWidth-1:0] meta_ram_in_addr;
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail;
   logic [BankAddrWidth-1:0] meta_ram_out_addr_mid;
+  // Per-linked list intermediate signals
   logic [BankAddrWidth-1:0] payload_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] payload_ram_out_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_id[NumIds];
+  // Intermediate aggregation signal
   logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_out_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_in_addr_rot90;
@@ -557,11 +559,11 @@ output logic out_rsp_valid_o
   assign meta_ram_in_wmask = {BankAddrWidth{1'b1}};
   assign meta_ram_out_wmask = {BankAddrWidth{1'b1}};
 
-  // Msg ram wmask extension
+  // Payload RAM wmask extension
   for (genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin : expand_rsp_wmasks
     for (
-        genvar i_bit = (DataWidth - IDWidth) * i_burst;
-        i_bit < (DataWidth - IDWidth) * (i_burst + 1);
+        genvar i_bit = PayloadWidth * i_burst;
+        i_bit < PayloadWidth * (i_burst + 1);
         i_bit = i_bit + 1
     ) begin : expand_rsp_wmasks_inner
       assign payload_ram_in_wmask_expanded[i_bit] = payload_ram_in_wmask[i_burst];
@@ -590,30 +592,35 @@ output logic out_rsp_valid_o
 
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding pre_tails from RAM) or input data coming (to potentially update the corresponding
-  // middle pointer from RAM).
-  // This signal could be more fine-grained by excluding cases where the output from RAM will not
-  // be taken into account.
-  assign meta_ram_out_req = 1;
+  // response head pointer from RAM). 
+  always_comb begin : meta_ram_out_req_assignment
+    meta_ram_out_req = 1'b0;
+    for (int unsigned i_id = 0; i_id < NumIds; i_id = i_id + 1) begin
+      meta_ram_out_req |= update_rsp_from_ram_d[i_id] | update_pt_from_ram_d[i_id];
+    end
+  end : meta_ram_out_req_assignment
 
-  assign payload_ram_in_write = 1'b1;
+  assign payload_ram_in_write = payload_ram_in_req;
   assign payload_ram_out_write = 1'b0;
-  assign meta_ram_in_write = 1'b1;
+  assign meta_ram_in_write = meta_ram_in_req;
   assign meta_ram_out_write = 1'b0;
 
   // Response RAM input and output data selection
-  logic [MaxBurstLen-1:0][DataWidth-IDWidth-1:0] payload_ram_in_data;
+  logic [MaxBurstLen-1:0][DataWidth-IDWidth-1:0] payload_ram_in_burst_data;
   logic [MaxBurstLen-1:0][DataWidth-IDWidth-1:0] payload_ram_out_burst_data;
   logic [DataWidth-IDWidth-1:0][MaxBurstLen-1:0] payload_ram_out_burst_data_rot90;
+  logic [DataWidth-IDWidth-1:0] payload_ram_out_data;
+
 
   // Fill input with the input payload. The irrelevant input will be filtered out using the wmasks.
   for (
       genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1
   ) begin : gen_payload_ram_in_data
-    assign payload_ram_in_data[i_burst] = rsp_i.merged_payload.payload;
+    assign payload_ram_in_burst_data[i_burst] = rsp_i.merged_payload.payload;
   end : gen_payload_ram_in_data
 
   // Output payload.
-  for (genvar i_bit = 0; i_bit < DataWidth - IDWidth; i_bit = i_bit + 1) begin : gen_out_data
+  for (genvar i_bit = 0; i_bit < PayloadWidth; i_bit = i_bit + 1) begin : gen_out_data
     for (genvar i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin : gen_out_rsp_inner
       assign payload_ram_out_burst_data_rot90[i_bit][i_burst] =
           payload_ram_out_burst_data[i_burst][i_bit] & payload_ram_out_wmask_q[i_burst];
@@ -625,6 +632,19 @@ output logic out_rsp_valid_o
   ////////////////////////////////////
   // Next AXI identifier to release //
   ////////////////////////////////////
+
+  //  In this part, the next AXI identifier and address to release is computed.
+  //
+  //  Involved signals are, in order of dependency:
+  //    * nxt_addr_mhot_id:   Next addresses to release, multihot and by AXI identifier. Depend on
+  //      the input from delay bank and from the response length after output.
+  //    * nxt_addr_1hot_id:   Next address to release, onehot and by AXI identifier.
+  //    * nxt_id_mhot:   Next address to release, multihot.
+  //    * nxt_id_mhot:   Result signal, indicating in a one-hot fashion, which AXI identifier to
+  //      release next. Can be full zero.
+  //    * nxt_addr_1hot_rot:  Next address to release, one-hot, rotated and filtered by next id to
+  //      release. Useful for output calculation below.
+
 
   // Next address to release, and intermediate annex signals to compute it
   // Next address to release, multihot and by AXI identifier
@@ -959,8 +979,8 @@ output logic out_rsp_valid_o
 
   // Response RAM instance
   prim_generic_ram_2p #(
-  .Width(MsgRamWidth),
-  .DataBitsPerMask(DataWidth - IDWidth),
+  .Width(PayloadRamWidth),
+  .DataBitsPerMask(PayloadWidth),
   .Depth(TotCapa)
 ) i_payload_ram (
   .clk_a_i     (clk_i),
@@ -970,7 +990,7 @@ output logic out_rsp_valid_o
   .a_write_i   (payload_ram_in_write),
   .a_wmask_i   (payload_ram_in_wmask_expanded),
   .a_addr_i    (payload_ram_in_addr),
-  .a_wdata_i   (payload_ram_in_data),
+  .a_wdata_i   (payload_ram_in_burst_data),
   .a_rdata_o   (),
   
   .b_req_i     (payload_ram_out_req),
