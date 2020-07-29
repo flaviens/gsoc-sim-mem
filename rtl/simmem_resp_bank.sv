@@ -347,7 +347,7 @@ module simmem_resp_bank (
   logic [MsgRamWidth-1:0] payload_ram_in_wmask, payload_ram_out_wmask;
   logic [BankAddrWidth-1:0] meta_ram_in_wmask, meta_ram_out_wmask;
 
-  logic [MsgRamWidth-1:0] rsp_out_ram_data;
+  logic [MsgRamWidth-1:0] payload_ram_out_data;
   metadata_e meta_ram_out_rsp_tail, meta_ram_out_rsp_rsp_head;
 
   metadata_e meta_ram_in_content;
@@ -576,7 +576,7 @@ module simmem_resp_bank (
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
   assign out_rsp_valid_o = |cur_out_valid_q;
   assign rsp_o.merged_payload.id = cur_out_id_bin_q;
-  assign rsp_o.merged_payload.payload = rsp_out_ram_data;
+  assign rsp_o.merged_payload.payload = payload_ram_out_data;
 
 
   ////////////////
@@ -819,7 +819,7 @@ module simmem_resp_bank (
     .b_wmask_i   (payload_ram_out_wmask),
     .b_addr_i    (payload_ram_out_addr),
     .b_wdata_i   (),
-    .b_rdata_o   (rsp_out_ram_data)
+    .b_rdata_o   (payload_ram_out_data)
   );
 
   // Metadata RAM instance
