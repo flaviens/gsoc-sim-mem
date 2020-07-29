@@ -451,16 +451,16 @@ module simmem_resp_bank (
   //  Involved signals are, in order of dependency:
   //    * nxt_addr_mhot_id:   Next addresses to release, multihot and by AXI identifier. Depend on
   //      the input from delay bank and from the response length after output.
-  //    * nxt_addr_1hot_id:   Next address to release, onehot and by AXI identifier.
+  //    * nxt_addr_onehot_id:   Next address to release, onehot and by AXI identifier.
   //    * nxt_id_mhot:   Next address to release, multihot.
   //    * nxt_id_mhot:   Result signal, indicating in a one-hot fashion, which AXI identifier to
   //      release next. Can be full zero.
-  //    * nxt_addr_1hot_rot:  Next address to release, one-hot, rotated and filtered by next id to
+  //    * nxt_addr_onehot_rot:  Next address to release, one-hot, rotated and filtered by next id to
   //      release. Useful for output calculation below.
 
   logic [NumIds-1:0][TotCapa-1:0] nxt_addr_mhot_id;
-  logic [TotCapa-1:0][NumIds-1:0] nxt_addr_1hot_rot;
-  logic [TotCapa-1:0] nxt_addr_1hot_id[NumIds];
+  logic [TotCapa-1:0][NumIds-1:0] nxt_addr_onehot_rot;
+  logic [TotCapa-1:0] nxt_addr_onehot_id[NumIds];
   logic [NumIds-1:0] nxt_id_mhot;
   logic [NumIds-1:0] nxt_id_to_release_onehot;
 
@@ -485,17 +485,17 @@ module simmem_resp_bank (
 
       // Derive onehot from multihot signal
       if (i_addr == 0) begin
-        assign nxt_addr_1hot_id[i_id][i_addr] = nxt_addr_mhot_id[i_id][i_addr];
+        assign nxt_addr_onehot_id[i_id][i_addr] = nxt_addr_mhot_id[i_id][i_addr];
       end else begin
-        assign nxt_addr_1hot_id[i_id][i_addr] =
+        assign nxt_addr_onehot_id[i_id][i_addr] =
             nxt_addr_mhot_id[i_id][i_addr] && ~|(nxt_addr_mhot_id[i_id][i_addr - 1:0]);
       end
-      assign nxt_addr_1hot_rot[i_addr][i_id] =
-          nxt_addr_1hot_id[i_id][i_addr] && nxt_id_to_release_onehot[i_id];
+      assign nxt_addr_onehot_rot[i_addr][i_id] =
+          nxt_addr_onehot_id[i_id][i_addr] && nxt_id_to_release_onehot[i_id];
     end : gen_next_addr
 
     // Derive multihot next id to release from next address to release
-    assign nxt_id_mhot[i_id] = |nxt_addr_1hot_id[i_id];
+    assign nxt_id_mhot[i_id] = |nxt_addr_onehot_id[i_id];
 
     // Derive onehot from multihot signal
     if (i_id == 0) begin
@@ -547,7 +547,7 @@ module simmem_resp_bank (
 
   // Store the next address to be released
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_next_addr_out
-    assign cur_out_addr_onehot_d[i_addr] = |nxt_addr_1hot_rot[i_addr];
+    assign cur_out_addr_onehot_d[i_addr] = |nxt_addr_onehot_rot[i_addr];
   end : gen_next_addr_out
 
   // Transform next id to release to binary representation for more compact storage
