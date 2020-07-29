@@ -691,7 +691,7 @@ module simmem_resp_bank #(
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsvd[i_id] = rsp_i.merged_payload.id == i_id & |(rsv_len_q[i_id]);
+    assign is_id_rsvd[i_id] = rsp_i.merged_payload.id == i_id && |(rsv_len_q[i_id]);
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
@@ -1015,76 +1015,76 @@ module simmem_resp_bank #(
     end
   end
 
-  // Response RAM instance
+  // Payload RAM instance
   prim_generic_ram_2p #(
-      .Width(PayloadRamWidth),
-      .DataBitsPerMask(PayloadWidth),
-      .Depth(TotCapa)
-    ) i_payload_ram (
-      .clk_a_i     (clk_i),
-      .clk_b_i     (clk_i),
+    .Width(PayloadRamWidth),
+    .DataBitsPerMask(PayloadWidth),
+    .Depth(TotCapa)
+  ) i_payload_ram (
+    .clk_a_i     (clk_i),
+    .clk_b_i     (clk_i),
 
-      .a_req_i     (payload_ram_in_req),
-      .a_write_i   (payload_ram_in_write),
-      .a_wmask_i   (payload_ram_in_wmask_expanded),
-      .a_addr_i    (payload_ram_in_addr),
-      .a_wdata_i   (payload_ram_in_burst_data),
-      .a_rdata_o   (),
+    .a_req_i     (payload_ram_in_req),
+    .a_write_i   (payload_ram_in_write),
+    .a_wmask_i   (payload_ram_in_wmask_expanded),
+    .a_addr_i    (payload_ram_in_addr),
+    .a_wdata_i   (payload_ram_in_burst_data),
+    .a_rdata_o   (),
 
-      .b_req_i     (payload_ram_out_req),
-      .b_write_i   (payload_ram_out_write),
-      .b_wmask_i   (payload_ram_out_wmask_expanded),
-      .b_addr_i    (payload_ram_out_addr),
-      .b_wdata_i   (),
-      .b_rdata_o   (payload_ram_out_burst_data)
-    );
+    .b_req_i     (payload_ram_out_req),
+    .b_write_i   (payload_ram_out_write),
+    .b_wmask_i   (payload_ram_out_wmask_expanded),
+    .b_addr_i    (payload_ram_out_addr),
+    .b_wdata_i   (),
+    .b_rdata_o   (payload_ram_out_burst_data)
+  );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-      .Width(BankAddrWidth),
-      .DataBitsPerMask(1),
-      .Depth(TotCapa)
-    ) i_meta_ram_out_tail (
-      .clk_a_i     (clk_i),
-      .clk_b_i     (clk_i),
+    .Width(BankAddrWidth),
+    .DataBitsPerMask(1),
+    .Depth(TotCapa)
+  ) i_meta_ram_out_tail (
+    .clk_a_i     (clk_i),
+    .clk_b_i     (clk_i),
 
-      .a_req_i     (meta_ram_in_req),
-      .a_write_i   (meta_ram_in_write),
-      .a_wmask_i   (meta_ram_in_wmask),
-      .a_addr_i    (meta_ram_in_addr),
-      .a_wdata_i   (meta_ram_in_content),
-      .a_rdata_o   (),
+    .a_req_i     (meta_ram_in_req),
+    .a_write_i   (meta_ram_in_write),
+    .a_wmask_i   (meta_ram_in_wmask),
+    .a_addr_i    (meta_ram_in_addr),
+    .a_wdata_i   (meta_ram_in_content),
+    .a_rdata_o   (),
 
-      .b_req_i     (meta_ram_out_req),
-      .b_write_i   (meta_ram_out_write),
-      .b_wmask_i   (meta_ram_out_wmask),
-      .b_addr_i    (meta_ram_out_addr_tail),
-      .b_wdata_i   (),
-      .b_rdata_o   (meta_ram_out_rsp_tail)
-    );
+    .b_req_i     (meta_ram_out_req),
+    .b_write_i   (meta_ram_out_write),
+    .b_wmask_i   (meta_ram_out_wmask),
+    .b_addr_i    (meta_ram_out_addr_tail),
+    .b_wdata_i   (),
+    .b_rdata_o   (meta_ram_out_rsp_tail)
+  );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-      .Width(BankAddrWidth),
-      .DataBitsPerMask(1),
-      .Depth(TotCapa)
-    ) i_meta_ram_out_rsp__head (
-      .clk_a_i     (clk_i),
-      .clk_b_i     (clk_i),
+    .Width(BankAddrWidth),
+    .DataBitsPerMask(1),
+    .Depth(TotCapa)
+  ) i_meta_ram_out_rsp_head (
+    .clk_a_i     (clk_i),
+    .clk_b_i     (clk_i),
 
-      .a_req_i     (meta_ram_in_req),
-      .a_write_i   (meta_ram_in_write),
-      .a_wmask_i   (meta_ram_in_wmask),
-      .a_addr_i    (meta_ram_in_addr),
-      .a_wdata_i   (meta_ram_in_content),
-      .a_rdata_o   (),
+    .a_req_i     (meta_ram_in_req),
+    .a_write_i   (meta_ram_in_write),
+    .a_wmask_i   (meta_ram_in_wmask),
+    .a_addr_i    (meta_ram_in_addr),
+    .a_wdata_i   (meta_ram_in_content),
+    .a_rdata_o   (),
 
-      .b_req_i     (meta_ram_out_req),
-      .b_write_i   (meta_ram_out_write),
-      .b_wmask_i   (meta_ram_out_wmask),
-      .b_addr_i    (meta_ram_out_addr_rsp_head),
-      .b_wdata_i   (),
-      .b_rdata_o   (meta_ram_out_rsp_head)
-    );
+    .b_req_i     (meta_ram_out_req),
+    .b_write_i   (meta_ram_out_write),
+    .b_wmask_i   (meta_ram_out_wmask),
+    .b_addr_i    (meta_ram_out_addr_rsp_head),
+    .b_wdata_i   (),
+    .b_rdata_o   (meta_ram_out_rsp_head)
+  );
 
 endmodule
