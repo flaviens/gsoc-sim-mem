@@ -656,7 +656,14 @@ module simmem_resp_bank (
           // the pointer from the metadata RAM.
           update_rsp_from_ram_d[i_id] = 1'b1;
         end else begin
-          // Else, rsp_head needs to be updated by piggybacking with rsp_head.
+          // Else, rsp_head needs to be updated by piggybacking with rsv_head, as this is the only
+          // way to satisfy the placement condition for the response head: (a) the response head must be
+          // either on the next reserved cell ready to take a response, or (b) if there is no such cell,
+          // then it should be equal to the rsp_head. Therefore, here, if the reservation head gets
+          // updated in the current clock cycle, then the response head follows it and (a) is respected. Else,
+          // both pointers keep their (equal) position and (b) is respected. Note that in the
+          // latter case, the linked list for this AXI identifier is now full and will not take any
+          // new response before a new reservation has been performed.
           pgbk_rsp_with_rsv[i_id] = 1'b1;
         end
 
