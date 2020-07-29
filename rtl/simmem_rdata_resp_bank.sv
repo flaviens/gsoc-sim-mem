@@ -228,7 +228,7 @@ output logic out_rsp_valid_o
     assign rsp_heads[i_id] =
         update_rsp_from_ram_q[i_id] ? meta_ram_out_rsp_head.nxt_elem : rsp_heads_q[i_id];
 
-    always_comb begin : prev_tail_d_assignment
+    always_comb begin : tail_d_assignment
       // The next tail is either piggybacked with the head, or follows the tail, or keeps
       // its value. If it is piggybacked by the middle pointer, the update is done in the next cycle
       if (pgbk_t_with_rsv[i_id]) begin
@@ -238,10 +238,9 @@ output logic out_rsp_valid_o
       end else begin
         tails_d[i_id] = tails[i_id];
       end
-    end : prev_tail_d_assignment
+    end : tail_d_assignment
     assign tails[i_id] = pgbk_t_with_rsp_q[i_id] ? rsp_heads[i_id] : tails_q[i_id];
 
-    assign pre_tails_d[i_id] = pgbk_t_w_h[i_id] ? rsv_heads_d[i_id] : pre_tails[i_id];
     always_comb begin : tail_assignment
       if (pgbk_pt_with_rsp_q[i_id]) begin
         pre_tails[i_id] = rsp_heads[i_id];
@@ -351,7 +350,7 @@ output logic out_rsp_valid_o
   logic [MaxBurstLenWidth-1:0] rsv_cnt_id[NumIds];
   logic [MaxBurstLenWidth-1:0] rsp_cnt_id[NumIds];
   logic [MaxBurstLenWidth-1:0] pre_tail_cnt_id[NumIds];
-  logic [MaxBurstLenWidth-1:0] prev_tail_cnt_id[NumIds];
+  logic [MaxBurstLenWidth-1:0] tail_cnt_id[NumIds];
 
   // Assign the count intermediate signals
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_cnt
@@ -379,7 +378,7 @@ output logic out_rsp_valid_o
       assign rsv_cnt_id[i_id][i_bit] = |rsv_cnt_addr_rot90[i_id][i_bit];
       assign rsp_cnt_id[i_id][i_bit] = |rsp_cnt_addr_rot90[i_id][i_bit];
       assign pre_tail_cnt_id[i_id][i_bit] = |pre_tail_cnt_addr_rot90[i_id][i_bit];
-      assign prev_tail_cnt_id[i_id][i_bit] = |prev_tail_cnt_addr_rot90[i_id][i_bit];
+      assign tail_cnt_id[i_id][i_bit] = |prev_tail_cnt_addr_rot90[i_id][i_bit];
     end : gen_cnt_after_rot
   end : gen_cnt
 
@@ -664,8 +663,8 @@ output logic out_rsp_valid_o
 
         // The address must additionally be, depending on the situation, the tail or the
         // tail of the corresponding queue
-        if (out_rsp_ready_i && out_rsp_valid_o && cur_out_id_onehot[i_id] &&
-            prev_tail_cnt_id[i_id] == 1) begin
+        if (out_rsp_ready_i && out_rsp_valid_o && cur_out_id_onehot[i_id] && tail_cnt_id[i_id] == 1
+            ) begin
           nxt_addr_mhot_id[i_id][i_addr] &= pre_tails[i_id] == i_addr;
         end else begin
           nxt_addr_mhot_id[i_id][i_addr] &= tails[i_id] == i_addr;
@@ -710,6 +709,15 @@ output logic out_rsp_valid_o
   // Outputs //
   /////////////
 
+  //  In this part, the output signals are declared and set.
+  //
+  //  Involved signals are:
+  //    * cur_out_id_bin_d, cur_out_id_bin_q, cur_out_id_onehot: Stores which AXI identifier is
+  //      currently at the output.
+  //    * cur_out_valid_d, cur_out_valid_q: Expresses whether the output is valid.
+  //    * cur_out_addr_onehot_d, cur_out_addr_onehot_q: Stores which RAM address is currently at the
+  //      output.
+
   // Output identifier and address
   logic [IDWidth-1:0] cur_out_id_bin_d;
   logic [IDWidth-1:0] cur_out_id_bin_q;
@@ -744,8 +752,8 @@ output logic out_rsp_valid_o
 
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id
-        ] && prev_tail_cnt_id[i_id] == 1 ? rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
+    assign rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i &&
+        cur_out_id_onehot[i_id] && tail_cnt_id[i_id] == 1 ? rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
   end : gen_len_after_output
 
   // Recall if the current output is valid
@@ -755,6 +763,30 @@ output logic out_rsp_valid_o
   assign out_rsp_valid_o = |cur_out_valid_q;
   assign rsp_o.merged_payload.id = cur_out_id_bin_q;
   assign rsp_o.merged_payload.payload = payload_ram_out_data;
+
+  ////////////////
+  // Handshakes //
+  ////////////////
+
+  //  In this part, four sub-parts are treated:
+  //    * Output preparation: if the considered AXI identifier is the next AXI identifier to
+  //      release, then assign the payload RAM output to the pre_tail or the tail pointer.
+  //    * Input handshake: if the considered AXI identifier is the next AXI identifier to release,
+  //      then: 
+  //      - Update the linked list lengths.
+  //      - Update the pointers, including corner cases.
+  //      - Assign the payload RAM input address.
+  //      - Assign the corresponding metadata RAM output address.
+  //    * Reservation handshake: if the considered AXI identifier is the next AXI identifier to
+  //      release, then:
+  //      - Update the linked list lengths.
+  //      - Update the pointers in some corner cases.
+  //      - Assign both metadata RAMs input addresses.
+  //    * Output handshake: if the considered AXI identifier is the next AXI identifier to release,
+  //        then:
+  //      - Update the linked list lengths.
+  //      - Update the pointers, including corner cases.
+  //      - Assign the corresponding metadata RAM output address.
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : id_isolated_comb
 
@@ -772,7 +804,7 @@ output logic out_rsp_valid_o
       pgbk_rsp_with_rsv[i_id] = 1'b0;
       pgbk_t_with_rsv[i_id] = 1'b0;
       pgbk_t_with_rsp_d[i_id] = 1'b0;
-      pgbk_t_w_h[i_id] = 1'b0;
+      pgbk_pt_with_rsv[i_id] = 1'b0;
       pgbk_pt_with_rsp_d[i_id] = 1'b0;
 
       payload_ram_in_addr_id[i_id] = '0;
@@ -785,15 +817,16 @@ output logic out_rsp_valid_o
 
       meta_ram_in_content_id[i_id] = '0;
 
-      // Handshakes
+      // Output preparation
       if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
-        // The tail points not to the current output to provide, but to the next.
-        // Give the right output according to the output handshake
-        if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] &&
-            prev_tail_cnt_id[i_id] == 1) begin
+        // The pre_tail points not to the current output to provide, but to the next. If we currently provide
+        // output (handshake), make sure to be ready in the next cycle. The RAM has a read latency of one
+        // clock cycle.
+        if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] && tail_cnt_id[i_id] == 1
+            ) begin
           payload_ram_out_addr_id[i_id] = pre_tails[i_id];
 
-          // Set the payload RAM output wmask
+          // Set the corresponding payload RAM output wmask bit to one.
           for (int unsigned i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin
             payload_ram_out_wmask_id[i_id][i_burst] = pre_tail_cnt_id[i_id] ==
                 MaxBurstLen[MaxBurstLenWidth - 1:0] - i_burst[MaxBurstLenWidth - 1:0];
@@ -802,19 +835,26 @@ output logic out_rsp_valid_o
           payload_ram_out_addr_id[i_id] = tails[i_id];
 
           // Set the payload RAM output wmask depending on the number of messages remaining in the
-          // read data burst pointed by the tail
+          // read data burst pointed by the tail.
           if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
             for (int unsigned i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin
-              payload_ram_out_wmask_id[i_id][i_burst] = prev_tail_cnt_id[i_id] ==
+              payload_ram_out_wmask_id[i_id][i_burst] = tail_cnt_id[i_id] ==
                   MaxBurstLen[MaxBurstLenWidth - 1:0] - i_burst[MaxBurstLenWidth - 1:0] + 1;
             end
           end else begin
             for (int unsigned i_burst = 0; i_burst < MaxBurstLen; i_burst = i_burst + 1) begin
-              payload_ram_out_wmask_id[i_id][i_burst] = prev_tail_cnt_id[i_id] ==
+              payload_ram_out_wmask_id[i_id][i_burst] = tail_cnt_id[i_id] ==
                   MaxBurstLen[MaxBurstLenWidth - 1:0] - i_burst[MaxBurstLenWidth - 1:0];
             end
           end
         end
+      end
+
+
+      // Handshakes
+      if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
+        // The tail points not to the current output to provide, but to the next.
+        // Give the right output according to the output handshake
       end
 
       // Input handshake
@@ -878,11 +918,9 @@ output logic out_rsp_valid_o
               if (rsp_len_after_out[i_id] == 0) begin
                 pgbk_rsp_with_rsv[i_id] = 1'b1;
                 pgbk_t_with_rsv[i_id] = 1'b1;
-                pgbk_t_w_h[i_id] = 1'b1;
                 is_rsp_head_emptybox_d[i_id] = 1'b1;
               end else if (rsp_len_after_out[i_id] == 1) begin
                 pgbk_rsp_with_rsv[i_id] = 1'b1;
-                pgbk_t_w_h[i_id] = 1'b1;
                 is_rsp_head_emptybox_d[i_id] = 1'b1;
               end else begin
                 pgbk_rsp_with_rsv[i_id] = 1'b1;
@@ -895,7 +933,6 @@ output logic out_rsp_valid_o
           // the past
           pgbk_rsp_with_rsv[i_id] = 1'b1;
           pgbk_t_with_rsv[i_id] = 1'b1;
-          pgbk_t_w_h[i_id] = 1'b1;
           is_rsp_head_emptybox_d[i_id] = 1'b1;
         end
       end : reservation_handshake
@@ -903,7 +940,7 @@ output logic out_rsp_valid_o
       if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
 
         // If this is the last burst, then update the pointers
-        if (prev_tail_cnt_id[i_id] == 1) begin
+        if (tail_cnt_id[i_id] == 1) begin
 
           rsp_len_d[i_id] = rsp_len_d[i_id] - 1;
           update_t_from_pt[i_id] = 1'b1;  // Update the tail
@@ -974,74 +1011,74 @@ output logic out_rsp_valid_o
 
   // Response RAM instance
   prim_generic_ram_2p #(
-  .Width(PayloadRamWidth),
-  .DataBitsPerMask(PayloadWidth),
-  .Depth(TotCapa)
-) i_payload_ram (
-  .clk_a_i     (clk_i),
-  .clk_b_i     (clk_i),
-  
-  .a_req_i     (payload_ram_in_req),
-  .a_write_i   (payload_ram_in_write),
-  .a_wmask_i   (payload_ram_in_wmask_expanded),
-  .a_addr_i    (payload_ram_in_addr),
-  .a_wdata_i   (payload_ram_in_burst_data),
-  .a_rdata_o   (),
-  
-  .b_req_i     (payload_ram_out_req),
-  .b_write_i   (payload_ram_out_write),
-  .b_wmask_i   (payload_ram_out_wmask_expanded),
-  .b_addr_i    (payload_ram_out_addr),
-  .b_wdata_i   (),
-  .b_rdata_o   (payload_ram_out_burst_data)
-);
+      .Width(PayloadRamWidth),
+      .DataBitsPerMask(PayloadWidth),
+      .Depth(TotCapa)
+    ) i_payload_ram (
+      .clk_a_i     (clk_i),
+      .clk_b_i     (clk_i),
+
+      .a_req_i     (payload_ram_in_req),
+      .a_write_i   (payload_ram_in_write),
+      .a_wmask_i   (payload_ram_in_wmask_expanded),
+      .a_addr_i    (payload_ram_in_addr),
+      .a_wdata_i   (payload_ram_in_burst_data),
+      .a_rdata_o   (),
+
+      .b_req_i     (payload_ram_out_req),
+      .b_write_i   (payload_ram_out_write),
+      .b_wmask_i   (payload_ram_out_wmask_expanded),
+      .b_addr_i    (payload_ram_out_addr),
+      .b_wdata_i   (),
+      .b_rdata_o   (payload_ram_out_burst_data)
+    );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-  .Width(BankAddrWidth),
-  .DataBitsPerMask(1),
-  .Depth(TotCapa)
-) i_meta_ram_out_tail (
-  .clk_a_i     (clk_i),
-  .clk_b_i     (clk_i),
-  
-  .a_req_i     (meta_ram_in_req),
-  .a_write_i   (meta_ram_in_write),
-  .a_wmask_i   (meta_ram_in_wmask),
-  .a_addr_i    (meta_ram_in_addr),
-  .a_wdata_i   (meta_ram_in_content),
-  .a_rdata_o   (),
-  
-  .b_req_i     (meta_ram_out_req),
-  .b_write_i   (meta_ram_out_write),
-  .b_wmask_i   (meta_ram_out_wmask),
-  .b_addr_i    (meta_ram_out_addr_tail),
-  .b_wdata_i   (),
-  .b_rdata_o   (meta_ram_out_rsp_tail)
-);
+      .Width(BankAddrWidth),
+      .DataBitsPerMask(1),
+      .Depth(TotCapa)
+    ) i_meta_ram_out_tail (
+      .clk_a_i     (clk_i),
+      .clk_b_i     (clk_i),
+
+      .a_req_i     (meta_ram_in_req),
+      .a_write_i   (meta_ram_in_write),
+      .a_wmask_i   (meta_ram_in_wmask),
+      .a_addr_i    (meta_ram_in_addr),
+      .a_wdata_i   (meta_ram_in_content),
+      .a_rdata_o   (),
+
+      .b_req_i     (meta_ram_out_req),
+      .b_write_i   (meta_ram_out_write),
+      .b_wmask_i   (meta_ram_out_wmask),
+      .b_addr_i    (meta_ram_out_addr_tail),
+      .b_wdata_i   (),
+      .b_rdata_o   (meta_ram_out_rsp_tail)
+    );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-  .Width(BankAddrWidth),
-  .DataBitsPerMask(1),
-  .Depth(TotCapa)
-) i_meta_ram_out_rsp__head (
-  .clk_a_i     (clk_i),
-  .clk_b_i     (clk_i),
-  
-  .a_req_i     (meta_ram_in_req),
-  .a_write_i   (meta_ram_in_write),
-  .a_wmask_i   (meta_ram_in_wmask),
-  .a_addr_i    (meta_ram_in_addr),
-  .a_wdata_i   (meta_ram_in_content),
-  .a_rdata_o   (),
-  
-  .b_req_i     (meta_ram_out_req),
-  .b_write_i   (meta_ram_out_write),
-  .b_wmask_i   (meta_ram_out_wmask),
-  .b_addr_i    (meta_ram_out_addr_mid),
-  .b_wdata_i   (),
-  .b_rdata_o   (meta_ram_out_rsp_head)
-);
+      .Width(BankAddrWidth),
+      .DataBitsPerMask(1),
+      .Depth(TotCapa)
+    ) i_meta_ram_out_rsp__head (
+      .clk_a_i     (clk_i),
+      .clk_b_i     (clk_i),
+
+      .a_req_i     (meta_ram_in_req),
+      .a_write_i   (meta_ram_in_write),
+      .a_wmask_i   (meta_ram_in_wmask),
+      .a_addr_i    (meta_ram_in_addr),
+      .a_wdata_i   (meta_ram_in_content),
+      .a_rdata_o   (),
+
+      .b_req_i     (meta_ram_out_req),
+      .b_write_i   (meta_ram_out_write),
+      .b_wmask_i   (meta_ram_out_wmask),
+      .b_addr_i    (meta_ram_out_addr_mid),
+      .b_wdata_i   (),
+      .b_rdata_o   (meta_ram_out_rsp_head)
+    );
 
 endmodule
