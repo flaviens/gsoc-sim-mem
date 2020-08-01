@@ -19,12 +19,6 @@ package simmem_pkg;
   localparam PrechargeCost = 50;  // Cycles
   localparam ActivationCost = 45;  // Cycles
 
-  // Example
-  localparam MaxRBurstLen = AxLenWidth >> 1;
-  localparam MaxWBurstLen = AxLenWidth >> 1;
-
-  localparam MaxRBurstLenWidth = $clog2(MaxRBurstLen);
-  localparam MaxWBurstLenWidth = $clog2(MaxWBurstLen);
 
   /////////////////
   // AXI signals //
@@ -118,6 +112,12 @@ package simmem_pkg;
   // For the write response, the union is only a wrapper helping generic response bank implementation
   typedef union packed {wresp_merged_payload_t merged_payload;} wresp_t;
 
+
+  localparam MaxRBurstLen = AxLenWidth >> 1;
+  localparam MaxWBurstLen = AxLenWidth >> 1;
+
+  localparam MaxRBurstLenWidth = $clog2(MaxRBurstLen);
+  localparam MaxWBurstLenWidth = $clog2(MaxWBurstLen);
 
   ////////////////////////////
   // Dimensions for modules //

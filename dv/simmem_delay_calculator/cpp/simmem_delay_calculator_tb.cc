@@ -144,76 +144,76 @@ class DelayCalculatorTestbench {
 /**
  * Simulates a FR-FCFS-based delay calculator
  */
-class DelayCalculatorSimulator {
- public:
-  DelayCalculatorSimulator();
+// class DelayCalculatorSimulator {
+//  public:
+//   DelayCalculatorSimulator();
 
-  /**
-   * Funtion to call to apply an input
-   */
-  void simmem_input_waddr_apply(uint64_t iid, uint64_t addr) {}
+//   /**
+//    * Funtion to call to apply an input
+//    */
+//   void simmem_input_waddr_apply(uint64_t iid, uint64_t addr) {}
 
-  /**
-   * Funtion to call to apply an input
-   */
-  void simmem_input_wdata_apply(uint64_t iid) {}
+//   /**
+//    * Funtion to call to apply an input
+//    */
+//   void simmem_input_wdata_apply(uint64_t iid) {}
 
-  void input_read_msg(uint64_t iid, uint64_t addr) {}
+//   void input_read_msg(uint64_t iid, uint64_t addr) {}
 
-  /**
-   * Applies a valid input write address.
-   *
-   * @param local_identifier the identifier of the incoming data
-   * @param waddr_req the input address request
-   */
-  void simmem_input_waddr_apply(uint64_t local_identifier,
-                                WriteAddressRequest waddr_req) {
-    module_->waddr_iid_i = local_identifier;
-    module_->waddr_req_i = waddr_req.to_packed();
-    module_->waddr_valid_i = 1;
-  }
+//   /**
+//    * Applies a valid input write address.
+//    *
+//    * @param local_identifier the identifier of the incoming data
+//    * @param waddr_req the input address request
+//    */
+//   void simmem_input_waddr_apply(uint64_t local_identifier,
+//                                 WriteAddressRequest waddr_req) {
+//     module_->waddr_iid_i = local_identifier;
+//     module_->waddr_req_i = waddr_req.to_packed();
+//     module_->waddr_valid_i = 1;
+//   }
 
-  /**
-   * Applies a valid input read address.
-   *
-   * @param local_identifier the identifier of the incoming data
-   * @param raddr_req the input address request
-   */
-  void simmem_input_raddr_apply(uint64_t local_identifier,
-                                ReadAddressRequest raddr_req) {
-    module_->raddr_req_i = raddr_req.to_packed();
-    module_->raddr_valid_i = 1;
-  }
+//   /**
+//    * Applies a valid input read address.
+//    *
+//    * @param local_identifier the identifier of the incoming data
+//    * @param raddr_req the input address request
+//    */
+//   void simmem_input_raddr_apply(uint64_t local_identifier,
+//                                 ReadAddressRequest raddr_req) {
+//     module_->raddr_req_i = raddr_req.to_packed();
+//     module_->raddr_valid_i = 1;
+//   }
 
-  /**
-   * Stops applying a valid input write address.
-   */
-  void simmem_input_waddr_stop() { module_->waddr_valid_i = 0; }
+//   /**
+//    * Stops applying a valid input write address.
+//    */
+//   void simmem_input_waddr_stop() { module_->waddr_valid_i = 0; }
 
-  /**
-   * Stops applying a valid input read address.
-   */
-  void simmem_input_raddr_stop() { module_->raddr_valid_i = 0; }
+//   /**
+//    * Stops applying a valid input read address.
+//    */
+//   void simmem_input_raddr_stop() { module_->raddr_valid_i = 0; }
 
-  /**
-   * Applies a valid input write data.
-   */
-  void simmem_input_wdata_apply() { module_->wdata_valid_i = 1; }
+//   /**
+//    * Applies a valid input write data.
+//    */
+//   void simmem_input_wdata_apply() { module_->wdata_valid_i = 1; }
 
-  /**
-   * Stops applying a valid input read address.
-   */
-  void simmem_input_wdata_stop() { module_->wdata_valid_i = 0; }
+//   /**
+//    * Stops applying a valid input read address.
+//    */
+//   void simmem_input_wdata_stop() { module_->wdata_valid_i = 0; }
 
-  /**
-   * Funtion to call everytime that the
-   */
-  void tick();
+//   /**
+//    * Funtion to call everytime that the
+//    */
+//   void tick();
 
- private:
-  bool releasableWrites[WriteRespBankCapacity];
-  bool releasableReads[ReadDataBankCapacity];
-}
+//  private:
+//   bool releasableWrites[WriteRespBankCapacity];
+//   bool releasableReads[ReadDataBankCapacity];
+// }
 
 // /**
 //  * Performs a complete and randomized test.
