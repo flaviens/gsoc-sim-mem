@@ -43,95 +43,95 @@ class DelayCalculatorTestbench {
     }
   }
 
-  // ~DelayCalculatorTestbench(void) { simmem_close_trace(); }
+  ~DelayCalculatorTestbench(void) { simmem_close_trace(); }
 
-  // void simmem_reset(void) {
-  //   module_->rst_ni = 0;
-  //   this->simmem_tick(kResetLength);
-  //   module_->rst_ni = 1;
-  // }
+  void simmem_reset(void) {
+    module_->rst_ni = 0;
+    this->simmem_tick(kResetLength);
+    module_->rst_ni = 1;
+  }
 
-  // void simmem_close_trace(void) { trace_->close(); }
+  void simmem_close_trace(void) { trace_->close(); }
 
-  // /**
-  //  * Performs one or multiple clock cycles.
-  //  *
-  //  * @param nb_ticks the number of ticks to perform at once
-  //  */
-  // void simmem_tick(int nbTicks = 1) {
-  //   for (size_t i = 0; i < nbTicks; i++) {
-  //     if (kIterationVerbose) {
-  //       std::cout << "Running iteration " << tick_count_ << std::endl;
-  //     }
+  /**
+   * Performs one or multiple clock cycles.
+   *
+   * @param nb_ticks the number of ticks to perform at once
+   */
+  void simmem_tick(int nbTicks = 1) {
+    for (size_t i = 0; i < nbTicks; i++) {
+      if (kIterationVerbose) {
+        std::cout << "Running iteration " << tick_count_ << std::endl;
+      }
 
-  //     tick_count_++;
+      tick_count_++;
 
-  //     module_->clk_i = 0;
-  //     module_->eval();
+      module_->clk_i = 0;
+      module_->eval();
 
-  //     if (record_trace_) {
-  //       trace_->dump(5 * tick_count_ - 1);
-  //     }
-  //     module_->clk_i = 1;
-  //     module_->eval();
+      if (record_trace_) {
+        trace_->dump(5 * tick_count_ - 1);
+      }
+      module_->clk_i = 1;
+      module_->eval();
 
-  //     if (record_trace_) {
-  //       trace_->dump(5 * tick_count_);
-  //     }
-  //     module_->clk_i = 0;
-  //     module_->eval();
+      if (record_trace_) {
+        trace_->dump(5 * tick_count_);
+      }
+      module_->clk_i = 0;
+      module_->eval();
 
-  //     if (record_trace_) {
-  //       trace_->dump(5 * tick_count_ + 2);
-  //       trace_->flush();
-  //     }
-  //   }
-  // }
+      if (record_trace_) {
+        trace_->dump(5 * tick_count_ + 2);
+        trace_->flush();
+      }
+    }
+  }
 
-  // /**
-  //  * Applies a valid input write address.
-  //  *
-  //  * @param local_identifier the identifier of the incoming data
-  //  * @param waddr_req the input address request
-  //  */
-  // void simmem_input_waddr_apply(uint64_t local_identifier,
-  //                               WriteAddressRequest waddr_req) {
-  //   module_->waddr_iid_i = local_identifier;
-  //   module_->waddr_req_i = waddr_req.to_packed();
-  //   module_->waddr_valid_i = 1;
-  // }
+  /**
+   * Applies a valid input write address.
+   *
+   * @param local_identifier the identifier of the incoming data
+   * @param waddr_req the input address request
+   */
+  void simmem_input_waddr_apply(uint64_t local_identifier,
+                                WriteAddressRequest waddr_req) {
+    module_->waddr_iid_i = local_identifier;
+    module_->waddr_req_i = waddr_req.to_packed();
+    module_->waddr_valid_i = 1;
+  }
 
-  // /**
-  //  * Applies a valid input read address.
-  //  *
-  //  * @param local_identifier the identifier of the incoming data
-  //  * @param raddr_req the input address request
-  //  */
-  // void simmem_input_raddr_apply(uint64_t local_identifier,
-  //                               ReadAddressRequest raddr_req) {
-  //   module_->raddr_req_i = raddr_req.to_packed();
-  //   module_->raddr_valid_i = 1;
-  // }
+  /**
+   * Applies a valid input read address.
+   *
+   * @param local_identifier the identifier of the incoming data
+   * @param raddr_req the input address request
+   */
+  void simmem_input_raddr_apply(uint64_t local_identifier,
+                                ReadAddressRequest raddr_req) {
+    module_->raddr_req_i = raddr_req.to_packed();
+    module_->raddr_valid_i = 1;
+  }
 
-  // /**
-  //  * Stops applying a valid input write address.
-  //  */
-  // void simmem_input_waddr_stop() { module_->waddr_valid_i = 0; }
+  /**
+   * Stops applying a valid input write address.
+   */
+  void simmem_input_waddr_stop() { module_->waddr_valid_i = 0; }
 
-  // /**
-  //  * Stops applying a valid input read address.
-  //  */
-  // void simmem_input_raddr_stop() { module_->raddr_valid_i = 0; }
+  /**
+   * Stops applying a valid input read address.
+   */
+  void simmem_input_raddr_stop() { module_->raddr_valid_i = 0; }
 
-  // /**
-  //  * Applies a valid input write data.
-  //  */
-  // void simmem_input_wdata_apply() { module_->wdata_valid_i = 1; }
+  /**
+   * Applies a valid input write data.
+   */
+  void simmem_input_wdata_apply() { module_->wdata_valid_i = 1; }
 
-  // /**
-  //  * Stops applying a valid input read address.
-  //  */
-  // void simmem_input_wdata_stop() { module_->wdata_valid_i = 0; }
+  /**
+   * Stops applying a valid input read address.
+   */
+  void simmem_input_wdata_stop() { module_->wdata_valid_i = 0; }
 
  private:
   vluint64_t tick_count_;
@@ -361,33 +361,33 @@ class DelayCalculatorTestbench {
 // }
 
 void sequential_test(DelayCalculatorTestbench *tb) {
-  // tb->simmem_reset();
+  tb->simmem_reset();
 
-  // tb->simmem_tick(5);
+  tb->simmem_tick(5);
 
-  // WriteAddressRequest waddr_req;
-  // waddr_req.from_packed(0UL);
-  // waddr_req.id = 1;
-  // waddr_req.addr = 5;
-  // waddr_req.burst_len = 2;
+  WriteAddressRequest waddr_req;
+  waddr_req.from_packed(0UL);
+  waddr_req.id = 1;
+  waddr_req.addr = 5;
+  waddr_req.burst_len = 2;
 
-  // tb->simmem_input_waddr_apply(5, waddr_req);
-  // tb->simmem_tick();
+  tb->simmem_input_waddr_apply(5, waddr_req);
+  tb->simmem_tick();
 
-  // waddr_req.id = 1;
-  // waddr_req.addr = 8;
-  // waddr_req.burst_len = 1;
+  waddr_req.id = 1;
+  waddr_req.addr = 8;
+  waddr_req.burst_len = 1;
 
-  // tb->simmem_input_waddr_apply(3, waddr_req);
-  // tb->simmem_tick();
+  tb->simmem_input_waddr_apply(3, waddr_req);
+  tb->simmem_tick();
 
-  // tb->simmem_input_waddr_stop();
+  tb->simmem_input_waddr_stop();
 
-  // tb->simmem_tick(1);
+  tb->simmem_tick(1);
 
-  // tb->simmem_input_wdata_apply();
+  tb->simmem_input_wdata_apply();
 
-  // tb->simmem_tick(100);
+  tb->simmem_tick(100);
 }
 
 int main(int argc, char **argv, char **env) {
@@ -401,8 +401,8 @@ int main(int argc, char **argv, char **env) {
 
   // Perform the actual randomized testing
   // nb_errors = randomized_test(tb, 0);
-  // sequential_test(tb);
-  // delete tb;
+  sequential_test(tb);
+  delete tb;
 
   // std::cout << nb_errors << " errors uncovered." << std::endl;
   // std::cout << "Testbench complete!" << std::endl;
