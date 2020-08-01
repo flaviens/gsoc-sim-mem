@@ -405,45 +405,53 @@ module simmem_delay_calculator_core (
   // The chosen write slot is the oldest occupied write slot whose write data entries are not all
   // valid, if applicable.
 
-  // Slot where the data should fit.
+  // Slot where the data should fit (binary representation).
   logic [NumWSlotsWidth-1:0] free_w_slot_for_data;
   // First non-valid bit in the write slot, for each slot.
   logic [MaxWBurstLen-1:0] nxt_nv_bit_onehot[NumWSlots];
-
-  // For each write slot, find the lowest-indexed write write data entry.
+  
+  // Future: Improve the age matrix reduction here.
+  
+  // For each write slot, find the lowest-indexed non-valid write data entry in the slot.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_slot_for_in_data
     for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_nxt_nv_bit_inner
       if (i_bit == 0) begin
         assign nxt_nv_bit_onehot[i_slt][i_bit] = ~w_slt_q[i_slt].data_v[0];
       end else begin
         assign nxt_nv_bit_onehot[i_slt][i_bit] =
-            ~w_slt_q[i_slt].data_v[i_bit] && &w_slt_q[i_slt].data_v[i_bit - 1:0];
+        ~w_slt_q[i_slt].data_v[i_bit] && &w_slt_q[i_slt].data_v[i_bit - 1:0];
       end
     end : gen_nxt_nv_bit_inner
   end : gen_slot_for_in_data
-
-  // TODO: Improve the age matrix reduction
-  always_comb begin : gen_oldest_data_in_candidate
-    logic is_opti_valid = 1'b0;
+  
+  always_comb begin : gen_oldest_wdata_input_candidate
+    // The signal wdata_ready_o is set to one when the first candidate is reached.
+    wdata_ready_o = 1'b0;
     free_w_slot_for_data = '0;
 
+    // Sequentially, find the oldest occupied write slot whose write data entries are not all valid.
     for (logic [NumWSlotsWidth-1:0] i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
       if (w_slt_q[i_slt].v && !&(w_slt_q[i_slt].data_v) && (
-          !is_opti_valid || is_higher_w_slot_older(free_w_slot_for_data, i_slt))) begin
-        is_opti_valid = 1'b1;
+          !wdata_ready_o || is_higher_w_slot_older(free_w_slot_for_data, i_slt))) begin
+        wdata_ready_o = 1'b1;
         free_w_slot_for_data = i_slt;
       end
     end
-  end : gen_oldest_data_in_candidate
-
-  assign wdata_ready_o = |free_w_slot_for_data;
+  end : gen_oldest_wdata_input_candidate
 
 
-  // Generate the addresses for all the data
+  //////////////////////////////////
+  // Address calculation in slots //
+  //////////////////////////////////
 
+  // In this part, the address corresponding to each entry in each write slot and read slot is
+  // calculated from the slot burst base address and burst size.
+
+  // Addresses of slot entries.
   logic [GlobalMemoryCapaWidth-1:0] w_addrs_per_slot[NumWSlots-1:0][MaxWBurstLen-1:0];
   logic [GlobalMemoryCapaWidth-1:0] r_addrs_per_slot[NumRSlots-1:0][MaxRBurstLen-1:0];
 
+  // Write data entries address.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_w_addrs
     for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_w_addrs_per_slt
       assign
@@ -451,6 +459,7 @@ module simmem_delay_calculator_core (
     end : gen_w_addrs_per_slt
   end : gen_w_addrs
 
+  // Read data entries address.
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_r_addrs
     for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : gen_r_addrs_per_slt
       assign
@@ -459,7 +468,12 @@ module simmem_delay_calculator_core (
   end : gen_r_addrs
 
 
-  // Select the optimal address for each slot
+  ////////////////////////////////
+  // Slot-internal optimization //
+  ////////////////////////////////
+
+  // In this part, the optimal entry in each slot is determined. Each slot generates three signals:
+  // * opti_x_bit_per_slot: the optimal bit 
 
   logic [MaxWBurstLenWidth-1:0] opti_w_bit_per_slot[NumWSlots];
   logic [MaxRBurstLenWidth-1:0] opti_r_bit_per_slot[NumRSlots];
