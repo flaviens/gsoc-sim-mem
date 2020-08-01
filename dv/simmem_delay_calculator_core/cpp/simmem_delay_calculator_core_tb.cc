@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Vsimmem_delay_calculator.h"
+#include "Vsimmem_delay_calculator_core.h"
 #include "simmem_axi_structures.h"
 #include "verilated.h"
 #include <cassert>
@@ -25,7 +25,7 @@ const size_t kMaxDelay = 10;
 const size_t kNbLocalIdentifiers = 32;
 const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 
-typedef Vsimmem_delay_calculator Module;
+typedef Vsimmem_delay_calculator_core Module;
 
 // This class implements elementary operations for the testbench
 class DelayCalculatorTestbench {

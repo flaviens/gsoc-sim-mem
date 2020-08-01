@@ -201,7 +201,7 @@ module simmem_delay_calculator_core (
     AgeMatrixSideWidth'(AgeMatrixRSlotStartIndex) + AgeMatrixSideWidth'(r_slt))];
   endfunction : is_r_slot_older
 
-  function automatic logic update_age_matrix_on_input(logic [AgeMatrixSideWidth-1:0] input_coord,
+  function automatic void update_age_matrix_on_input(logic [AgeMatrixSideWidth-1:0] input_coord,
     ref logic [AgeMatrixLen-1:0] age_matrix);
     for (logic [AgeMatrixSideWidth-1:0] k = 0; k < AgeMatrixSide; k++) begin
       if (k < input_coord) begin
@@ -283,11 +283,11 @@ module simmem_delay_calculator_core (
 
       mem_compressed_cost_e curr_cost;
       
-      opti_w_bit_per_slot = '0;
+      opti_w_bit_per_slot[i_slt] = '0;
       opti_w_valid_per_slot[i_slt] = 1'b0;
       opti_w_cost_per_slot[i_slt] = ~'0;
 
-      for (logic [MaxWBurstLenWidth-1:0] i_bit = 0; 32'(i_bit) < MaxWBurstLen; i_bit = i_bit + 1) begin
+      for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
         curr_cost = determine_compressed_cost(w_addrs_per_slot[i_slt][i_bit], is_row_open_q,
                                               open_row_start_address_q);
 
@@ -297,10 +297,10 @@ module simmem_delay_calculator_core (
         if ((w_slt_q[i_slt].data_v[i_bit] && !w_slt_q[i_slt].mem_pending[i_bit] &&
              !w_slt_q[i_slt].mem_done[i_bit]) &&
             (!opti_w_valid_per_slot[i_slt] || curr_cost < opti_w_cost_per_slot[i_slt] || (
-             curr_cost == opti_w_cost_per_slot[i_slt] && is_higher_w_entry_older(i_slt, opti_w_bit_per_slot, i_bit)))) begin
+             curr_cost == opti_w_cost_per_slot[i_slt] && is_higher_w_entry_older(i_slt, opti_w_bit_per_slot[i_slt], MaxWBurstLenWidth'(i_bit))))) begin
           opti_w_valid_per_slot[i_slt] = 1'b1;
           opti_w_cost_per_slot[i_slt] = curr_cost;
-          opti_w_bit_per_slot[i_slt] = i_bit;
+          opti_w_bit_per_slot[i_slt] = MaxWBurstLenWidth'(i_bit);
         end
       end
     end : gen_opti_w_cost_per_slot
@@ -312,11 +312,11 @@ module simmem_delay_calculator_core (
     always_comb begin : gen_opti_r_cost_per_slot
       mem_compressed_cost_e curr_cost;
       
-      opti_r_bit_per_slot = '0;
+      opti_r_bit_per_slot[i_slt] = '0;
       opti_r_valid_per_slot[i_slt] = 1'b0;
       opti_r_cost_per_slot[i_slt] = ~'0;
 
-      for (logic [MaxRBurstLenWidth-1:0] i_bit = 0; 32'(i_bit) < MaxRBurstLen; i_bit = i_bit + 1) begin
+      for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
         curr_cost = determine_compressed_cost(r_addrs_per_slot[i_slt][i_bit], is_row_open_q,
                                               open_row_start_address_q);
 
@@ -328,7 +328,7 @@ module simmem_delay_calculator_core (
             ) begin
           opti_r_valid_per_slot[i_slt] = 1'b1;
           opti_r_cost_per_slot[i_slt] = curr_cost;
-          opti_r_bit_per_slot[i_slt] = i_bit;
+          opti_r_bit_per_slot[i_slt] = MaxRBurstLenWidth'(i_bit);
         end
       end
     end : gen_opti_r_cost_per_slot
@@ -348,6 +348,8 @@ module simmem_delay_calculator_core (
   always_comb begin : gen_opti_slot
     mem_compressed_cost_e curr_cost;
 
+    opti_r_slot = '0;
+    opti_w_slot = '0;
     opti_w_slot_valid = 1'b0;
     opti_r_slot_valid = 1'b0;
     opti_w_cost = '0;
@@ -359,7 +361,7 @@ module simmem_delay_calculator_core (
       if ((w_slt_q[i_slt].v && opti_w_valid_per_slot[i_slt]) && (
           !opti_w_slot_valid || curr_cost < opti_w_cost || (
               curr_cost == opti_w_cost && is_higher_w_slot_older(opti_w_slot, i_slt)))) begin
-        opti_w_slot = i_slt[$clog2(NumWSlots) - 1:0];
+        opti_w_slot = i_slt;
         opti_w_cost = curr_cost;
       end
       opti_w_slot_valid =
@@ -372,7 +374,7 @@ module simmem_delay_calculator_core (
       if ((r_slt_q[i_slt].v && opti_r_valid_per_slot[i_slt]) && (
           !opti_r_slot_valid || curr_cost < opti_r_cost || (
               curr_cost == opti_r_cost && is_higher_r_slot_older(opti_r_slot, i_slt)))) begin
-        opti_r_slot = i_slt[$clog2(NumRSlots) - 1:0];
+        opti_r_slot = i_slt;
         opti_r_cost = curr_cost;
       end
       opti_r_slot_valid =
@@ -422,7 +424,7 @@ module simmem_delay_calculator_core (
 
         // FUTURE: Implement support for wrap burst here and in the read slot input
 
-        for (logic [MaxWBurstLenWidth-1:0] i_bit = 0; 32'(i_bit) < MaxWBurstLen; i_bit = i_bit + 1) begin
+        for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
           w_slt_d[i_slt].data_v[i_bit] =
               (AxLenWidth'(i_bit) >= waddr_req_i.burst_length) || (i_bit < wdata_immediate_cnt_i);
           w_slt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= waddr_req_i.burst_length;
@@ -442,7 +444,7 @@ module simmem_delay_calculator_core (
         r_slt_d[i_slt].burst_size = raddr_req_i.burst_size;
         r_slt_d[i_slt].mem_pending = '0;
 
-        for (logic [MaxRBurstLenWidth-1:0] i_bit = 0; 32'(i_bit) < MaxRBurstLen; i_bit = i_bit + 1) begin
+        for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
           r_slt_d[i_slt].data_v[i_bit] = AxLenWidth'(i_bit) >= raddr_req_i.burst_length;
           r_slt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= raddr_req_i.burst_length;
         end
@@ -458,7 +460,7 @@ module simmem_delay_calculator_core (
       w_slt_d[i_slt].data_v = w_slt_d[i_slt].data_v | (
           nxt_nv_bit_onehot[i_slt] & {
               MaxWBurstLen{free_w_slot_for_data == i_slt && wdata_valid_i && wdata_ready_o}});
-      for (logic [MaxWBurstLenWidth-1:0] i_bit = 0; 32'(i_bit) < MaxWBurstLen; i_bit = i_bit + 1) begin
+      for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
         if (nxt_nv_bit_onehot[i_slt][i_bit]) begin
           update_age_matrix_on_input(AgeMatrixSideWidth'(i_slt * NumWSlots) + AgeMatrixSideWidth'(i_bit), age_matrix_d);
         end
@@ -472,16 +474,18 @@ module simmem_delay_calculator_core (
         rank_delay_cnt_d = decompress_mem_cost(opti_w_cost);
 
         for (logic [NumWSlotsWidth-1:0] i_slt = 0; 32'(i_slt) < NumWSlots; i_slt = i_slt + 1) begin
-          w_slt_d[i_slt].mem_pending |= opti_w_bit_per_slot == i_slt && {
-              MaxWBurstLen{opti_w_slot == i_slt[$clog2(NumWSlots) - 1:0]}};
+          for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
+            w_slt_d[i_slt].mem_pending[i_bit] |= opti_w_bit_per_slot[i_slt] == MaxWBurstLenWidth'(i_bit) && opti_w_valid_per_slot[i_slt] && opti_w_slot == NumWSlotsWidth'(i_slt);
+          end
         end
         is_row_open_d = 1'b1;
       end else if (!serve_w && opti_r_slot_valid) begin
         rank_delay_cnt_d = decompress_mem_cost(opti_r_cost);
 
         for (logic [NumRSlotsWidth-1:0] i_slt = 0; 32'(i_slt) < NumRSlots; i_slt = i_slt + 1) begin
-          r_slt_d[i_slt].mem_pending |= opti_r_bit_per_slot == i_slt && {
-              MaxWBurstLen{opti_r_slot == i_slt[$clog2(NumRSlots) - 1:0]}};
+          for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
+            r_slt_d[i_slt].mem_pending[i_bit] |= opti_r_bit_per_slot[i_slt] == MaxRBurstLenWidth'(i_bit) && opti_r_valid_per_slot[i_slt] && opti_r_slot == NumRSlotsWidth'(i_slt);
+          end
         end
         is_row_open_d = 1'b1;
       end else begin

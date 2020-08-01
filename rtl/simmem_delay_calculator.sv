@@ -14,7 +14,7 @@ module simmem_delay_calculator (
 
   // Write data
   input logic wdata_valid_i,
-  output logic wdata_ready_o,
+  output logic wdata_ready_
 
   // Read address
   input logic [simmem_pkg::ReadDataBankAddrWidth-1:0] raddr_iid_i,
