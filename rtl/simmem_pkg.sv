@@ -12,7 +12,8 @@ package simmem_pkg;
   // System parameters //
   ///////////////////////
 
-  localparam GlobalMemoryCapaWidth = 16;
+  localparam GlobalMemoryCapa = 65536;  // Bytes.
+  localparam GlobalMemoryCapaWidth = $clog2(GlobalMemoryCapa);
   localparam RowBufferLenWidth = 8;
 
   localparam RowHitCost = 10;  // Cycles (must be at least 3)

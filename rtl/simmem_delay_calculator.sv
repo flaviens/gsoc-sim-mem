@@ -92,7 +92,7 @@ module simmem_delay_calculator (
       // data coming in during the same cycle as the address. Safety of this operation is granted by
       // the order in which wdata_cnt_d is updated in the combinatorial block.
 
-      if (AxLenWidth'(wdata_cnt_d) >= waddr_req_i.burst_length}) begin
+      if (AxLenWidth'(wdata_cnt_d) >= waddr_req_i.burst_length) begin
         // If all the data associated with the address has arrived not later than the address, then
         // transmit all this data with the address request to the delay calculator core.
         wdata_immediate_cnt = waddr_req_i.burst_length[MaxWBurstLenWidth - 1:0];
