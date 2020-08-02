@@ -217,7 +217,7 @@ module simmem_delay_calculator_core (
     logic v;  // Valid bit
   } r_slot_t;
 
-  // Slot declaration
+  // Slot declarations
   w_slot_t wslt_d[NumWSlots];
   w_slot_t wslt_q[NumWSlots];
   r_slot_t rslt_d[NumRSlots];
@@ -896,7 +896,7 @@ module simmem_delay_calculator_core (
     // This part is dedicated to updating the rank counters.
 
     // If the rank counter is zero, then simply decrement it.
-    if (|rank_delay_cnt_q == 0) begin
+    if (|rank_delay_cnt_q != 0) begin
       rank_delay_cnt_d = rank_delay_cnt_q - 1;
     end else begin
       // If serve_w is set, then it is certain that there is at least one request for the rank to
