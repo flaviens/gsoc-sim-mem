@@ -71,8 +71,6 @@
 // FUTURE: Add support for wrap bursts FUTURE: Improve implementation by using reductions FUTURE:
 // Should we gate the changes to the age matrix? FUTURE: Support interleaving
 
-// TODO Output counters.
-
 module simmem_delay_calculator_core (
   input logic clk_i,
   input logic rst_ni,
