@@ -64,8 +64,8 @@
 // * Cost of precharge + activation + row hit (RowHitCost + ActivationCost + PrechargeCost): if the
 //   another row was in the row buffer. DRAM refreshing is not simulated.
 //
-// Cost compression: As the entropy of the cost values is very low (takes only 3 values), they are
-// compressed on 2 bits to ease comparisons.
+// Cost categorization: As the entropy of the cost values is very low (takes only 3 values), they are
+// categorized on 2 bits to ease comparisons.
 //
 
 // FUTURE: Add support for wrap bursts FUTURE: Improve implementation by using reductions FUTURE:
@@ -79,7 +79,7 @@ module simmem_delay_calculator_core (
   input simmem_pkg::waddr_req_t waddr_req_i,
   // Internal identifier corresponding to the write address request (issued by the write response
   // bank).
-  input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] waddr_iid_i,
+  input simmem_pkg::write_iid_t waddr_iid_i,
   // Number of write data packets that come with the write address (which were buffered buffered by
   // the wrapper, plus potentially one coming concurrently).
   input logic [simmem_pkg::MaxWBurstLenWidth-1:0] wdata_immediate_cnt_i,
@@ -99,7 +99,7 @@ module simmem_delay_calculator_core (
   input simmem_pkg::raddr_req_t raddr_req_i,
     // Internal identifier corresponding to the read address request (issued by the read response
   // bank).
-  input logic [simmem_pkg::ReadDataBankAddrWidth-1:0] raddr_iid_i,
+  input simmem_pkg::read_iid_t raddr_iid_i,
 
   // Read address request valid from the requester.
   input logic raddr_valid_i,
@@ -118,7 +118,7 @@ module simmem_delay_calculator_core (
   import simmem_pkg::*;
 
   //////////////////////////////
-  // Request cost compression //
+  // Request cost categorization //
   //////////////////////////////
 
   // Compresses the actual cost to have comparisons on fewer bits. Therefore, the ordering of the
@@ -127,9 +127,9 @@ module simmem_delay_calculator_core (
     COST_CAS = 0,
     COST_ACTIVATION_CAS = 1,
     COST_PRECHARGE_ACTIVATION_CAS = 2
-  } mem_compressed_cost_e;
+  } mem_cost_category_e;
 
-  localparam logic [GlobalMemoryCapaWidth-1:0] CostCompressionMask
+  localparam logic [GlobalMemoryCapaWidth-1:0] CostCategorizationMask
       = {{(GlobalMemoryCapaWidth - RowBufferLenWidth) {1'b1}}, {RowBufferLenWidth{1'b0}}};
 
   /**
@@ -141,29 +141,29 @@ module simmem_delay_calculator_core (
   * @param open_row_start_address the start address of the open row, if applicable.
   * @return the cost of the access, in clock cycles.
   */
-  function automatic mem_compressed_cost_e determine_compressed_cost(
+  function automatic mem_cost_category_e determine_cost_category(
       logic [GlobalMemoryCapaWidth-1:0] address, logic is_row_open,
       logic [GlobalMemoryCapaWidth-1:0] open_row_start_address);
-    if (is_row_open && (address & CostCompressionMask) == (
-        open_row_start_address & CostCompressionMask)) begin
+    if (is_row_open && (address & CostCategorizationMask) == (
+        open_row_start_address & CostCategorizationMask)) begin
       return COST_CAS;
     end else if (!is_row_open) begin
       return COST_ACTIVATION_CAS;
     end else begin
       return COST_PRECHARGE_ACTIVATION_CAS;
     end
-  endfunction : determine_compressed_cost
+  endfunction : determine_cost_category
 
   /**
   * Decompresses a request cost.
   *
-  * @param compressed_cost the compressed cost.
+  * @param cost_category the compressed cost.
   *
   * @return the actual cost corresponding to this compressed cost.
   */
   function automatic logic [DelayWidth-1:0] decompress_mem_cost(
-      mem_compressed_cost_e compressed_cost);
-    case (compressed_cost)
+      mem_cost_category_e cost_category);
+    case (cost_category)
       COST_CAS: begin
         return RowHitCost;
       end
@@ -200,8 +200,7 @@ module simmem_delay_calculator_core (
     logic [MaxWBurstLen-1:0] data_v;  // Data valid
     logic [AxSizeWidth-1:0] burst_size;
     logic [AxAddrWidth-1:0] addr;
-    logic [WriteRespBankAddrWidth-1:0]
-        iid;  // Internal identifier (address in the response bank's RAM)
+    write_iid_t iid;  // Internal identifier (address in the response bank's RAM)
     logic v;  // Valid bit
   } w_slot_t;
 
@@ -210,8 +209,7 @@ module simmem_delay_calculator_core (
     logic [MaxRBurstLen-1:0] mem_pending;
     logic [AxSizeWidth-1:0] burst_size;
     logic [AxAddrWidth-1:0] addr;
-    logic [ReadDataBankAddrWidth-1:0]
-        iid;  // Internal identifier (address in the response bank's RAM)
+    read_iid_t iid;  // Internal identifier (address in the response bank's RAM)
     logic v;  // Valid bit
   } r_slot_t;
 
@@ -551,8 +549,8 @@ module simmem_delay_calculator_core (
   logic [MaxWBurstLenWidth-1:0] opti_w_bit_per_slot[NumWSlots];
   logic [MaxRBurstLenWidth-1:0] opti_r_bit_per_slot[NumRSlots];
 
-  mem_compressed_cost_e opti_w_cost_per_slot[NumWSlots];
-  mem_compressed_cost_e opti_r_cost_per_slot[NumRSlots];
+  mem_cost_category_e opti_w_cost_per_slot[NumWSlots];
+  mem_cost_category_e opti_r_cost_per_slot[NumRSlots];
 
   logic opti_w_valid_per_slot[NumWSlots];
   logic opti_r_valid_per_slot[NumRSlots];
@@ -563,17 +561,18 @@ module simmem_delay_calculator_core (
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_opti_w_addrs_per_slt
     always_comb begin : gen_opti_w_cost_per_slot
 
-      // Contains the current optimal cost.
-      mem_compressed_cost_e curr_cost;
-
       opti_w_bit_per_slot[i_slt] = '0;
       opti_w_valid_per_slot[i_slt] = 1'b0;
       opti_w_cost_per_slot[i_slt] = ~'0;
 
       // Iterate through all the entries to find the optimal.
+
       for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-        curr_cost = determine_compressed_cost(w_addrs_per_slot[i_slt][i_bit], is_row_open_q,
-                                              open_row_start_address_q);
+        // Contains the current optimal cost.
+        mem_cost_category_e curr_cost;
+
+        curr_cost = determine_cost_category(w_addrs_per_slot[i_slt][i_bit], is_row_open_q,
+                                            open_row_start_address_q);
 
         // opti_w_valid_per_slot[i_slt] = opti_w_valid_per_slot[i_slt] ||
         //                                   (wslt_q[i_slt].data_v[i_bit] &&
@@ -604,15 +603,15 @@ module simmem_delay_calculator_core (
   // read request comes as a whole.
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_opti_r_addrs_per_slt
     always_comb begin : gen_opti_r_cost_per_slot
-      mem_compressed_cost_e curr_cost;
-
       opti_r_bit_per_slot[i_slt] = '0;
       opti_r_valid_per_slot[i_slt] = 1'b0;
       opti_r_cost_per_slot[i_slt] = ~'0;
 
       for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-        curr_cost = determine_compressed_cost(r_addrs_per_slot[i_slt][i_bit], is_row_open_q,
-                                              open_row_start_address_q);
+        mem_cost_category_e curr_cost;
+
+        curr_cost = determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q,
+                                            open_row_start_address_q);
 
         // opti_r_valid_per_slot[i_slt] = opti_r_valid_per_slot[i_slt] ||
         //                                   (rslt_q[i_slt].data_v[i_bit] &&
@@ -651,11 +650,11 @@ module simmem_delay_calculator_core (
   logic opti_r_slot_valid;
 
   // Request cost of the read and the write candidate entries.
-  mem_compressed_cost_e opti_w_cost;
-  mem_compressed_cost_e opti_r_cost;
+  mem_cost_category_e opti_w_cost;
+  mem_cost_category_e opti_r_cost;
 
   always_comb begin : gen_opti_slot
-    mem_compressed_cost_e curr_cost;
+    mem_cost_category_e curr_cost;
 
     opti_r_slot = '0;
     opti_w_slot = '0;

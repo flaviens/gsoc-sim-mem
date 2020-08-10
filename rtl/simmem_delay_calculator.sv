@@ -20,7 +20,7 @@ module simmem_delay_calculator (
   input simmem_pkg::waddr_req_t waddr_req_i,
   // Internal identifier corresponding to the write address request (issued by the write response
   // bank).
-  input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] waddr_iid_i,
+  input simmem_pkg::write_iid_t waddr_iid_i,
 
   // Write address request valid from the requester.
   input logic waddr_valid_i,
@@ -37,7 +37,7 @@ module simmem_delay_calculator (
   input simmem_pkg::raddr_req_t raddr_req_i,
     // Internal identifier corresponding to the read address request (issued by the read response
   // bank).
-  input logic [simmem_pkg::ReadDataBankAddrWidth-1:0] raddr_iid_i,
+  input simmem_pkg::read_iid_t raddr_iid_i,
 
   // Read address request valid from the requester.
   input logic raddr_valid_i,
@@ -56,31 +56,31 @@ module simmem_delay_calculator (
   import simmem_pkg::*;
 
   // MaxPendingWData is the maximum possible number of distinct values taken by the write data.
-  localparam MaxPendingWData = MaxWBurstLen * WriteRespBankCapacity;
-  localparam MaxPendingWDataWidth = $clog2(MaxPendingWData);
+  localparam int MaxPendingWData = MaxWBurstLen * WriteRespBankCapacity;
+  localparam int MaxPendingWDataWidth = $clog2(MaxPendingWData);
 
   // Counters for the write data without address yet.
   logic [MaxPendingWDataWidth-1:0] wdata_cnt_d;
   logic [MaxPendingWDataWidth-1:0] wdata_cnt_q;
 
   // Delay calculator core I/O signals for the write data.
-  logic core_wdata_valid_i;
-  logic core_wdata_ready_o;
+  logic core_wdata_valid_input;
+  logic core_wdata_ready_ooutput;
 
   // Counts how many data requests have been received before or with the write address request.
   logic [MaxWBurstLenWidth-1:0] wdata_immediate_cnt;
 
   always_comb begin : wrapper_comb
     wdata_cnt_d = wdata_cnt_q;
-    core_wdata_valid_i = 1'b0;
+    core_wdata_valid_input = 1'b0;
 
     if (wdata_valid_i && wdata_ready_o) begin
-      if (core_wdata_ready_o) begin
+      if (core_wdata_ready_ooutput) begin
         // If there is an input handshake for write data and the delay calculator core is ready to
         // accept write data, then transmit the write data information to the delay calculator core.
         // This means, that the delay calculator core has recorded a write address request, which is
         // still missing associated write data requests.
-        core_wdata_valid_i = 1'b1;
+        core_wdata_valid_input = 1'b1;
       end else begin
         // Else, increment the counter of received write data without an address yet.
         wdata_cnt_d = wdata_cnt_d + 1;
@@ -128,8 +128,8 @@ module simmem_delay_calculator (
     .waddr_valid_i(waddr_valid_i),
     .waddr_ready_o(waddr_ready_o),
   
-    .wdata_valid_i(core_wdata_valid_i),
-    .wdata_ready_o(core_wdata_ready_o),
+    .wdata_valid_i(core_wdata_valid_input),
+    .wdata_ready_o(core_wdata_ready_ooutput),
   
     .raddr_iid_i(raddr_iid_i),
     .raddr_req_i(raddr_req_i),

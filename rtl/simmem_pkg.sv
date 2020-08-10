@@ -130,6 +130,10 @@ package simmem_pkg;
   localparam WriteRespBankAddrWidth = $clog2(WriteRespBankCapacity);
   localparam ReadDataBankAddrWidth = $clog2(ReadDataBankCapacity);
 
+  // Internal identifier types
+  typedef logic [WriteRespBankAddrWidth-1:0] write_iid_t;
+  typedef logic [ReadDataBankAddrWidth-1:0] read_iid_t;
+
   localparam DelayWidth = 6;
   localparam TimestampWidth = 20;
 
