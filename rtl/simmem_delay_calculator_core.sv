@@ -68,8 +68,8 @@
 // categorized on 2 bits to ease comparisons.
 //
 
-// FUTURE: Add support for wrap bursts FUTURE: Improve implementation by using reductions FUTURE:
-// Should we gate the changes to the age matrix? FUTURE: Support interleaving
+// TODO: Add support for wrap bursts TODO: Improve implementation by using reductions TODO:
+// Should we gate the changes to the age matrix? TODO: Support interleaving
 
 module simmem_delay_calculator_core (
   input logic clk_i,
@@ -477,8 +477,6 @@ module simmem_delay_calculator_core (
   // First non-valid bit in the write slot, for each slot.
   logic [MaxWBurstLen-1:0] nxt_nv_bit_onehot[NumWSlots];
 
-  // Future: Improve the age matrix reduction here.
-
   // For each write slot, find the lowest-indexed non-valid write data entry in the slot.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_slot_for_in_data
     for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_nxt_nv_bit_inner
@@ -544,7 +542,7 @@ module simmem_delay_calculator_core (
   // * opti_x_cost_per_slot: the compressed cost corresponding to the optimal entry in the slot.
   // * opti_x_valid_per_slot: 1'b1 iff there is at least one candidate entry in the slot.
 
-  // Future: Do this for multiple ranks.
+  // TODO: Do this for multiple ranks.
 
   logic [MaxWBurstLenWidth-1:0] opti_w_bit_per_slot[NumWSlots];
   logic [MaxRBurstLenWidth-1:0] opti_r_bit_per_slot[NumRSlots];
@@ -801,7 +799,7 @@ module simmem_delay_calculator_core (
         // corresponding rank is simulated.
         wslt_d[i_slt].mem_pending = '0;
 
-        // FUTURE: Implement support for wrap burst here and in the read slot input
+        // TODO: Implement support for wrap burst here and in the read slot input
 
         // Update the write slot age matrix.
         update_wslt_age_matrix_on_input(NumWSlotsWidth'(i_slt), wslt_age_matrix_d);
@@ -905,7 +903,6 @@ module simmem_delay_calculator_core (
         // Set the mem_pending bit of the optimal entry to one, as its treatment is starting.
         for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
           for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-            // TODO: opti_w_valid_per_slot should not need to be checked.
             wslt_d[i_slt].mem_pending[i_bit] |= opti_w_valid_per_slot[i_slt] && opti_w_bit_per_slot[
                 i_slt] == MaxWBurstLenWidth'(i_bit) && opti_w_slot == NumWSlotsWidth'(i_slt);
           end
@@ -919,7 +916,6 @@ module simmem_delay_calculator_core (
         // Set the mem_pending bit of the optimal entry to one, as its treatment is starting.
         for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
           for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-            // TODO: opti_r_valid_per_slot should not need to be checked.
             rslt_d[i_slt].mem_pending[i_bit] |= opti_r_valid_per_slot[i_slt] && opti_r_bit_per_slot[
                 i_slt] == MaxRBurstLenWidth'(i_bit) && opti_r_slot == NumRSlotsWidth'(i_slt);
           end

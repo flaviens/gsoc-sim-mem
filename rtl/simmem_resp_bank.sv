@@ -1,7 +1,7 @@
 // Copyright lowRISC contributors. Licensed under the Apache License, Version 2.0, see LICENSE for
 // details. SPDX-License-Identifier: Apache-2.0
 //
-// Linked list bank for responses in the simulated memory controller
+// Linked list bank for responses in the simulated memory controller with burst support
 
 // Response banks provide a multi-FIFO storage with reservation functionality for responses coming
 // from the real memory controller. The FIFOs are implemented as linked lists, sharing the same
@@ -79,7 +79,7 @@ module simmem_resp_bank #(
   input logic rst_ni,
 
   // Reservation interface AXI identifier for which the reseration request is being done.
-  input  logic [NumIds-1:0] rsv_req_id_onehot_i,
+  input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
   // Information about currently reserved address. Will be stored by other modules as an internal
   // identifier to uniquely identify the response (or response burst in case of read data).
   output logic [BankAddrWidth-1:0] rsv_addr_o,
@@ -808,40 +808,38 @@ module simmem_resp_bank #(
       meta_ram_in_content_id[i_id] = '0;
 
       // Output preparation
-      if (nxt_id_to_release_onehot[i_id]) begin : out_preparation_handshake
+      if (nxt_id_to_release_onehot[i_id]) begin
         // The pre_tail points not to the current output to provide, but to the next. If we
         // currently provide output (handshake), make sure to be ready in the next cycle. The RAM
         // has a read latency of one clock cycle.
-        if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] && tail_cnt_id[i_id] == 1
-            ) begin
-          pyld_ram_out_addr_id[i_id] = pre_tails[i_id];
-
-          // Set the corresponding payload RAM output wmask bit to one.
-          for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
-            pyld_ram_out_wmask_id[i_id][i_bur] = pre_tail_cnt_id[i_id] ==
-                MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
-          end
-        end else begin
-          pyld_ram_out_addr_id[i_id] = tails[i_id];
-
-          // Set the payload RAM output wmask depending on the number of messages remaining in the
-          // read data burst pointed by the tail. TODO Corriger ici.
-          if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
+        if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
+          if (tail_cnt_id[i_id] == 1) begin
+            pyld_ram_out_addr_id[i_id] = pre_tails[i_id];
+            // Set the corresponding payload RAM output wmask bit to one.
+            for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
+              pyld_ram_out_wmask_id[i_id][i_bur] = pre_tail_cnt_id[i_id] ==
+                  MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
+            end
+          end else begin
+            pyld_ram_out_addr_id[i_id] = tails[i_id];
+            // Set the corresponding payload RAM output wmask bit to one.
             for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
               pyld_ram_out_wmask_id[i_id][i_bur] = tail_cnt_id[i_id] ==
                   MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0] + 1;
             end
-          end else begin
-            for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
-              pyld_ram_out_wmask_id[i_id][i_bur] = tail_cnt_id[i_id] ==
-                  MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
-            end
+          end
+        end else begin
+          pyld_ram_out_addr_id[i_id] = tails[i_id];
+          // Set the corresponding payload RAM output wmask bit to one.
+          for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
+            pyld_ram_out_wmask_id[i_id][i_bur] =
+                tail_cnt_id[i_id] == MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
           end
         end
       end
 
       // Input handshake
-      if (in_rsp_ready_o && in_rsp_valid_i && rsp_i.merged_payload.id == i_id) begin : in_handshake
+      if (in_rsp_ready_o && in_rsp_valid_i && rsp_i.merged_payload.id == i_id) begin
 
         // If this is the last data of the burst, then update the pointers
         if (rsv_cnt_id[i_id] == 1) begin
@@ -892,13 +890,13 @@ module simmem_resp_bank #(
       end
 
       // Reservation handshake
-      if (rsv_valid_i && rsv_ready_o && rsv_req_id_onehot_i[i_id]) begin : reservation_handshake
+      if (rsv_valid_i && rsv_ready_o && rsv_req_id_onehot_i[i_id]) begin
 
         rsv_len_d[i_id] = rsv_len_d[i_id] + 1;
         update_rsv_heads[i_id] = 1'b1;
 
         // If the queue is already initiated, then update the head position in the RAM.
-        if (|rsv_len_q[i_id] || |rsp_len_after_out[i_id]) begin : reservation_initiated_queue
+        if (|rsv_len_q[i_id] || |rsp_len_after_out[i_id]) begin
           meta_ram_in_addr_id[i_id] = rsv_heads_q[i_id];
           meta_ram_in_content_id[i_id].nxt_elem = nxt_free_addr;
 
@@ -926,10 +924,10 @@ module simmem_resp_bank #(
           pgbk_pt_with_rsv[i_id] = 1'b1;
           is_rsp_head_emptybox_d[i_id] = 1'b1;
         end
-      end : reservation_handshake
+      end
 
       // Output handshake
-      if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin : ouptut_handshake
+      if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
 
         // If this is the last response in the burst, then update the pointers.
         if (tail_cnt_id[i_id] == 1) begin
@@ -952,7 +950,7 @@ module simmem_resp_bank #(
             pgbk_pt_with_rsp_d[i_id] = 1'b1;
           end
         end
-      end : ouptut_handshake
+      end
     end
   end
 
