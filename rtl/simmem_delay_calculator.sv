@@ -59,13 +59,16 @@ module simmem_delay_calculator (
   localparam int MaxPendingWData = MaxWBurstLen * WriteRespBankCapacity;
   localparam int MaxPendingWDataWidth = $clog2(MaxPendingWData);
 
-  // Counters for the write data without address yet.
-  logic [MaxPendingWDataWidth-1:0] wdata_cnt_d;
-  logic [MaxPendingWDataWidth-1:0] wdata_cnt_q;
+  // Counters for the write data without address yet. If negative, then it means, that the core is
+  // still awaiting data write data.
+  logic signed [MaxPendingWDataWidth:0] wdata_cnt_d;
+  logic signed [MaxPendingWDataWidth:0] wdata_cnt_q;
 
   // Delay calculator core I/O signals for the write data.
   logic core_wdata_valid_input;
-  logic core_wdata_ready_ooutput;
+  // Determines whether the core is ready to receive new data.
+  logic core_wdata_ready;
+  assign core_wdata_ready = wdata_cnt_q < 0;
 
   // Counts how many data requests have been received before or with the write address request.
   logic [MaxWBurstLenWidth-1:0] wdata_immediate_cnt;
@@ -75,7 +78,7 @@ module simmem_delay_calculator (
     core_wdata_valid_input = 1'b0;
 
     if (wdata_valid_i && wdata_ready_o) begin
-      if (core_wdata_ready_ooutput) begin
+      if (core_wdata_ready) begin
         // If there is an input handshake for write data and the delay calculator core is ready to
         // accept write data, then transmit the write data information to the delay calculator core.
         // This means, that the delay calculator core has recorded a write address request, which is
@@ -91,18 +94,22 @@ module simmem_delay_calculator (
       // Considering wdata_cnt_d instead of wdata_cnt_q, allows the module to take into account the
       // data coming in during the same cycle as the address. Safety of this operation is granted by
       // the order in which wdata_cnt_d is updated in the combinatorial block.
-
-      if (AxLenWidth'(wdata_cnt_d) >= waddr_req_i.burst_length) begin
-        // If all the data associated with the address has arrived not later than the address, then
-        // transmit all this data with the address request to the delay calculator core.
-        wdata_immediate_cnt = waddr_req_i.burst_length[MaxWBurstLenWidth - 1:0];
-        wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(wdata_immediate_cnt);
-      end else begin
-        // Else, transmit only the already and currently received write data, and set the counter to
-        // zero, as it has been emptied.
-        wdata_immediate_cnt = wdata_cnt_d[MaxWBurstLenWidth - 1:0];
-        wdata_cnt_d = '0;
+      
+      wdata_immediate_cnt = 0;
+      if (!wdata_cnt_d[MaxPendingWDataWidth]) begin
+        // If wdata_cnt_d is nonnegative, then consider sending immediate data
+        if (AxLenWidth'(wdata_cnt_d) >= waddr_req_i.burst_length) begin
+          // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
+          // transmit all this data with the address request to the delay calculator core.
+          wdata_immediate_cnt = waddr_req_i.burst_length[MaxWBurstLenWidth - 1:0];          
+        end else begin
+          // Else, transmit only the already and currently received write data, and set the counter to
+          // zero, as it has been emptied.
+          wdata_immediate_cnt = wdata_cnt_d[MaxWBurstLenWidth - 1:0];
       end
+      
+      // Update the write data count to take the new core demand into account.
+      wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(waddr_req_i.burst_length);
     end
   end : wrapper_comb
 
@@ -129,7 +136,6 @@ module simmem_delay_calculator (
     .waddr_ready_o(waddr_ready_o),
   
     .wdata_valid_i(core_wdata_valid_input),
-    .wdata_ready_o(core_wdata_ready_ooutput),
   
     .raddr_iid_i(raddr_iid_i),
     .raddr_req_i(raddr_req_i),

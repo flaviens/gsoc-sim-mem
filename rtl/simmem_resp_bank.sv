@@ -218,7 +218,7 @@ module simmem_resp_bank #(
     assign rsp_heads[i_id] =
         update_rsp_from_ram_q[i_id] ? meta_ram_out_rsp_head.nxt_elem : rsp_heads_q[i_id];
 
-    always_comb begin : tail_d_assignment
+    always_comb begin
       // The next tail is either piggybacked with the head, or follows the pre_tail, or keeps its
       // value. If it is piggybacked by the response head pointer, then the update is done in the
       // next cycle.
@@ -229,11 +229,11 @@ module simmem_resp_bank #(
       end else begin
         tails_d[i_id] = tails[i_id];
       end
-    end : tail_d_assignment
+    end
     assign tails[i_id] = pgbk_t_with_rsp_q[i_id] ? rsp_heads[i_id] : tails_q[i_id];
 
     assign pre_tails_d[i_id] = pgbk_pt_with_rsv[i_id] ? rsv_heads_d[i_id] : pre_tails[i_id];
-    always_comb begin : tail_assignment
+    always_comb begin
       if (pgbk_pt_with_rsp_q[i_id]) begin
         pre_tails[i_id] = rsp_heads[i_id];
       end else if (update_pt_from_ram_q[i_id]) begin
@@ -241,7 +241,7 @@ module simmem_resp_bank #(
       end else begin
         pre_tails[i_id] = pre_tails_q[i_id];
       end
-    end : tail_assignment
+    end
 
     assign rsv_heads_d[i_id] = update_rsv_heads[i_id] ? nxt_free_addr : rsv_heads_q[i_id];
   end
@@ -415,14 +415,14 @@ module simmem_resp_bank #(
   end : gen_nxt_free_addr_onehot
 
   // Get the next free address binary signal from the corresponding onehot signal
-  always_comb begin : get_nxt_free_addr_from_onehot
+  always_comb begin
     nxt_free_addr = '0;
     for (int unsigned i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin
       if (nxt_free_addr_onehot[i_addr]) begin
         nxt_free_addr = i_addr[BankAddrWidth - 1:0];
       end
     end
-  end : get_nxt_free_addr_from_onehot
+  end
 
   assign rsv_addr_o = nxt_free_addr;
 
@@ -584,12 +584,12 @@ module simmem_resp_bank #(
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding pre_tails from RAM) or input data coming (to potentially update the corresponding
   // response head pointer from RAM). 
-  always_comb begin : meta_ram_out_req_assignment
+  always_comb begin
     meta_ram_out_req = 1'b0;
     for (int unsigned i_id = 0; i_id < NumIds; i_id = i_id + 1) begin
       meta_ram_out_req |= update_rsp_from_ram_d[i_id] | update_pt_from_ram_d[i_id];
     end
-  end : meta_ram_out_req_assignment
+  end
 
   assign pyld_ram_in_write = pyld_ram_in_req;
   assign pyld_ram_out_write = 1'b0;
@@ -646,7 +646,7 @@ module simmem_resp_bank #(
 
     // Calculation of the next address to release
     for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_next_addr
-      always_comb begin : nxt_addr_mhot_assignment
+      always_comb begin
         // Fundamentally, the next address to release needs to belong to a non-empty AXI identifier
         // and must be enabled for release
         nxt_addr_mhot_id[i_id][i_addr] = |(rsp_len_after_out[i_id]) && release_en_i[i_addr];
@@ -659,7 +659,7 @@ module simmem_resp_bank #(
         end else begin
           nxt_addr_mhot_id[i_id][i_addr] &= tails[i_id] == i_addr;
         end
-      end : nxt_addr_mhot_assignment
+      end
 
       // Derive onehot from multihot signal
       if (i_addr == 0) begin
@@ -731,14 +731,14 @@ module simmem_resp_bank #(
   // Transform next id to release to binary representation for more compact storage
   logic [IDWidth-1:0] nxt_id_to_release_bin;
 
-  always_comb begin : get_nxt_id_to_release_bin_from_onehot
+  always_comb begin
     nxt_id_to_release_bin = '0;
     for (int unsigned i_id = 0; i_id < NumIds; i_id = i_id + 1) begin
       if (nxt_id_to_release_onehot[i_id]) begin
         nxt_id_to_release_bin = i_id[IDWidth - 1:0];
       end
     end
-  end : get_nxt_id_to_release_bin_from_onehot
+  end
 
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output

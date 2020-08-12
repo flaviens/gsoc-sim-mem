@@ -91,9 +91,6 @@ module simmem_delay_calculator_core (
 
   // Write address request valid from the requester.
   input logic wdata_valid_i,
-  // Always ready to take write data (the corresponding counter 'wdata_cnt_d/wdata_cnt_q' is
-  // supposed never to overflow).
-  output logic wdata_ready_o,
 
   // Write address request from the requester.
   input simmem_pkg::raddr_req_t raddr_req_i,
@@ -489,21 +486,21 @@ module simmem_delay_calculator_core (
     end : gen_nxt_nv_bit_inner
   end : gen_slot_for_in_data
 
-  always_comb begin : gen_oldest_wdata_input_candidate
-    // The signal wdata_ready_o is set to one when the first candidate is reached.
-    wdata_ready_o = 1'b0;
+  always_comb begin
+    // The signal wdata_ready is set to one when the first candidate is reached.
+    wdata_ready = 1'b0;
     free_w_slot_for_data = '0;
 
     // Sequentially, find the oldest occupied write slot whose write data entries are not all valid.
     for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
       if (wslt_q[i_slt].v && !&(wslt_q[i_slt].data_v) && (
-          !wdata_ready_o || is_higher_w_slot_older(free_w_slot_for_data, NumWSlotsWidth'(i_slt)))
+          !wdata_ready || is_higher_w_slot_older(free_w_slot_for_data, NumWSlotsWidth'(i_slt)))
           ) begin
-        wdata_ready_o = 1'b1;
+        wdata_ready = 1'b1;
         free_w_slot_for_data = NumWSlotsWidth'(i_slt);
       end
     end
-  end : gen_oldest_wdata_input_candidate
+  end
 
 
   //////////////////////////////////
@@ -557,7 +554,7 @@ module simmem_delay_calculator_core (
 
   // In each slot, sequentially perform the optimization.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_opti_w_addrs_per_slt
-    always_comb begin : gen_opti_w_cost_per_slot
+    always_comb begin
 
       opti_w_bit_per_slot[i_slt] = '0;
       opti_w_valid_per_slot[i_slt] = 1'b0;
@@ -594,13 +591,13 @@ module simmem_delay_calculator_core (
           opti_w_bit_per_slot[i_slt] = MaxWBurstLenWidth'(i_bit);
         end
       end
-    end : gen_opti_w_cost_per_slot
+    end
   end : gen_opti_w_addrs_per_slt
 
   // For read requests, individual age for each element in the burst would be irrelevant, as the
   // read request comes as a whole.
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_opti_r_addrs_per_slt
-    always_comb begin : gen_opti_r_cost_per_slot
+    always_comb begin
       opti_r_bit_per_slot[i_slt] = '0;
       opti_r_valid_per_slot[i_slt] = 1'b0;
       opti_r_cost_per_slot[i_slt] = ~'0;
@@ -627,7 +624,7 @@ module simmem_delay_calculator_core (
           opti_r_bit_per_slot[i_slt] = MaxRBurstLenWidth'(i_bit);
         end
       end
-    end : gen_opti_r_cost_per_slot
+    end
   end : gen_opti_r_addrs_per_slt
 
 
@@ -651,7 +648,7 @@ module simmem_delay_calculator_core (
   mem_cost_category_e opti_w_cost;
   mem_cost_category_e opti_r_cost;
 
-  always_comb begin : gen_opti_slot
+  always_comb begin
     mem_cost_category_e curr_cost;
 
     opti_r_slot = '0;
@@ -695,7 +692,7 @@ module simmem_delay_calculator_core (
         opti_r_cost = curr_cost;
       end
     end
-  end : gen_opti_slot
+  end
 
   // Aggregates the optimal entry of the optimal write slot. Zero if there is no optimal time slot. This signal
   // is useful to compare the age of write and read requests.
@@ -871,7 +868,7 @@ module simmem_delay_calculator_core (
     for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
       for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
         if (nxt_nv_bit_onehot[i_slt][i_bit] && free_w_slot_for_data == NumWSlotsWidth'(i_slt) &&
-            wdata_valid_i && wdata_ready_o) begin
+            wdata_valid_i) begin
           // The data_v signal is OR-masked with a mask determining where the new data should land.
           // Most of the times, the mask is full-zero, as there is no write data input handshake or
           // because this is not the slot where the write data where it should land.
