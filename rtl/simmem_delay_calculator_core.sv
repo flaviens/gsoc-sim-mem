@@ -488,6 +488,7 @@ module simmem_delay_calculator_core (
 
   always_comb begin
     // The signal wdata_ready is set to one when the first candidate is reached.
+    logic wdata_ready;
     wdata_ready = 1'b0;
     free_w_slot_for_data = '0;
 
