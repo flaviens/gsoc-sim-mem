@@ -67,13 +67,13 @@
 //    pointer ordering.
 
 module simmem_resp_bank #(
-    parameter int MaxBurstLen = 4,
-    parameter int TotCapa = simmem_pkg::ReadDataBankCapacity,
+    parameter int unsigned MaxBurstLen = 4,
+    parameter int unsigned TotCapa = simmem_pkg::ReadDataBankCapacity,
     parameter type DataType = simmem_pkg::rdata_t,
 
-    localparam int BurstLenWidth = $clog2 (MaxBurstLen + 1),  // derived parameter
-    localparam int BankAddrWidth = $clog2 (TotCapa),  // derived parameter
-    localparam int DataWidth = $bits (DataType)  // derived parameter
+    localparam int unsigned BurstLenWidth = $clog2 (MaxBurstLen + 1),  // derived parameter
+    localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
+    localparam int unsigned DataWidth = $bits (DataType)  // derived parameter
 ) (
   input logic clk_i,
   input logic rst_ni,

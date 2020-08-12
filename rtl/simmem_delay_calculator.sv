@@ -56,8 +56,8 @@ module simmem_delay_calculator (
   import simmem_pkg::*;
 
   // MaxPendingWData is the maximum possible number of distinct values taken by the write data.
-  localparam int MaxPendingWData = MaxWBurstLen * WriteRespBankCapacity;
-  localparam int MaxPendingWDataWidth = $clog2(MaxPendingWData);
+  localparam int unsigned MaxPendingWData = MaxWBurstLen * WriteRespBankCapacity;
+  localparam int unsigned MaxPendingWDataWidth = $clog2(MaxPendingWData);
 
   // Counters for the write data without address yet. If negative, then it means, that the core is
   // still awaiting data write data.
@@ -68,50 +68,46 @@ module simmem_delay_calculator (
   logic core_wdata_valid_input;
   // Determines whether the core is ready to receive new data.
   logic core_wdata_ready;
-  assign core_wdata_ready = wdata_cnt_q < 0;
+  assign core_wdata_ready = wdata_cnt_q[MaxPendingWDataWidth];
 
   // Counts how many data requests have been received before or with the write address request.
   logic [MaxWBurstLenWidth-1:0] wdata_immediate_cnt;
 
-  always_comb begin : wrapper_comb
+  always_comb begin
     wdata_cnt_d = wdata_cnt_q;
     core_wdata_valid_input = 1'b0;
 
     if (wdata_valid_i && wdata_ready_o) begin
       if (core_wdata_ready) begin
-        // If there is an input handshake for write data and the delay calculator core is ready to
-        // accept write data, then transmit the write data information to the delay calculator core.
-        // This means, that the delay calculator core has recorded a write address request, which is
-        // still missing associated write data requests.
+        // If the core has space for additional data, then transmit the data beat.
         core_wdata_valid_input = 1'b1;
-      end else begin
-        // Else, increment the counter of received write data without an address yet.
-        wdata_cnt_d = wdata_cnt_d + 1;
       end
+      // In all cases, when the data beat has been detected by the wrapper, increment the beat counter.
+      wdata_cnt_d = wdata_cnt_d + 1;
     end
 
     if (waddr_valid_i && waddr_ready_o) begin
       // Considering wdata_cnt_d instead of wdata_cnt_q, allows the module to take into account the
       // data coming in during the same cycle as the address. Safety of this operation is granted by
       // the order in which wdata_cnt_d is updated in the combinatorial block.
-      
       wdata_immediate_cnt = 0;
       if (!wdata_cnt_d[MaxPendingWDataWidth]) begin
         // If wdata_cnt_d is nonnegative, then consider sending immediate data
         if (AxLenWidth'(wdata_cnt_d) >= waddr_req_i.burst_length) begin
           // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
           // transmit all this data with the address request to the delay calculator core.
-          wdata_immediate_cnt = waddr_req_i.burst_length[MaxWBurstLenWidth - 1:0];          
+          wdata_immediate_cnt = waddr_req_i.burst_length[MaxWBurstLenWidth - 1:0];
         end else begin
           // Else, transmit only the already and currently received write data, and set the counter to
           // zero, as it has been emptied.
           wdata_immediate_cnt = wdata_cnt_d[MaxWBurstLenWidth - 1:0];
+        end
       end
-      
+
       // Update the write data count to take the new core demand into account.
       wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(waddr_req_i.burst_length);
     end
-  end : wrapper_comb
+  end
 
   // Outputs Write data are always accepted, as the only space they require is in the counter.
   assign wdata_ready_o = 1'b1;
