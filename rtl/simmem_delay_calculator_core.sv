@@ -68,8 +68,8 @@
 // categorized on 2 bits to ease comparisons.
 //
 
-// TODO: Support interleaving
 // TODO: Support fixed bursts.
+// TODO: Multiply row width by number of ranks
 
 module simmem_delay_calculator_core #(
     // Must be a power of two, used for address interleaving
@@ -128,7 +128,10 @@ module simmem_delay_calculator_core #(
   typedef enum logic [1:0] {
     COST_CAS = 0,
     COST_ACTIVATION_CAS = 1,
-    COST_PRECHARGE_ACTIVATION_CAS = 2
+    COST_PRECHARGE_ACTIVATION_CAS = 2,
+    // Special state: if the optimal cost for all the candidates for a rank is COST_NO_CANDIDATE,
+    // then it means that the set of candidates for this rank is the empty set.
+    COST_NO_CANDIDATE = 3 
   } mem_cost_category_e;
   localparam int NumCostCategories = 3;
   localparam int NumCostCategoriesWidth = $clog2(NumCostCategories);
@@ -257,6 +260,19 @@ module simmem_delay_calculator_core #(
     end : candidates_r_inner
   end : candidates_outer
 
+  // Find the next candidate read data per slot
+  logic [MaxRBurstLen-1:0] nxt_rdata_per_slt_onehot[NumRanks][NumRSlots];
+  
+  for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : find_rdata_outer
+    for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : find_rdata
+      nxt_rdata_per_slt_onehot[i_rk][i_slt][0] = is_rdata_candidate_mhot[i_rk][i_slt][0];
+      for (genvar i_bit = 0; i_bit < NumRSlots; i_bit = i_bit + 1) begin : find_rdata_inner
+        nxt_rdata_per_slt_onehot[i_rk][i_slt][i_bit] = is_rdata_candidate_mhot[i_rk][i_slt][i_bit];
+      end : find_rdata_inner
+    end : find_rdata
+  end : find_rdata_outer
+
+
 
   //////////////////////////////////
   // Determine the next free slot //
@@ -346,9 +362,9 @@ module simmem_delay_calculator_core #(
   //
   // Auxiliary signals:
   //  * {main|wslt}_new_entry: Indicates whether an entry of the matrix has just been added as a candidate for a
-  //    memory request.
+  //    memory request. // TODO: Remove
   //  * {main|wslt}_candidate_entry: Indicates whether an entry of the matrix corresponds to a current candidate for
-  //    memory request.
+  //    memory request. // TODO: Remove
   //  * {main|wslt}_release_entry: Indicates whether an entry of the matrix corresponds to an entry that has
   //    been selected to run a memory request.
 
@@ -371,16 +387,11 @@ module simmem_delay_calculator_core #(
 
   // Auxiliary signals
   logic main_new_entry[MainAgeMatrixLen];
-  logic main_candidate_entry[MainAgeMatrixLen];
-  logic main_release_entry[MainAgeMatrixLen];
-
   logic wslt_new_entry[WSlotAgeMatrixLen];
-  logic wslt_candidate_entry[WSlotAgeMatrixLen];
-  logic wslt_release_entry[WSlotAgeMatrixLen];
 
   // Main age matrix management
-  for (genvar i = 0; i < MainAgeMatrixLen; i = i + 1) begin : gen_main_matrix_outer
-    for (genvar j = 0; j < MainAgeMatrixLen; j = j + 1) begin : gen_main_matrix_inner
+  for (genvar i = 0; i < MainAgeMatrixSide; i = i + 1) begin : gen_main_matrix_outer
+    for (genvar j = 0; j < MainAgeMatrixSide; j = j + 1) begin : gen_main_matrix_inner
       if (i < j) begin : gen_main_matrix_flop
         logic matrix_elem_q, matrix_elem_d;
         always @(posedge clk or negedge rst_ni) begin
@@ -393,7 +404,7 @@ module simmem_delay_calculator_core #(
         // Matrix_elem_q is set when j is older than i
         always_comb begin
           matrix_elem_d = matrix_elem_q;
-          if (new_entry[i] & candidate_entry[j] & ~release_entry[j]) begin
+          if (main_new_entry[i]) begin
             matrix_elem_d = 1'b1;
           end
         end
@@ -408,130 +419,38 @@ module simmem_delay_calculator_core #(
     end
   end
 
-  // TODO: Remove wslot matrix completely
-  // // Write slot matrix management
-  // for (genvar i = 0; i < MainAgeMatrixLen; i = i + 1) begin : gen_main_matrix_outer
-  //   for (genvar j = 0; j < MainAgeMatrixLen; j = j + 1) begin : gen_main_matrix_inner
-  //     if (i < j) begin : gen_main_matrix_flop
-  //       logic matrix_elem_q, matrix_elem_d;
-  //       always @(posedge clk or negedge rst_ni) begin
-  //         if (~rst_ni) begin
-  //           matrix_elem_q <= 1'0;
-  //         end else begin
-  //           matrix_elem_q <= matrix_elem_d;
-  //         end
-  //       end
-  //       // Matrix_elem_q is set when j is older than i
-  //       always_comb begin
-  //         matrix_elem_d = matrix_elem_q;
-  //         if (new_entry[i] & candidate_entry[j] & ~release_entry[j]) begin
-  //           matrix_elem_d = 1'b1;
-  //         end
-  //       end
-  //       assign wslt_age_matrix[i][j] = matrix_elem_q;
-  //     end else if (i == j) begin : g_matrix_diagonal
-  //       // Diagonal always 0
-  //       assign wslt_age_matrix[i][j] = 1'b0;
-  //     end else begin
-  //       // Mirror & invert matrix over diagonal
-  //       assign wslt_age_matrix[i][j] = ~wslt_age_matrix[j][i];
-  //     end
-  //   end
-  // end
-
-  // REMOVE FROM HERE
-
-  logic [MaxWBurstLenWidth-1:0] opti_w_bit_per_slot[NumWSlots];
-  logic [MaxRBurstLenWidth-1:0] opti_r_bit_per_slot[NumRSlots];
-
-  mem_cost_category_e opti_w_cost_per_slot[NumWSlots];
-  mem_cost_category_e opti_r_cost_per_slot[NumRSlots];
-
-  logic opti_w_valid_per_slot[NumWSlots];
-  logic opti_r_valid_per_slot[NumRSlots];
-
-  // Reduce per slot
-
-  // In each slot, sequentially perform the optimization.
-  for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_opti_w_addrs_per_slt
-    always_comb begin
-
-      opti_w_bit_per_slot[i_slt] = '0;
-      opti_w_valid_per_slot[i_slt] = 1'b0;
-      opti_w_cost_per_slot[i_slt] = ~'0;
-
-      // Iterate through all the entries to find the optimal.
-
-      for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-        // Contains the current optimal cost.
-        mem_cost_category_e curr_cost;
-
-        curr_cost = determine_cost_category(w_addrs_per_slot[i_slt][i_bit], is_row_open_q,
-                                            open_row_start_address_q);
-
-        // opti_w_valid_per_slot[i_slt] = opti_w_valid_per_slot[i_slt] ||
-        //                                   (wslt_q[i_slt].data_v[i_bit] &&
-        //                                   !wslt_q[i_slt].mem_pending[i_bit] &&
-        //                                   !wslt_q[i_slt].mem_done[i_bit]);
-
-        // If the write data entry is ready to be submitted.
-        if ((wslt_q[i_slt].data_v[i_bit] && !wslt_q[i_slt].mem_pending[i_bit] && // TODO Update here
-             !wslt_q[i_slt].mem_done[i_bit]) &&
-        // And this is the ready candidate of lowest index in the slot OR has lower cost than the
-        // previous candidate OR has same cost as the previous candidate, but is older. Remark: for
-        // non-wrap bursts, the condition is_higher_w_entry_older(i_slt, opti_w_bit_per_slot[i_slt],
-        // MaxWBurstLenWidth'(i_bit))) is always true. However, all the write data entry bits in the
-        // age matrix are anyways required, as those write data entries ages are compared to other
-        // entries and slots.
-        (!opti_w_valid_per_slot[i_slt] || curr_cost < opti_w_cost_per_slot[i_slt] || (
-         curr_cost == opti_w_cost_per_slot[i_slt] && is_higher_w_entry_older(
-             i_slt, opti_w_bit_per_slot[i_slt], MaxWBurstLenWidth'(i_bit))))) begin
-          opti_w_valid_per_slot[i_slt] = 1'b1;
-          opti_w_cost_per_slot[i_slt] = curr_cost;
-          opti_w_bit_per_slot[i_slt] = MaxWBurstLenWidth'(i_bit);
+  // Write slot matrix management
+  for (genvar i = 0; i < NumWSlots; i = i + 1) begin : gen_wslt_matrix_outer
+    for (genvar j = 0; j < NumWSlots; j = j + 1) begin : gen_wslt_matrix_inner
+      if (i < j) begin : gen_wslt_matrix_flop
+        logic matrix_elem_q, matrix_elem_d;
+        always @(posedge clk or negedge rst_ni) begin
+          if (~rst_ni) begin
+            matrix_elem_q <= 1'0;
+          end else begin
+            matrix_elem_q <= matrix_elem_d;
+          end
         end
+        // Matrix_elem_q is set when j is older than i
+        always_comb begin
+          matrix_elem_d = matrix_elem_q;
+          if (wslt_new_entry[i]) begin
+            matrix_elem_d = 1'b1;
+          end
+        end
+        assign wslt_age_matrix[i][j] = matrix_elem_q;
+      end else if (i == j) begin : g_matrix_diagonal
+        // Diagonal always 0
+        assign wslt_age_matrix[i][j] = 1'b0;
+      end else begin
+        // Mirror & invert matrix over diagonal
+        assign wslt_age_matrix[i][j] = ~wslt_age_matrix[j][i];
       end
     end
-  end : gen_opti_w_addrs_per_slt
+  end
 
-  // For read requests, individual age for each element in the burst would be irrelevant, as the
-  // read request comes as a whole.
-  for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_opti_r_addrs_per_slt
-    always_comb begin
-      opti_r_bit_per_slot[i_slt] = '0;
-      opti_r_valid_per_slot[i_slt] = 1'b0;
-      opti_r_cost_per_slot[i_slt] = ~'0;
-
-      for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-        mem_cost_category_e curr_cost;
-
-        curr_cost = determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q,
-                                            open_row_start_address_q);
-
-        // opti_r_valid_per_slot[i_slt] = opti_r_valid_per_slot[i_slt] ||
-        //                                   (rslt_q[i_slt].data_v[i_bit] &&
-        //                                   !rslt_q[i_slt].mem_pending[i_bit] &&
-        //                                   !rslt_q[i_slt].mem_done[i_bit]);
-
-        // If the read data entry is ready to be submitted.
-        if ((!rslt_q[i_slt].mem_pending[i_bit] && !rslt_q[i_slt].mem_done[i_bit]) && (
-        // And this is the ready candidate of lowest index in the slot OR has lower cost than the
-        // previous candidate. As a reminder, all read data requests arrive simultaneously.
-        // Therefore, no age comparison is needed here.
-        !opti_r_valid_per_slot[i_slt] || curr_cost < opti_r_cost_per_slot[i_slt])) begin
-          opti_r_valid_per_slot[i_slt] = 1'b1;
-          opti_r_cost_per_slot[i_slt] = curr_cost;
-          opti_r_bit_per_slot[i_slt] = MaxRBurstLenWidth'(i_bit);
-        end
-      end
-    end
-  end : gen_opti_r_addrs_per_slt
-
-  // REMOVE UNTIL HERE
-
-
-  // Conditions used for masking in reductions
-  logic [MainAgeMatrixLen-1:0] matches_condition[NumRanks][NumCostCategories];
+  // Conditions used for masking in main age matrix reductions
+  logic [MainAgeMatrixLen-1:0] matches_cond[NumRanks][NumCostCategories];
   
   // An entry matches the conditions, for a given (rank, cost category) pair, if all of the
   // following conditions are verified:
@@ -543,14 +462,14 @@ module simmem_delay_calculator_core #(
       // Check conditions for write data entries
       for (genvar i_wslt = 0; i_wslt < NumWSlots; i_wslt = i_wslt + 1) begin : cond_check_wslt
         for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : cond_check_wd
-          matches_condition[i_rk][i_cat][i_wslt*MaxWBurstLen + i_bit] = determine_cost_category(w_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk],
+          matches_cond[i_rk][i_cat][i_wslt*MaxWBurstLen + i_bit] = determine_cost_category(w_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk],
           open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat) && is_wdata_candidate_mhot[i_rk][i_slt][i_bit];
         end
       end : cond_check_wslt
       // Check conditions for read data entries
       for (genvar i_rslt = 0; i_rslt < NumRSlots; i_rslt = i_rslt + 1) begin : cond_check_rslt
         for (genvar i_rd = 0; i_rd < MaxRBurstLen; i_rd = i_rd + 1) begin : cond_check_rd
-          matches_condition[i_rk][i_cat][MainAgeMatrixRSlotStartIndex + i_bit] = determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk],
+          matches_cond[i_rk][i_cat][MainAgeMatrixRSlotStartIndex + i_bit] = determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk],
           open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat) && is_rdata_candidate_mhot[i_rk][i_slt][i_bit];
         end : cond_check_rd
       end : cond_check_rslt
@@ -560,147 +479,34 @@ module simmem_delay_calculator_core #(
   end : cond_check_rnk
 
   // The reduction is done per rank
-
   // One-hot signal
   logic [MainAgeMatrixLen-1:0] oldest_entry_of_category[NumRanks][NumCostCategories];
-  logic [MainAgeMatrixLen-1:0] optimal_entry[NumRanks];
-
+  logic [MainAgeMatrixLen-1:0] opti_entry_onehot[NumRanks];
+  logic mem_cost_category_e opti_cost_cat[NumRanks];
 
   // Matrix reduction
   for (genvar i_rk; i_rk < NumRanks; i_rk = i_rk + 1) begin : reduce_rnk
     for (genvar i_cat; i_cat < NumCostCategories; i_cat = i_cat + 1) begin : reduce_cat
       for (genvar i = 0; i < MainAgeMatrixLen; i = i + 1) begin : reduce_age_per_category
-        oldest_entry_of_category[i_rk] = ;
+        assign oldest_entry_of_category[i_rk] = matches_cond[i] & ~|(main_age_matrix[i] & matches_cond);
       end
     end
+    // Reduce among categories: take the lowest cost category
+    always_comb begin
+      if (|oldest_entry_of_category[i_rk][COST_CAS]) begin
+        opti_cost_cat[i_rk] = COST_CAS;
+      end else (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
+        opti_cost_cat[i_rk] = COST_ACTIVATION_CAS;
+      end else (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
+        opti_cost_cat[i_rk] = COST_PRECHARGE_ACTIVATION_CAS;
+      end else begin
+        opti_cost_cat[i_rk] = COST_NO_CANDIDATE;
+      end      
+    end
 
-    // Reduce among categories
-
+    // Using masks, find the optimal entry
+    assign opti_entry_onehot = oldest_entry_of_category[i_rk][COST_CAS] | (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & {MainAgeMatrixLen{|oldest_entry_of_category[i_rk][COST_CAS]}}) | (oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS] & {MainAgeMatrixLen{|oldest_entry_of_category[i_rk][COST_CAS]}} & {MainAgeMatrixLen{|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]}});
   end
-
-
-
-    
-  // Assignment of candidate entries
-  for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : TODO // TODO Continuer ici
-    
-  end : TODO
-
-
-  // TODO: Reduce inside a read slot to find out which data to release next
-
-  logic [MaxRBurstLen-1:0] nxt_rdata_per_slt_onehot[NumRanks][NumRSlots];
-  
-  for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : find_rdata_outer
-    for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : find_rdata
-      nxt_rdata_per_slt_onehot[i_rk][i_slt] =;
-      for (genvar i_wd = 0; i_wd < NumRSlots; i_wd = i_wd + 1) begin : find_rdata_inner
-
-    end : find_rdata_inner
-    end : find_rdata
-  end : find_rdata_outer
-
-  /**
-  * Checks in the age matrix whether the write data entry pointed by the higher identifier is older
-  * than the other.
-  *
-  * @param wslt the slot in which the write data entries are located.
-  * @param i_lower_bit the lower entry index in the slot.
-  * @param i_higher_bit the higher entry index in the slot.
-  * @return 1'b1 iff the lower entry is older.
-  */
-  function automatic logic is_higher_w_entry_older(logic [NumWSlotsWidth-1:0] wslt,
-                                                   logic [MaxWBurstLenWidth-1:0] lower_bit,
-                                                   logic [MaxWBurstLenWidth-1:0] higher_bit);
-    return main_age_matrix_q[
-        MainAgeMatrixSideWidth'(wslt * NumWSlotsWidth) + MainAgeMatrixSideWidth'(lower_bit),
-            MainAgeMatrixSideWidth'(wslt * NumWSlotsWidth) + MainAgeMatrixSideWidth'(higher_bit)];
-  endfunction : is_higher_w_entry_older
-
-  /**
-  * Checks in the age matrix whether the write slot pointed by the higher identifier is older than
-  * the other. This is only used for write data acceptance.
-  *
-  * @param i_lower_bit the lower slot index in the write slots array.
-  * @param i_higher_bit the higher slot index in the write slots array.
-  * @return 1'b1 iff the lower slot is older.
-  */
-  function automatic logic is_higher_w_slot_older(logic [NumWSlotsWidth-1:0] w_lower_slt,
-                                                  logic [NumWSlotsWidth-1:0] w_higher_slt);
-    return wslt_age_matrix_q[w_lower_slt, w_higher_slt];
-  endfunction : is_higher_w_slot_older
-
-  /**
-  * Checks in the age matrix whether the read slot pointed by the higher identifier is older than
-  * the other.
-  *
-  * @param i_lower_bit the lower slot index in the read slots array.
-  * @param i_higher_bit the higher slot index in the read slots array.
-  * @return 1'b1 iff the lower slot is older.
-  */
-  function automatic logic is_higher_r_slot_older(logic [NumRSlotsWidth-1:0] r_lower_slt,
-                                                  logic [NumRSlotsWidth-1:0] r_higher_slt);
-    return main_age_matrix_q[MainAgeMatrixSideWidth'(MainAgeMatrixRSlotStartIndex) +
-                             MainAgeMatrixSideWidth'(r_lower_slt), MainAgeMatrixSideWidth'(
-                             MainAgeMatrixRSlotStartIndex) + MainAgeMatrixSideWidth'(r_higher_slt)];
-  endfunction : is_higher_r_slot_older
-
-  /**
-  * Checks in the age matrix whether the given read slot is older than the entry in a given write slot. This
-  * function is used to determine which will be the older between all the candidate write entries,
-  * and all the candidate read entries.
-  *
-  * @param wslt the write slot index in the write slots array.
-  * @param rslt the read slot index in the read slots array.
-  * @return 1'b1 iff the read slot is older.
-  */
-  function automatic logic is_r_slot_older(logic [NumWSlotsWidth-1:0] wslt,
-                                           logic [MaxWBurstLenWidth-1:0] w_bit,
-                                           logic [NumRSlotsWidth-1:0] rslt);
-    return main_age_matrix_q[
-        MainAgeMatrixSideWidth'(wslt * NumWSlotsWidth) + MainAgeMatrixSideWidth'(w_bit),
-            MainAgeMatrixSideWidth'(MainAgeMatrixRSlotStartIndex) + MainAgeMatrixSideWidth'(rslt)];
-  endfunction : is_r_slot_older
-
-  /**
-  * Updates the main age matrix when a new entry (write data request or read address request) is
-  * accepted.
-  *
-  * @param wslt the write slot index in the write slots array.
-  * @param rslt the read slot index in the read slots array.
-  * @return 1'b1 iff the read slot is older than the write slot.
-  */
-  function automatic void update_main_age_matrix_on_input(
-      logic [MainAgeMatrixSideWidth-1:0] input_coord,
-      ref logic main_new_entry[MainAgeMatrixLen]);
-    for (int unsigned k = 0; k < MainAgeMatrixSide; k++) begin
-      if (MainAgeMatrixSideWidth'(k) < input_coord) begin
-        main_new_entry[MainAgeMatrixSideWidth'(k), input_coord] = 1'b0;
-      end else if (MainAgeMatrixSideWidth'(k) > input_coord) begin
-        main_new_entry[input_coord, MainAgeMatrixSideWidth'(k)] = 1'b1;
-      end
-    end
-  endfunction : update_main_age_matrix_on_input
-
-  /**
-  * Updates the write slot age matrix when a new entry (write data request or read address request)
-  * is accepted.
-  *
-  * @param wslt the write slot index in the write slots array.
-  * @param rslt the read slot index in the read slots array.
-  * @return 1'b1 iff the read slot is older than the write slot.
-  */
-  function automatic void update_wslt_age_matrix_on_input(logic [NumWSlotsWidth-1:0] input_coord,
-      ref logic [WSlotAgeMatrixLen-1:0] wslt_new_entry);
-    for (int unsigned k = 0; NumWSlotsWidth'(k) < NumWSlots; k++) begin
-      if (NumWSlotsWidth'(k) < input_coord) begin
-        wslt_new_entry[NumWSlotsWidth'(k), input_coord] = 1'b0;
-      end else if (NumWSlotsWidth'(k) > input_coord) begin
-        wslt_new_entry[input_coord, NumWSlotsWidth'(k)] = 1'b1;
-      end
-    end
-  endfunction : update_wslt_age_matrix_on_input
-
 
 
   //////////////////////////////////////////
@@ -715,7 +521,8 @@ module simmem_delay_calculator_core #(
   // valid, if applicable.
 
   // Slot where the data should fit (binary representation).
-  logic [NumWSlotsWidth-1:0] free_w_slot_for_data;
+  logic [NumWSlotsWidth-1:0] free_w_slot_for_data_mhot;
+  logic [NumWSlotsWidth-1:0] free_w_slot_for_data_onehot;
   // First non-valid bit in the write slot, for each slot.
   logic [MaxWBurstLen-1:0] nxt_nv_bit_onehot[NumWSlots];
 
@@ -731,22 +538,11 @@ module simmem_delay_calculator_core #(
     end : gen_nxt_nv_bit_inner
   end : gen_slot_for_in_data
 
-  always_comb begin
-    // The signal wdata_ready is set to one when the first candidate is reached.
-    logic wdata_ready;
-    wdata_ready = 1'b0;
-    free_w_slot_for_data = '0;
-
-    // Sequentially, find the oldest occupied write slot whose write data entries are not all valid.
-    for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
-      if (wslt_q[i_slt].v && !&(wslt_q[i_slt].data_v) && (
-          !wdata_ready || is_higher_w_slot_older(free_w_slot_for_data, NumWSlotsWidth'(i_slt)))
-          ) begin
-        wdata_ready = 1'b1;
-        free_w_slot_for_data = NumWSlotsWidth'(i_slt);
-      end
-    end
-  end
+  // Find the oldest slot where data is expected
+  for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_wslot_for_in_data_onehot
+    assign free_w_slot_for_data_mhot[i_slt] = wslt_q[i_slt].v & ~&(wslt_q[i_slt].data_v);
+    assign free_w_slot_for_data_onehot[i_slt] = free_w_slot_for_data_mhot[i_slt] & ~|(wslt_age_matrix[i_slt] & free_w_slot_for_data_mhot);
+  end : gen_wslot_for_in_data_mhot
 
 
   //////////////////////////////////
@@ -794,193 +590,6 @@ module simmem_delay_calculator_core #(
     rslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
     r_addrs_lsb_per_slot[BurstAddrLSBs - 1:0]
   };
-
-
-  ////////////////////////////////
-  // Slot-internal optimization //
-  ////////////////////////////////
-
-  // In this part, the optimal entry in each slot is determined. Each slot generates three signals:
-  // * opti_x_bit_per_slot: the optimal entry index in the slot (binary representation of the
-  //   entry's index in the array).
-  // * opti_x_cost_per_slot: the compressed cost corresponding to the optimal entry in the slot.
-  // * opti_x_valid_per_slot: 1'b1 iff there is at least one candidate entry in the slot.
-
-  // TODO: Do this for multiple ranks.
-
-  logic [MaxWBurstLenWidth-1:0] opti_w_bit_per_slot[NumWSlots];
-  logic [MaxRBurstLenWidth-1:0] opti_r_bit_per_slot[NumRSlots];
-
-  mem_cost_category_e opti_w_cost_per_slot[NumWSlots];
-  mem_cost_category_e opti_r_cost_per_slot[NumRSlots];
-
-  logic opti_w_valid_per_slot[NumWSlots];
-  logic opti_r_valid_per_slot[NumRSlots];
-
-  // Reduce per slot
-
-  // In each slot, sequentially perform the optimization.
-  for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_opti_w_addrs_per_slt
-    always_comb begin
-
-      opti_w_bit_per_slot[i_slt] = '0;
-      opti_w_valid_per_slot[i_slt] = 1'b0;
-      opti_w_cost_per_slot[i_slt] = ~'0;
-
-      // Iterate through all the entries to find the optimal.
-
-      for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-        // Contains the current optimal cost.
-        mem_cost_category_e curr_cost;
-
-        curr_cost = determine_cost_category(w_addrs_per_slot[i_slt][i_bit], is_row_open_q,
-                                            open_row_start_address_q);
-
-        // opti_w_valid_per_slot[i_slt] = opti_w_valid_per_slot[i_slt] ||
-        //                                   (wslt_q[i_slt].data_v[i_bit] &&
-        //                                   !wslt_q[i_slt].mem_pending[i_bit] &&
-        //                                   !wslt_q[i_slt].mem_done[i_bit]);
-
-        // If the write data entry is ready to be submitted.
-        if ((wslt_q[i_slt].data_v[i_bit] && !wslt_q[i_slt].mem_pending[i_bit] &&
-             !wslt_q[i_slt].mem_done[i_bit]) &&
-        // And this is the ready candidate of lowest index in the slot OR has lower cost than the
-        // previous candidate OR has same cost as the previous candidate, but is older. Remark: for
-        // non-wrap bursts, the condition is_higher_w_entry_older(i_slt, opti_w_bit_per_slot[i_slt],
-        // MaxWBurstLenWidth'(i_bit))) is always true. However, all the write data entry bits in the
-        // age matrix are anyways required, as those write data entries ages are compared to other
-        // entries and slots.
-        (!opti_w_valid_per_slot[i_slt] || curr_cost < opti_w_cost_per_slot[i_slt] || (
-         curr_cost == opti_w_cost_per_slot[i_slt] && is_higher_w_entry_older(
-             i_slt, opti_w_bit_per_slot[i_slt], MaxWBurstLenWidth'(i_bit))))) begin
-          opti_w_valid_per_slot[i_slt] = 1'b1;
-          opti_w_cost_per_slot[i_slt] = curr_cost;
-          opti_w_bit_per_slot[i_slt] = MaxWBurstLenWidth'(i_bit);
-        end
-      end
-    end
-  end : gen_opti_w_addrs_per_slt
-
-  // For read requests, individual age for each element in the burst would be irrelevant, as the
-  // read request comes as a whole.
-  for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_opti_r_addrs_per_slt
-    always_comb begin
-      opti_r_bit_per_slot[i_slt] = '0;
-      opti_r_valid_per_slot[i_slt] = 1'b0;
-      opti_r_cost_per_slot[i_slt] = ~'0;
-
-      for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-        mem_cost_category_e curr_cost;
-
-        curr_cost = determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q,
-                                            open_row_start_address_q);
-
-        // opti_r_valid_per_slot[i_slt] = opti_r_valid_per_slot[i_slt] ||
-        //                                   (rslt_q[i_slt].data_v[i_bit] &&
-        //                                   !rslt_q[i_slt].mem_pending[i_bit] &&
-        //                                   !rslt_q[i_slt].mem_done[i_bit]);
-
-        // If the read data entry is ready to be submitted.
-        if ((!rslt_q[i_slt].mem_pending[i_bit] && !rslt_q[i_slt].mem_done[i_bit]) && (
-        // And this is the ready candidate of lowest index in the slot OR has lower cost than the
-        // previous candidate. As a reminder, all read data requests arrive simultaneously.
-        // Therefore, no age comparison is needed here.
-        !opti_r_valid_per_slot[i_slt] || curr_cost < opti_r_cost_per_slot[i_slt])) begin
-          opti_r_valid_per_slot[i_slt] = 1'b1;
-          opti_r_cost_per_slot[i_slt] = curr_cost;
-          opti_r_bit_per_slot[i_slt] = MaxRBurstLenWidth'(i_bit);
-        end
-      end
-    end
-  end : gen_opti_r_addrs_per_slt
-
-
-  /////////////////////////////
-  // Inter-slot optimization //
-  /////////////////////////////
-
-  // In this part, the optimal entry in compared among all slots, after the slot-internal
-  // optimization has been performed. Two steps are involved. First, the optimization is performed
-  // separately for write slots and read slots. Then, the optima are compared for writes and reads.
-
-  // Optimal write and read slot.
-  logic [NumWSlotsWidth-1:0] opti_w_slot;
-  logic [NumRSlotsWidth-1:0] opti_r_slot;
-
-  // Boolean signals with value 1'b1 iff the optimization has leveraged at least one candidate.
-  logic opti_w_slot_valid;
-  logic opti_r_slot_valid;
-
-  // Request cost of the read and the write candidate entries.
-  mem_cost_category_e opti_w_cost;
-  mem_cost_category_e opti_r_cost;
-
-  always_comb begin
-    mem_cost_category_e curr_cost;
-
-    opti_r_slot = '0;
-    opti_w_slot = '0;
-    opti_w_slot_valid = 1'b0;
-    opti_r_slot_valid = 1'b0;
-    opti_w_cost = '0;
-    opti_r_cost = '0;
-
-    // Sequentially, find the write slot with the optimal entry.
-    for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
-      curr_cost = opti_w_cost_per_slot[i_slt];
-      // If the slot is valid and the slot-internal optimization is valid. 
-      if ((wslt_q[i_slt].v && opti_w_valid_per_slot[i_slt]) && (
-      // And this is the lowest such candidate slot OR the slot's optimal candidate entry has a
-      // lower cost than the previous slot's OR the an equal cost but is older than the previous
-      // slot's optimal candidate.
-      !opti_w_slot_valid || curr_cost < opti_w_cost || (
-          curr_cost == opti_w_cost && is_higher_w_slot_older(opti_w_slot, NumWSlotsWidth'(i_slt))))
-          ) begin
-        opti_w_slot_valid = 1'b1;
-        opti_w_slot = NumWSlotsWidth'(i_slt);
-        opti_w_cost = curr_cost;
-      end
-      opti_w_slot_valid = opti_w_slot_valid || (wslt_q[i_slt].v && opti_w_valid_per_slot[i_slt]);
-    end
-
-    // Sequentially, find the read slot with the optimal entry.
-    for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
-      curr_cost = opti_r_cost_per_slot[i_slt];
-      // If the slot is valid and the slot-internal optimization is valid. 
-      if ((rslt_q[i_slt].v && opti_r_valid_per_slot[i_slt]) && (
-      // And this is the lowest such candidate slot OR the slot's optimal candidate entry has a
-      // lower cost than the previous slot's OR the an equal cost but is older than the previous
-      // slot's optimal candidate.
-      !opti_r_slot_valid || curr_cost < opti_r_cost || (
-          curr_cost == opti_r_cost && is_higher_r_slot_older(opti_r_slot, NumRSlotsWidth'(i_slt))))
-          ) begin
-        opti_r_slot_valid = 1'b1;
-        opti_r_slot = NumRSlotsWidth'(i_slt);
-        opti_r_cost = curr_cost;
-      end
-    end
-  end
-
-  // Aggregates the optimal entry of the optimal write slot. Zero if there is no optimal time slot. This signal
-  // is useful to compare the age of write and read requests.
-  logic [MaxWBurstLenWidth-1:0][NumWSlots-1:0] opti_w_bit_rot90;
-  logic [MaxWBurstLenWidth-1:0] opti_w_bit;
-
-  for (
-      genvar i_inbit = 0; i_inbit < MaxRBurstLenWidth; i_inbit = i_inbit + 1
-  ) begin : aggreg_opti_w_bit
-    for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : aggreg_opti_w_bit_internal
-      assign opti_w_bit_rot90[i_inbit][i_slt] =
-          opti_w_bit_per_slot[i_slt][i_inbit] && opti_w_slot == NumRSlotsWidth'(i_slt);
-    end : aggreg_opti_w_bit_internal
-    assign opti_w_bit[i_inbit] = |opti_w_bit_rot90[i_inbit];
-  end : aggreg_opti_w_bit
-
-  // Determines if the optimal entry is among writes (1'b1) or reads (1'b0).
-  logic serve_w;
-  assign serve_w = opti_w_slot_valid && (
-      !opti_r_slot_valid || opti_w_cost < opti_r_cost || (
-          opti_w_cost == opti_r_cost && !is_r_slot_older(opti_w_slot, opti_w_bit, opti_r_slot)));
 
 
   //////////////////
@@ -1042,8 +651,9 @@ module simmem_delay_calculator_core #(
     rdata_release_en_counters_d = rdata_release_en_counters_q;
 
     main_new_entry = '{default: '0};
-    main_candidate_entry = '{default: '0}; // TODO: double-check: is the signal useful?
-    main_release_entry = '{default: '0};
+    wslt_new_entry = '{default: '0};
+    // main_candidate_entry = '{default: '0}; // TODO: double-check: is the signal useful?
+    // main_release_entry = '{default: '0};
 
     ////////////////////////////
     // Address requests input //
@@ -1070,10 +680,8 @@ module simmem_delay_calculator_core #(
         wslt_d[i_slt].mem_pending = '0;
 
         // Update the write slot age matrix.
+        wslt_new_entry[i_slt] = 1'b1;
         
-        // TODO Remove references to age matrix
-        update_wslt_age_matrix_on_input(NumWSlotsWidth'(i_slt), wslt_age_matrix_d);
-
         // Fill the write data entries.
         for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
           // The first wdata_immediate_cnt_i data_v bits are set to 1'b1, as they are occupied by
@@ -1094,8 +702,6 @@ module simmem_delay_calculator_core #(
           // relative to the entries external to the slot.
           
           main_new_entry[i_slt * MaxWBurstLen+i_bit] = 1'b1;
-          // TODO remove: update_main_age_matrix_on_input(MainAgeMatrixSideWidth'(i_slt * MaxWBurstLen) +
-          //                                 MainAgeMatrixSideWidth'(i_bit), main_age_matrix_d);
         end
       end
     end
@@ -1127,8 +733,6 @@ module simmem_delay_calculator_core #(
         end
 
         main_new_entry[MainAgeMatrixRSlotStartIndex + i_slt] = 1'b1;
-        // TODO: Remove: update_main_age_matrix_on_input(MainAgeMatrixSideWidth'(MainAgeMatrixRSlotStartIndex) +
-        //                                 MainAgeMatrixSideWidth'(i_slt), main_age_matrix_d);
       end
     end
 
@@ -1151,9 +755,6 @@ module simmem_delay_calculator_core #(
 
           wslt_d[i_slt].data_v[i_bit] = 1'b1;
           main_new_entry[i_slt * MaxWBurstLen+i_bit] = 1'b1;
-
-          // TODO: Remove: update_main_age_matrix_on_input(MainAgeMatrixSideWidth'(i_slt * MaxWBurstLen) +
-          //                                 MainAgeMatrixSideWidth'(i_bit), main_age_matrix_d);
         end
       end
     end
@@ -1167,7 +768,7 @@ module simmem_delay_calculator_core #(
 
     // If the rank counter is zero, then simply decrement it.
     for (int unsigned i_rnk = 0; i_rnk < NumWSlots; i_rnk = i_rnk + 1) begin
-        if (|rank_delay_cnt_q[i_rnk] != 0) begin
+      if (rank_delay_cnt_q[i_rnk] != 0) begin
         rank_delay_cnt_d[i_rnk] = rank_delay_cnt_q[i_rnk] - 1;
       end else begin
         rank_delay_cnt_d[i_rnk] = decategorize_mem_cost(opti_cost_cat[i_rnk]);
@@ -1178,11 +779,10 @@ module simmem_delay_calculator_core #(
             wslt_d[i_slt].mem_pending[i_bit] |= opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit];
           end
         end
-
-          for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
+        // Set the memory pending bit in the case of a read data entry
+        for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
           for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-            wslt_d[i_slt].mem_pending[i_bit] |= opti_w_valid_per_slot[i_slt] && opti_w_bit_per_slot[
-                i_slt] == MaxWBurstLenWidth'(i_bit) && opti_w_slot == NumWSlotsWidth'(i_slt);
+            rslt_d[i_slt].mem_pending[i_bit] |= opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit];
           end
         end
 
@@ -1299,9 +899,9 @@ module simmem_delay_calculator_core #(
       wslt_age_matrix_q <= '0;
       wslt_q <= '{default: '0};
       rslt_q <= '{default: '0};
-      is_row_open_q <= 1'b0;
-      open_row_start_address_q <= '0;
-      rank_delay_cnt_q <= '0;
+      is_row_open_q <= '{default: '0};
+      open_row_start_address_q <= '{default: '0};
+      rank_delay_cnt_q <= '{default: '0};
       wresp_release_en_onehot_o <= '0;
       rdata_release_en_counters_q <= '0;
     end else begin
