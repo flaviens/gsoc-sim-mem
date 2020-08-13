@@ -133,6 +133,7 @@ module simmem_delay_calculator_core #(
     // then it means that the set of candidates for this rank is the empty set.
     COST_NO_CANDIDATE = 3 
   } mem_cost_category_e;
+  // The NumCostCategories constant determines how many disjoint reductions will be needed. Therefore, it does not count the COST_NO_CANDIDATE category.
   localparam int NumCostCategories = 3;
   localparam int NumCostCategoriesWidth = $clog2(NumCostCategories);
 
@@ -177,8 +178,11 @@ module simmem_delay_calculator_core #(
       COST_ACTIVATION_CAS: begin
         return RowHitCost + ActivationCost;
       end
-      default: begin
+      COST_PRECHARGE_ACTIVATION_CAS: begin
         return RowHitCost + ActivationCost + PrechargeCost;
+      end
+      default: begin // COST_NO_CANDIDATE
+        return 0; // If there is no candidate request for a given rank, then the corresponding counter remains 0.
       end
     endcase
   endfunction : decategorize_mem_cost
@@ -244,10 +248,10 @@ module simmem_delay_calculator_core #(
   r_slot_t rslt_q[NumRSlots];
 
   // Candidate signals calculation
-  logic [MaxWBurstLen-1:0] is_wdata_candidate_mhot[NumRanks][NumWSlots]
-  logic [MaxRBurstLen-1:0] is_rdata_candidate_mhot[NumRanks][NumRSlots]
+  logic [MaxWBurstLen-1:0] is_wdata_candidate_mhot[NumRanks][NumWSlots];
+  logic [MaxRBurstLen-1:0] is_rdata_candidate_mhot[NumRanks][NumRSlots];
 
-  for (genvar i_rk; i_rk < NumRanks; i_rk = i_rk + 1) begin : candidates_outer
+  for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : candidates_outer
     for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : candidates_w_inner
       for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : candidates_w_bit
         assign is_wdata_candidate_mhot[i_rk][i_slt] = wslt_q[i_slt].data_v[i_bit] & ~wslt_q[i_slt].mem_pending[i_bit] & ~wslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(w_addrs_per_slot[i_slt][i_bit]);
@@ -255,7 +259,7 @@ module simmem_delay_calculator_core #(
     end : candidates_w_inner
     for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : candidates_r_inner
       for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : candidates_r_bit
-        assign is_rdata_candidate_mhot[i_rk][i_slt] = rslt_q[i_slt].data_v[i_bit] & ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] & NumRanksRidth'(i_rk) == get_assigned_rank_id(r_addrs_per_slot[i_slt][i_bit]);
+        assign is_rdata_candidate_mhot[i_rk][i_slt] = rslt_q[i_slt].data_v[i_bit] & ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(r_addrs_per_slot[i_slt][i_bit]);
       end : candidates_r_bit
     end : candidates_r_inner
   end : candidates_outer
@@ -265,13 +269,12 @@ module simmem_delay_calculator_core #(
   
   for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : find_rdata_outer
     for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : find_rdata
-      nxt_rdata_per_slt_onehot[i_rk][i_slt][0] = is_rdata_candidate_mhot[i_rk][i_slt][0];
+      assign nxt_rdata_per_slt_onehot[i_rk][i_slt][0] = is_rdata_candidate_mhot[i_rk][i_slt][0];
       for (genvar i_bit = 0; i_bit < NumRSlots; i_bit = i_bit + 1) begin : find_rdata_inner
-        nxt_rdata_per_slt_onehot[i_rk][i_slt][i_bit] = is_rdata_candidate_mhot[i_rk][i_slt][i_bit];
+        assign nxt_rdata_per_slt_onehot[i_rk][i_slt][i_bit] = is_rdata_candidate_mhot[i_rk][i_slt][i_bit];
       end : find_rdata_inner
     end : find_rdata
   end : find_rdata_outer
-
 
 
   //////////////////////////////////
@@ -342,8 +345,6 @@ module simmem_delay_calculator_core #(
   // * R                     x
   // * R                      
   //
-  //  TODO: Remove the write slot matrix completely
-  //
   // Write slot age matrix (wslt_main_age_matrix_d/wslt_main_age_matrix_q):
   //
   // *   W W W
@@ -394,7 +395,7 @@ module simmem_delay_calculator_core #(
     for (genvar j = 0; j < MainAgeMatrixSide; j = j + 1) begin : gen_main_matrix_inner
       if (i < j) begin : gen_main_matrix_flop
         logic matrix_elem_q, matrix_elem_d;
-        always @(posedge clk or negedge rst_ni) begin
+        always @(posedge clk_i or negedge rst_ni) begin
           if (~rst_ni) begin
             matrix_elem_q <= 1'0;
           end else begin
@@ -424,7 +425,7 @@ module simmem_delay_calculator_core #(
     for (genvar j = 0; j < NumWSlots; j = j + 1) begin : gen_wslt_matrix_inner
       if (i < j) begin : gen_wslt_matrix_flop
         logic matrix_elem_q, matrix_elem_d;
-        always @(posedge clk or negedge rst_ni) begin
+        always @(posedge clk_i or negedge rst_ni) begin
           if (~rst_ni) begin
             matrix_elem_q <= 1'0;
           end else begin
@@ -457,24 +458,20 @@ module simmem_delay_calculator_core #(
   //  * Its current cost category corresponds to the given cost category.
   //  * It is a candidate entry for the given rank (i.e., data_v bit set, mem_pending and mem_done
   //    unset, and the entry corresponding address maps to the given rank).
-  for (genvar i_rk; i_rk < NumRanks; i_rk = i_rk + 1) begin : cond_check_rnk
-    for (genvar i_cat; i_cat < NumCostCategories; i_cat = i_cat + 1) begin : cond_check_cat
+  for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : cond_check_rnk
+    for (genvar i_cat = 0; i_cat < NumCostCategories; i_cat = i_cat + 1) begin : cond_check_cat
       // Check conditions for write data entries
-      for (genvar i_wslt = 0; i_wslt < NumWSlots; i_wslt = i_wslt + 1) begin : cond_check_wslt
+      for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : cond_check_wslt
         for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : cond_check_wd
-          matches_cond[i_rk][i_cat][i_wslt*MaxWBurstLen + i_bit] = determine_cost_category(w_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk],
-          open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat) && is_wdata_candidate_mhot[i_rk][i_slt][i_bit];
-        end
+          assign matches_cond[i_rk][i_cat][i_slt*MaxWBurstLen + i_bit] = determine_cost_category(w_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat) && is_wdata_candidate_mhot[i_rk][i_slt][i_bit];
+        end : cond_check_wd
       end : cond_check_wslt
       // Check conditions for read data entries
-      for (genvar i_rslt = 0; i_rslt < NumRSlots; i_rslt = i_rslt + 1) begin : cond_check_rslt
-        for (genvar i_rd = 0; i_rd < MaxRBurstLen; i_rd = i_rd + 1) begin : cond_check_rd
-          matches_cond[i_rk][i_cat][MainAgeMatrixRSlotStartIndex + i_bit] = determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk],
-          open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat) && is_rdata_candidate_mhot[i_rk][i_slt][i_bit];
+      for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : cond_check_rslt
+        for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : cond_check_rd
+          assign matches_cond[i_rk][i_cat][MainAgeMatrixRSlotStartIndex + i_bit] = determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat) && is_rdata_candidate_mhot[i_rk][i_slt][i_bit];
         end : cond_check_rd
       end : cond_check_rslt
-    end : cond_check_cat
-
     end : cond_check_cat
   end : cond_check_rnk
 
@@ -482,30 +479,42 @@ module simmem_delay_calculator_core #(
   // One-hot signal
   logic [MainAgeMatrixLen-1:0] oldest_entry_of_category[NumRanks][NumCostCategories];
   logic [MainAgeMatrixLen-1:0] opti_entry_onehot[NumRanks];
-  logic mem_cost_category_e opti_cost_cat[NumRanks];
+  mem_cost_category_e opti_cost_cat[NumRanks];
 
   // Matrix reduction
-  for (genvar i_rk; i_rk < NumRanks; i_rk = i_rk + 1) begin : reduce_rnk
-    for (genvar i_cat; i_cat < NumCostCategories; i_cat = i_cat + 1) begin : reduce_cat
+  for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : reduce_rnk
+    for (genvar i_cat = 0; i_cat < NumCostCategories; i_cat = i_cat + 1) begin : reduce_cat
       for (genvar i = 0; i < MainAgeMatrixLen; i = i + 1) begin : reduce_age_per_category
         assign oldest_entry_of_category[i_rk] = matches_cond[i] & ~|(main_age_matrix[i] & matches_cond);
       end
     end
-    // Reduce among categories: take the lowest cost category
-    always_comb begin
-      if (|oldest_entry_of_category[i_rk][COST_CAS]) begin
-        opti_cost_cat[i_rk] = COST_CAS;
-      end else (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
-        opti_cost_cat[i_rk] = COST_ACTIVATION_CAS;
-      end else (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
-        opti_cost_cat[i_rk] = COST_PRECHARGE_ACTIVATION_CAS;
-      end else begin
-        opti_cost_cat[i_rk] = COST_NO_CANDIDATE;
-      end      
-    end
+    
+    // Which is better, if/else_if sequence or masked (linear) "reduction"?
 
-    // Using masks, find the optimal entry
-    assign opti_entry_onehot = oldest_entry_of_category[i_rk][COST_CAS] | (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & {MainAgeMatrixLen{|oldest_entry_of_category[i_rk][COST_CAS]}}) | (oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS] & {MainAgeMatrixLen{|oldest_entry_of_category[i_rk][COST_CAS]}} & {MainAgeMatrixLen{|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]}});
+    // if/else_if sequenc
+    // Reduce among categories: take the lowest cost category
+    // always_comb begin
+    //   if (|oldest_entry_of_category[i_rk][COST_CAS]) begin
+    //     opti_cost_cat[i_rk] = COST_CAS;
+    //   end else (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
+    //     opti_cost_cat[i_rk] = COST_ACTIVATION_CAS;
+    //   end else (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
+    //     opti_cost_cat[i_rk] = COST_PRECHARGE_ACTIVATION_CAS;
+    //   end else begin
+    //     opti_cost_cat[i_rk] = COST_NO_CANDIDATE;
+    //   end      
+    // end
+    
+    // masked (linear) "reduction"
+    assign opti_cost_cat = ({NumCostCategoriesWidth{|oldest_entry_of_category[i_rk][COST_CAS]}} & COST_CAS) |
+        ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS] & |oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]}} & COST_ACTIVATION_CAS) |
+        ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & |oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS]}} & COST_PRECHARGE_ACTIVATION_CAS) |
+        ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & ~|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS]}} & COST_NO_CANDIDATE);
+
+    // Using masks, find the optimal entry and its cost category
+    assign opti_entry_onehot = oldest_entry_of_category[i_rk][COST_CAS] |
+        (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & {MainAgeMatrixLen{~|oldest_entry_of_category[i_rk][COST_CAS]}}) |
+        (oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS] & {MainAgeMatrixLen{~|oldest_entry_of_category[i_rk][COST_CAS]}} & {MainAgeMatrixLen{~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]}});
   end
 
 
@@ -540,9 +549,9 @@ module simmem_delay_calculator_core #(
 
   // Find the oldest slot where data is expected
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_wslot_for_in_data_onehot
-    assign free_w_slot_for_data_mhot[i_slt] = wslt_q[i_slt].v & ~&(wslt_q[i_slt].data_v);
+    assign free_w_slot_for_data_mhot[i_slt] = wslt_q[i_slt].v & ~&wslt_q[i_slt].data_v;
     assign free_w_slot_for_data_onehot[i_slt] = free_w_slot_for_data_mhot[i_slt] & ~|(wslt_age_matrix[i_slt] & free_w_slot_for_data_mhot);
-  end : gen_wslot_for_in_data_mhot
+  end : gen_wslot_for_in_data_onehot
 
 
   //////////////////////////////////
@@ -570,6 +579,12 @@ module simmem_delay_calculator_core #(
       assign w_addrs_lsb_per_slot[i_slt][i_bit] = wslt_q[i_slt].addr +
           BurstAddrLSBs'(w_addrs_lsb_per_slot[i_slt][i_bit - 1] + wslt_q[i_slt].burst_size);
     end : gen_w_addrs_per_slt
+
+    // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole entries' addresses.
+    assign w_addrs_per_slot = {
+        wslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
+        w_addrs_lsb_per_slot[BurstAddrLSBs - 1:0]
+      };
   end : gen_w_addrs
 
   // Read data entries address.
@@ -579,17 +594,13 @@ module simmem_delay_calculator_core #(
       assign r_addrs_lsb_per_slot[i_slt][i_bit] = rslt_q[i_slt].addr +
           BurstAddrLSBs'(r_addrs_lsb_per_slot[i_slt][i_bit - 1] + rslt_q[i_slt].burst_size);
     end : gen_r_addrs_per_slt
-  end : gen_r_addrs
 
-  // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole entries' addresses.
-  assign w_addrs_per_slot = {
-    wslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
-    w_addrs_lsb_per_slot[BurstAddrLSBs - 1:0]
-  };
-  assign r_addrs_per_slot = {
-    rslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
-    r_addrs_lsb_per_slot[BurstAddrLSBs - 1:0]
-  };
+    // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole entries' addresses.
+    assign r_addrs_per_slot = {
+      rslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
+      r_addrs_lsb_per_slot[BurstAddrLSBs - 1:0]
+    };
+  end : gen_r_addrs
 
 
   //////////////////
@@ -747,12 +758,11 @@ module simmem_delay_calculator_core #(
 
     for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
       for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-        if (nxt_nv_bit_onehot[i_slt][i_bit] && free_w_slot_for_data == NumWSlotsWidth'(i_slt) &&
+        if (nxt_nv_bit_onehot[i_slt][i_bit] && free_w_slot_for_data_onehot[i_slt]  &&
             wdata_valid_i) begin
           // The data_v signal is OR-masked with a mask determining where the new data should land.
           // Most of the times, the mask is full-zero, as there is no write data input handshake or
           // because this is not the slot where the write data where it should land.
-
           wslt_d[i_slt].data_v[i_bit] = 1'b1;
           main_new_entry[i_slt * MaxWBurstLen+i_bit] = 1'b1;
         end
@@ -767,59 +777,24 @@ module simmem_delay_calculator_core #(
     // This part is dedicated to updating the rank counters.
 
     // If the rank counter is zero, then simply decrement it.
-    for (int unsigned i_rnk = 0; i_rnk < NumWSlots; i_rnk = i_rnk + 1) begin
-      if (rank_delay_cnt_q[i_rnk] != 0) begin
-        rank_delay_cnt_d[i_rnk] = rank_delay_cnt_q[i_rnk] - 1;
+    for (int unsigned i_rk = 0; i_rk < NumWSlots; i_rk = i_rk + 1) begin
+      if (rank_delay_cnt_q[i_rk] != 0) begin
+        rank_delay_cnt_d[i_rk] = rank_delay_cnt_q[i_rk] - 1;
       end else begin
-        rank_delay_cnt_d[i_rnk] = decategorize_mem_cost(opti_cost_cat[i_rnk]);
+        // The case where rank_delay_cnt_q has to remain zero is treated through COST_NO_CANDIDATE.
+        rank_delay_cnt_d[i_rk] = decategorize_mem_cost(opti_cost_cat[i_rk]);
 
         // Set the memory pending bit in the case of a write data entry
         for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
-          for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-            wslt_d[i_slt].mem_pending[i_bit] |= opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit];
-          end
+          wslt_d[i_slt].mem_pending |= opti_entry_onehot[i_rk][i_slt*MaxWBurstLen +: MaxWBurstLen];
         end
         // Set the memory pending bit in the case of a read data entry
-        for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
-          for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-            rslt_d[i_slt].mem_pending[i_bit] |= opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit];
-          end
+        for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
+          rslt_d[i_slt].mem_pending |= {MaxRBurstLen{opti_entry_onehot[i_rk][MainAgeMatrixRSlotStartIndex+i_slt]}} & nxt_rdata_per_slt_onehot[i_rk][i_slt];
         end
 
-        is_row_open_d[i_rnk] = 0;
-        
-        // If serve_w is set, then it is certain that there is at least one request for the rank to
-        // treat, and that this optimal entry is among the write data entries.
-        if (serve_w) begin
-          // Decompress the cost representation to obtain the real cost.
-          rank_delay_cnt_d[i_rnk] = decategorize_mem_cost(opti_w_cost);
-
-          // Set the mem_pending bit of the optimal entry to one, as its treatment is starting.
-          for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
-            for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-              wslt_d[i_slt].mem_pending[i_bit] |= opti_w_valid_per_slot[i_slt] && opti_w_bit_per_slot[
-                  i_slt] == MaxWBurstLenWidth'(i_bit) && opti_w_slot == NumWSlotsWidth'(i_slt);
-            end
-          end
-          // A row is now opening or open in the corresponding rank. 
-          is_row_open_d = 1'b1;
-        end else if (!serve_w && opti_r_slot_valid) begin
-          // Decompress the cost representation to obtain the real cost.
-          rank_delay_cnt_d[i_rnk] = decategorize_mem_cost(opti_r_cost);
-
-          // Set the mem_pending bit of the optimal entry to one, as its treatment is starting.
-          for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
-            for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-              rslt_d[i_slt].mem_pending[i_bit] |= opti_r_valid_per_slot[i_slt] && opti_r_bit_per_slot[
-                  i_slt] == MaxRBurstLenWidth'(i_bit) && opti_r_slot == NumRSlotsWidth'(i_slt);
-            end
-          end
-          // A row is now opening or open in the corresponding rank. 
-          is_row_open_d = 1'b1;
-        end else begin
-          // If there is no request to serve, then the counter remains 0.
-          rank_delay_cnt_d[i_rnk] = 0;
-        end
+        // A row is now opening or open in the corresponding rank. 
+        is_row_open_d[i_rk] = 1'b1;
       end
     end
 
@@ -895,8 +870,6 @@ module simmem_delay_calculator_core #(
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      main_age_matrix_q <= '0;
-      wslt_age_matrix_q <= '0;
       wslt_q <= '{default: '0};
       rslt_q <= '{default: '0};
       is_row_open_q <= '{default: '0};
@@ -905,8 +878,6 @@ module simmem_delay_calculator_core #(
       wresp_release_en_onehot_o <= '0;
       rdata_release_en_counters_q <= '0;
     end else begin
-      main_age_matrix_q <= main_age_matrix_d;
-      wslt_age_matrix_q <= wslt_age_matrix_d;
       wslt_q <= wslt_d;
       rslt_q <= rslt_d;
       is_row_open_q <= is_row_open_d;
