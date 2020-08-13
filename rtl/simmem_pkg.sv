@@ -12,45 +12,46 @@ package simmem_pkg;
   // System parameters //
   ///////////////////////
 
-  localparam GlobalMemoryCapa = 65536;  // Bytes.
-  localparam GlobalMemoryCapaWidth = $clog2(GlobalMemoryCapa);
-  localparam RowBufferLenWidth = 8;
+  localparam int unsigned GlobalMemoryCapa = 65536;  // Bytes.
+  localparam int unsigned GlobalMemoryCapaWidth = $clog2(GlobalMemoryCapa);
+  localparam int unsigned RowBufferLenWidth = 8;
 
-  localparam RowHitCost = 10;  // Cycles (must be at least 3)
-  localparam PrechargeCost = 50;  // Cycles
-  localparam ActivationCost = 45;  // Cycles
+  localparam int unsigned RowHitCost = 10;  // Cycles (must be at least 3)
+  localparam int unsigned PrechargeCost = 50;  // Cycles
+  localparam int unsigned ActivationCost = 45;  // Cycles
 
 
   /////////////////
   // AXI signals //
   /////////////////
 
-  localparam IDWidth = 2;
-  localparam NumIds = 2 ** IDWidth;
+  localparam int unsigned IDWidth = 2;
+  localparam int unsigned NumIds = 2 ** IDWidth;
 
   // Address field widths
-  localparam AxAddrWidth = GlobalMemoryCapaWidth;
-  localparam AxLenWidth = 8;
-  localparam AxSizeWidth = 3;
-  localparam AxBurstWidth = 2;
-  localparam AxLockWidth = 2;
-  localparam AxCacheWidth = 4;
-  localparam AxProtWidth = 4;
-  localparam AxQoSWidth = 4;
-  localparam AxRegionWidth = 4;
-  localparam AwUserWidth = 0;
-  localparam ArUserWidth = 0;
+  localparam int unsigned AxAddrWidth = GlobalMemoryCapaWidth;
+  localparam int unsigned AxLenWidth = 8;
+  localparam int unsigned AxSizeWidth = 3;
+  localparam int unsigned AxBurstWidth = 2;
+  localparam int unsigned AxLockWidth = 2;
+  localparam int unsigned AxCacheWidth = 4;
+  localparam int unsigned AxProtWidth = 4;
+  localparam int unsigned AxQoSWidth = 4;
+  localparam int unsigned AxRegionWidth = 4;
+  localparam int unsigned AwUserWidth = 0;
+  localparam int unsigned ArUserWidth = 0;
 
   // Data & response field widths
-  localparam XDataWidth = 16;
-  localparam XLastWidth = 1;
+  localparam int unsigned MaxBurstSizeBytes = 4;
+  localparam int unsigned MaxBurstSizeBits = MaxBurstSizeBytes * 8;
+  localparam int unsigned XLastWidth = 1;
   // TODO: Set XRespWidth to 3 when all tests are passed
-  localparam XRespWidth = 10;
-  localparam WUserWidth = 0;
-  localparam RUserWidth = 0;
-  localparam BUserWidth = 0;
+  localparam int unsigned XRespWidth = 10;
+  localparam int unsigned WUserWidth = 0;
+  localparam int unsigned RUserWidth = 0;
+  localparam int unsigned BUserWidth = 0;
 
-  localparam WStrbWidth = XDataWidth / 8;
+  localparam int unsigned WStrbWidth = MaxBurstSizeBytes / 8;
 
   typedef struct packed {
     // logic [AwUserWidth-1:0] user_signal;
@@ -82,7 +83,7 @@ package simmem_pkg;
     // logic [WUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
     logic [WStrbWidth-1:0] strobes;
-    logic [XDataWidth-1:0] data;
+    logic [MaxBurstSizeBytes-1:0] data;
   // logic [IDWidth-1:0] id; AXI4 does not allocate identifiers in write data messages
   } wdata_req_t;
 
@@ -90,7 +91,7 @@ package simmem_pkg;
     // logic [RUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
     logic [WStrbWidth-1:0] response;
-    logic [XDataWidth-1:0] data;
+    logic [MaxBurstSizeBytes-1:0] data;
     logic [IDWidth-1:0] id;
   } rdata_all_fields_t;
 
@@ -114,27 +115,27 @@ package simmem_pkg;
   typedef union packed {wresp_merged_payload_t merged_payload;} wresp_t;
 
 
-  localparam MaxRBurstLen = AxLenWidth >> 1;
-  localparam MaxWBurstLen = AxLenWidth >> 1;
+  localparam int unsigned MaxRBurstLen = AxLenWidth >> 1;
+  localparam int unsigned MaxWBurstLen = AxLenWidth >> 1;
 
-  localparam MaxRBurstLenWidth = $clog2(MaxRBurstLen);
-  localparam MaxWBurstLenWidth = $clog2(MaxWBurstLen);
+  localparam int unsigned MaxRBurstLenWidth = $clog2(MaxRBurstLen);
+  localparam int unsigned MaxWBurstLenWidth = $clog2(MaxWBurstLen);
 
   ////////////////////////////
   // Dimensions for modules //
   ////////////////////////////
 
-  localparam WriteRespBankCapacity = 32;
-  localparam ReadDataBankCapacity = 32;
+  localparam int unsigned WriteRespBankCapacity = 32;
+  localparam int unsigned ReadDataBankCapacity = 32;
 
-  localparam WriteRespBankAddrWidth = $clog2(WriteRespBankCapacity);
-  localparam ReadDataBankAddrWidth = $clog2(ReadDataBankCapacity);
+  localparam int unsigned WriteRespBankAddrWidth = $clog2(WriteRespBankCapacity);
+  localparam int unsigned ReadDataBankAddrWidth = $clog2(ReadDataBankCapacity);
 
   // Internal identifier types
   typedef logic [WriteRespBankAddrWidth-1:0] write_iid_t;
   typedef logic [ReadDataBankAddrWidth-1:0] read_iid_t;
 
-  localparam DelayWidth = 6;
-  localparam TimestampWidth = 20;
+  localparam int unsigned DelayWidth = 6;
+  localparam int unsigned TimestampWidth = 20;
 
 endpackage

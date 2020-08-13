@@ -12,45 +12,48 @@
 // in, it is immediately transmitted to the delay calculator core, along with the corresponding
 // count of write data requests already (or concurrently) received.
 
-module simmem_delay_calculator (
-  input logic clk_i,
-  input logic rst_ni,
-  
-  // Write address request from the requester.
-  input simmem_pkg::waddr_req_t waddr_req_i,
-  // Internal identifier corresponding to the write address request (issued by the write response
-  // bank).
-  input simmem_pkg::write_iid_t waddr_iid_i,
+module simmem_delay_calculator #(
+    // Must be a power of two, used for address interleaving
+    parameter int unsigned NumRanks = 2
+) (
+    input logic clk_i,
+    input logic rst_ni,
 
-  // Write address request valid from the requester.
-  input logic waddr_valid_i,
-  // Blocks the write address request if there is no write slot in the delay calculator to treat it.
-  output logic waddr_ready_o,
+    // Write address request from the requester.
+    input simmem_pkg::waddr_req_t waddr_req_i,
+    // Internal identifier corresponding to the write address request (issued by the write response
+    // bank).
+    input simmem_pkg::write_iid_t waddr_iid_i,
 
-  // Write address request valid from the requester.
-  input logic wdata_valid_i,
-  // Always ready to take write data (the corresponding counter 'wdata_cnt_d/wdata_cnt_q' is
-  // supposed never to overflow).
-  output logic wdata_ready_o,
+    // Write address request valid from the requester.
+    input  logic waddr_valid_i,
+    // Blocks the write address request if there is no write slot in the delay calculator to treat it.
+    output logic waddr_ready_o,
 
-  // Write address request from the requester.
-  input simmem_pkg::raddr_req_t raddr_req_i,
-  // Internal identifier corresponding to the read address request (issued by the read response
-  // bank).
-  input simmem_pkg::read_iid_t raddr_iid_i,
+    // Write address request valid from the requester.
+    input  logic wdata_valid_i,
+    // Always ready to take write data (the corresponding counter 'wdata_cnt_d/wdata_cnt_q' is
+    // supposed never to overflow).
+    output logic wdata_ready_o,
 
-  // Read address request valid from the requester.
-  input logic raddr_valid_i,
-  // Blocks the read address request if there is no read slot in the delay calculator to treat it.
-  output logic raddr_ready_o,
+    // Write address request from the requester.
+    input simmem_pkg::raddr_req_t raddr_req_i,
+    // Internal identifier corresponding to the read address request (issued by the read response
+    // bank).
+    input simmem_pkg::read_iid_t  raddr_iid_i,
 
-  // Release enable output signals and released address feedback.
-  output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_onehot_o,
-  output logic [simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_onehot_o,
+    // Read address request valid from the requester.
+    input  logic raddr_valid_i,
+    // Blocks the read address request if there is no read slot in the delay calculator to treat it.
+    output logic raddr_ready_o,
 
-  // Release confirmations sent by the message banks
-  input  logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_released_addr_onehot_i,
-  input  logic [simmem_pkg::ReadDataBankCapacity-1:0] rdata_released_addr_onehot_i
+    // Release enable output signals and released address feedback.
+    output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_onehot_o,
+    output logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_onehot_o,
+
+    // Release confirmations sent by the message banks
+    input logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_released_addr_onehot_i,
+    input logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_released_addr_onehot_i
 );
 
   import simmem_pkg::*;
@@ -120,29 +123,31 @@ module simmem_delay_calculator (
     end
   end
 
-  simmem_delay_calculator_core i_simmem_delay_calculator_core (
-    .clk_i(clk_i),
-    .rst_ni(rst_ni),
-    
-    .waddr_iid_i(waddr_iid_i),
-    .waddr_req_i(waddr_req_i),
+  simmem_delay_calculator_core #(
+      .NumRanks
+  ) i_simmem_delay_calculator_core (
+      .clk_i (clk_i),
+      .rst_ni(rst_ni),
 
-    .wdata_immediate_cnt_i(wdata_immediate_cnt),
-    .waddr_valid_i(waddr_valid_i),
-    .waddr_ready_o(waddr_ready_o),
-  
-    .wdata_valid_i(core_wdata_valid_input),
-  
-    .raddr_iid_i(raddr_iid_i),
-    .raddr_req_i(raddr_req_i),
-    .raddr_valid_i(raddr_valid_i),
-    .raddr_ready_o(raddr_ready_o),
-  
-    .wresp_release_en_onehot_o(wresp_release_en_onehot_o),
-    .rdata_release_en_onehot_o(rdata_release_en_onehot_o),
-  
-    .wresp_released_addr_onehot_i(wresp_released_addr_onehot_i),
-    .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i)
+      .waddr_iid_i(waddr_iid_i),
+      .waddr_req_i(waddr_req_i),
+
+      .wdata_immediate_cnt_i(wdata_immediate_cnt),
+      .waddr_valid_i        (waddr_valid_i),
+      .waddr_ready_o        (waddr_ready_o),
+
+      .wdata_valid_i(core_wdata_valid_input),
+
+      .raddr_iid_i  (raddr_iid_i),
+      .raddr_req_i  (raddr_req_i),
+      .raddr_valid_i(raddr_valid_i),
+      .raddr_ready_o(raddr_ready_o),
+
+      .wresp_release_en_onehot_o(wresp_release_en_onehot_o),
+      .rdata_release_en_onehot_o(rdata_release_en_onehot_o),
+
+      .wresp_released_addr_onehot_i(wresp_released_addr_onehot_i),
+      .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i)
   );
 
 endmodule
