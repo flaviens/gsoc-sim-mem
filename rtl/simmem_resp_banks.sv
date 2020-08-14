@@ -1,104 +1,44 @@
 // Copyright lowRISC contributors. Licensed under the Apache License, Version 2.0, see LICENSE for
 // details. SPDX-License-Identifier: Apache-2.0
 //
-// Linked list bank for responses in the simulated memory controller with burst support
+// Wrapper for the write response and read data response banks
 
-// Response banks provide a multi-FIFO storage with reservation functionality for responses coming
-// from the real memory controller. The FIFOs are implemented as linked lists, sharing the same
-// memory space.
-//
-// Response structure: The term 'response' is used to refer to the AXI response coming back from the
-//  real memory controller, excluding handshake signals. Each response starts with an AXI identifier
-//  of a specific length IDWidth (on the LSB side). The rest of the response bits is referred to as
-//  'payload'. As there is one linked list per AXI identifier, only the payload is stored in RAM.
-//
-// A response bank uses three RAMs:
-//  * The payload RAM, containing the response response payloads.
-//  * The metadata RAM, containing pointers that form the concurrent linked lists (there is one
-//    linked list per AXI identifier). The metadata RAM is duplicated to make concurrent input and
-//    output possible.
-//
-// Linked list implementation: Each linked list is supported by four pointers, which, outside of
-//   corner cases, can be described as follows: 
-//  * Reservation head (rsv_heads_q): Points to the last reserved address.
-//  * Response head (rsp_heads): Points to the next RAM address where a payload of the corresponding
-//    AXI identifier will be stored.
-//  * Pre_tail (pre_tails): Points to the second-to-last cell hosting a response in the linked list.
-//  * Tail (tails): Points to the last cell hosting a response in the linked list.
-//
-//  The order of the pointers must always be respected. They can be equal but never overtake each
-//    other, in the order defined by the linked list.
-//
-// Reservation flow: When the reservation handshake succeeds, a new RAM cell is reserved and the
-//  corresponding address is advertised, as it is externally used as a request/response identifier.
-//  The reservation head pointer of the corresponding head is moved to the next free RAM entry, and
-//  the corresponding linked list pointer (which links the current reservation head to the new
-//  reservation head address) is written into the metadata RAM.
-//
-// Response input flow: When the input handshake succeeds, the RAM cell pointed by the response head
-//  of the corresponding AXI identifier stores the response payload. The response head pointer
-//  follows the pointer in the metadata RAM (except for some corner cases).
-//
-// Response output flow: When the output handshake succeeds, the RAM output is transmitted to the
-//  requester. The pre_tail pointer follows the pointer in the metadata RAM and the tail takes the
-//  value of the pre_tail (except for some corner cases)
-//
-// Tail vs. pre_tail: Two distinct tail pointers are required to dynamically manage the two
-//  following cases:
-//    * The pre_tail address is given as input to the payload RAM if there is a successful output
-//      handshake and the value at the output has an AXI id corresponding to the AXI id of the
-//      considered linked list. It must point to:
-//      - The second-to-last element of the linked list if the list contains two reponses or more,
-//      - The last element element of the linked list if the list contains just one response,
-//      - rsp_head if the list contains no responses.
-
-//    * The tail address is given as input to the payload RAM in all other cases. This case
-//      disjunction prevents an output data from being output twice, and prevents any bandwidth drop
-//      at the output. It must point to:
-//      - The last element element of the linked list if the list contains one response or more,
-//      - pre_tail if the list contains no responses.
-//
-//  Corner cases and vector piggybacking: Several corner cases appear when linked list pointers
-//    cannot be updated in the regular way. In this case, a process called pointer piggybacking is
-//    implemented. For two pointers a and b, the signal 'pgbk_a_with_b' or 'pgbk_a_with_b_q' means,
-//    at level 1'b1, that if the pointer b is updated during the current clock cycle, then the
-//    pointer a must be updated with the same value. Piggyback is a lazy operation (in the sense
-//    that if the pointer b is not updated, then a remains untouched as well) that maintains the
-//    pointer ordering.
-
-module simmem_resp_bank #(
-    parameter int unsigned TotCapa = simmem_pkg::ReadDataBankCapacity,
-    parameter type DataType = simmem_pkg::rdata_t,
-
-    localparam int unsigned BurstLenWidth = $clog2 (simmem::MaxRBurstLen + 1),  // derived parameter
-    localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
-    localparam int unsigned DataWidth = $bits (DataType)  // derived parameter
-) (
+module simmem_resp_banks (
     input logic clk_i,
     input logic rst_ni,
 
     // Reservation interface AXI identifier for which the reseration request is being done.
-    input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
+    input  logic [simmem_pkg::NumIds-1:0] w_rsv_req_id_onehot_i,
+    input  logic [simmem_pkg::NumIds-1:0] r_rsv_req_id_onehot_i,
     // Information about currently reserved address. Will be stored by other modules as an internal
     // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [     BankAddrWidth-1:0] rsv_addr_o,
+    output logic [     BankAddrWidth-1:0] w_rsv_addr_o,
+    output logic [     BankAddrWidth-1:0] r_rsv_addr_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [     BurstLenWidth-1:0] rsv_burst_len_i,
+    input  logic [     BurstLenWidth-1:0] r_rsv_burst_len_i,
     // Reservation handshake signals
-    input  logic                          rsv_valid_i,
-    output logic                          rsv_ready_o,
+    input  logic                          w_rsv_valid_i,
+    output logic                          w_rsv_ready_o,
+    input  logic                          r_rsv_valid_i,
+    output logic                          r_rsv_ready_o,
 
     // Interface with the releaser Multi-hot signal that enables the release for given internal
     // addresses (i.e., RAM addresses).
-    input  logic [TotCapa-1:0] release_en_i,
+    input  logic [TotCapa-1:0] w_release_en_i,
+    input  logic [TotCapa-1:0] r_release_en_i,
     // Signals which address has been released, if any. One-hot signal. Is set to one for each
     // released response in a burst.
-    output logic [TotCapa-1:0] released_addr_onehot_o,
+    output logic [TotCapa-1:0] w_released_addr_onehot_o,
+    output logic [TotCapa-1:0] r_released_addr_onehot_o,
 
     // Interface with the real memory controller AXI response excluding handshake
-    input  DataType rsp_i,
-    output DataType rsp_o,
+    input  DataType w_rsp_i,
+    output DataType w_rsp_o,
+    input  DataType r_rsp_i,
+    output DataType r_rsp_o,
     // Response acquisition handshake signal
+    input  logic    in_rsp_valid_i,
+    output logic    in_rsp_ready_o,
     input  logic    in_rsp_valid_i,
     output logic    in_rsp_ready_o,
 
@@ -110,7 +50,7 @@ module simmem_resp_bank #(
   import simmem_pkg::*;
 
   localparam int PayloadWidth = DataWidth - IDWidth;
-  localparam int PayloadRamWidth = MaxRBurstLen * PayloadWidth;
+  localparam int PayloadRamWidth = MaxBurstLen * PayloadWidth;
 
   typedef struct packed {logic [BankAddrWidth-1:0] nxt_elem;} metadata_e;
 
@@ -466,12 +406,12 @@ module simmem_resp_bank #(
   logic pyld_ram_in_write, pyld_ram_out_write;
   logic meta_ram_in_write, meta_ram_out_write;
 
-  logic [MaxRBurstLen-1:0] pyld_ram_in_wmask;
-  logic [MaxRBurstLen-1:0] pyld_ram_out_wmask_d, pyld_ram_out_wmask_q;
-  logic [MaxRBurstLen-1:0] pyld_ram_in_wmask_id[NumIds];
-  logic [MaxRBurstLen-1:0] pyld_ram_out_wmask_id[NumIds];
-  logic [MaxRBurstLen-1:0][NumIds-1:0] pyld_ram_in_wmask_id_rot90;
-  logic [MaxRBurstLen-1:0][NumIds-1:0] pyld_ram_out_wmask_id_rot90;
+  logic [MaxBurstLen-1:0] pyld_ram_in_wmask;
+  logic [MaxBurstLen-1:0] pyld_ram_out_wmask_d, pyld_ram_out_wmask_q;
+  logic [MaxBurstLen-1:0] pyld_ram_in_wmask_id[NumIds];
+  logic [MaxBurstLen-1:0] pyld_ram_out_wmask_id[NumIds];
+  logic [MaxBurstLen-1:0][NumIds-1:0] pyld_ram_in_wmask_id_rot90;
+  logic [MaxBurstLen-1:0][NumIds-1:0] pyld_ram_out_wmask_id_rot90;
   // The signal to be provided to the payload RAM, which requires the wmask to be as long as the
   // data.
   logic [PayloadRamWidth-1:0] pyld_ram_in_wmask_expanded;
@@ -485,12 +425,12 @@ module simmem_resp_bank #(
 
   // Aggregate the read/write masks
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : aggregate_wmask_id
-    for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : aggregate_wmask_id_rot
+    for (genvar i_bit = 0; i_bit < MaxBurstLen; i_bit = i_bit + 1) begin : aggregate_wmask_id_rot
       assign pyld_ram_in_wmask_id_rot90[i_bit][i_id] = pyld_ram_in_wmask_id[i_id][i_bit];
       assign pyld_ram_out_wmask_id_rot90[i_bit][i_id] = pyld_ram_out_wmask_id[i_id][i_bit];
     end : aggregate_wmask_id_rot
   end : aggregate_wmask_id
-  for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : aggregate_wmask
+  for (genvar i_bit = 0; i_bit < MaxBurstLen; i_bit = i_bit + 1) begin : aggregate_wmask
     assign pyld_ram_in_wmask[i_bit] = |pyld_ram_in_wmask_id_rot90[i_bit];
     assign pyld_ram_out_wmask_d[i_bit] = |pyld_ram_out_wmask_id_rot90[i_bit];
   end : aggregate_wmask
@@ -552,7 +492,7 @@ module simmem_resp_bank #(
   assign meta_ram_out_wmask = {BankAddrWidth{1'b1}};
 
   // Payload RAM wmask extension
-  for (genvar i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin : expand_rsp_wmasks
+  for (genvar i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin : expand_rsp_wmasks
     for (
         genvar i_bit = PayloadWidth * i_bur; i_bit < PayloadWidth * (i_bur + 1); i_bit = i_bit + 1
     ) begin : expand_rsp_wmasks_inner
@@ -596,20 +536,20 @@ module simmem_resp_bank #(
   assign meta_ram_out_write = 1'b0;
 
   // Response RAM input and output data selection
-  logic [MaxRBurstLen-1:0][DataWidth-IDWidth-1:0] pyld_ram_in_burst_data;
-  logic [MaxRBurstLen-1:0][DataWidth-IDWidth-1:0] pyld_ram_out_burst_data;
-  logic [DataWidth-IDWidth-1:0][MaxRBurstLen-1:0] pyld_ram_out_burst_data_rot90;
+  logic [MaxBurstLen-1:0][DataWidth-IDWidth-1:0] pyld_ram_in_burst_data;
+  logic [MaxBurstLen-1:0][DataWidth-IDWidth-1:0] pyld_ram_out_burst_data;
+  logic [DataWidth-IDWidth-1:0][MaxBurstLen-1:0] pyld_ram_out_burst_data_rot90;
   logic [DataWidth-IDWidth-1:0] pyld_ram_out_data;
 
 
   // Fill input with the input payload. The irrelevant input will be filtered out using the wmasks.
-  for (genvar i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin : gen_pyld_input
+  for (genvar i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin : gen_pyld_input
     assign pyld_ram_in_burst_data[i_bur] = rsp_i.merged_payload.payload;
   end : gen_pyld_input
 
   // Output payload.
   for (genvar i_bit = 0; i_bit < PayloadWidth; i_bit = i_bit + 1) begin : gen_out_data
-    for (genvar i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin : gen_out_rsp_inner
+    for (genvar i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin : gen_out_rsp_inner
       assign pyld_ram_out_burst_data_rot90[i_bit][i_bur] =
           pyld_ram_out_burst_data[i_bur][i_bit] & pyld_ram_out_wmask_q[i_bur];
     end : gen_out_rsp_inner
@@ -815,24 +755,24 @@ module simmem_resp_bank #(
           if (tail_cnt_id[i_id] == 1) begin
             pyld_ram_out_addr_id[i_id] = pre_tails[i_id];
             // Set the corresponding payload RAM output wmask bit to one.
-            for (int unsigned i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin
+            for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
               pyld_ram_out_wmask_id[i_id][i_bur] = pre_tail_cnt_id[i_id] ==
-                  MaxRBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
+                  MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
             end
           end else begin
             pyld_ram_out_addr_id[i_id] = tails[i_id];
             // Set the corresponding payload RAM output wmask bit to one.
-            for (int unsigned i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin
+            for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
               pyld_ram_out_wmask_id[i_id][i_bur] = tail_cnt_id[i_id] ==
-                  MaxRBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0] + 1;
+                  MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0] + 1;
             end
           end
         end else begin
           pyld_ram_out_addr_id[i_id] = tails[i_id];
           // Set the corresponding payload RAM output wmask bit to one.
-          for (int unsigned i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin
+          for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
             pyld_ram_out_wmask_id[i_id][i_bur] =
-                tail_cnt_id[i_id] == MaxRBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
+                tail_cnt_id[i_id] == MaxBurstLen[BurstLenWidth - 1:0] - i_bur[BurstLenWidth - 1:0];
           end
         end
       end
@@ -883,7 +823,7 @@ module simmem_resp_bank #(
         meta_ram_out_addr_rsp_head_id[i_id] = rsp_heads[i_id];
 
         // Set the payload RAM input wmask
-        for (int unsigned i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin
+        for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
           pyld_ram_in_wmask_id[i_id][i_bur] = rsp_cnt_id[i_id] == i_bur[BurstLenWidth - 1:0];
         end
       end

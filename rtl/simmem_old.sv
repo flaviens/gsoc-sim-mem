@@ -6,7 +6,15 @@
 
 import simmem_pkg::*;
 
-module simmem (
+module simmem #(
+  // Width of the messages, including identifier
+  parameter int ReadDataBanksCapacity   = 64,
+  parameter int WriteRespBanksCapacity  = 64,
+  parameter int ReadDataDelayBanksCapacity   = 64,
+  parameter int WriteRespDelayBanksCapacity  = 64,
+  
+  parameter int CounterWidth            = 8,
+  )(
   input logic   clk_i,
   input logic   rst_ni,
 
@@ -48,10 +56,59 @@ module simmem (
   output wresp_t wresp_o
 );
 
+  // Releaser instance
+
   logic [WriteRespBanksCapacity-1:0] wresp_release_en;
   logic [ReadDataBanksCapacity-1:0] rdata_release_en;
 
-  // Response banks instance
+  // Blocks the transactions if the releaser is not ready
+  // logic releaser_rdata_ready;
+  // logic releaser_wresp_ready;
+
+  simmem_releaser #(
+    // .ReadAddressStructWidth,
+    // .WriteAddressStructWidth,
+    // .WriteDataStructWidth,
+    .ReadDataBanksCapacity,
+    .WriteRespBanksCapacity,
+    .IDWidth,
+    .CounterWidth
+  ) simmem_releaser_i (
+    .clk_i,
+    .rst_ni,
+
+    .raddr_in_valid_i,
+    .raddr_out_ready_i,
+
+    .waddr_in_valid_i,
+    .waddr_out_ready_i,
+
+    .wdata_in_valid_i,
+    .wdata_out_ready_i,
+
+    .rdata_in_valid_i,
+    .rdata_out_ready_i,
+    .rdata_in_ready_i(rdata_in_ready_o),
+    .rdata_out_valid_i(rdata_out_valid_o),
+  
+    .wresp_in_valid_i,
+    .wresp_out_ready_i,
+    .wresp_in_ready_i(wresp_in_ready_o),
+    .wresp_out_valid_i(wresp_out_valid_o),
+
+    .raddr_i,
+    .waddr_i,
+    .wdata_i,
+
+    .wresp_release_en_o(wresp_release_en),
+    .rdata_release_en_o(rdata_release_en)
+    // .rdata_ready_o(releaser_rdata_ready)
+    // .releaser_wresp_ready_o(releaser_wresp_ready)
+  );
+
+
+  // Linkedlist banks instance
+
   simmem_message_banks #(
     // .ReadDataStructWidth,
     // .WriteRespStructWidth,

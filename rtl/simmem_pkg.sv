@@ -51,7 +51,7 @@ package simmem_pkg;
   localparam int unsigned RUserWidth = 0;
   localparam int unsigned BUserWidth = 0;
 
-  localparam int unsigned WStrbWidth = MaxBurstSizeBytes / 8;
+  localparam int unsigned WStrbWidth = MaxBurstSizeBytes;
 
   typedef struct packed {
     // logic [AwUserWidth-1:0] user_signal;
