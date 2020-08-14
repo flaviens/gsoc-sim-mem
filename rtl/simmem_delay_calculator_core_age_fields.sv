@@ -18,7 +18,7 @@ module simmem_delay_calculator_core (
   
   // Write address
   input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] waddr_iid_i,
-  input simmem_pkg::waddr_req_t waddr_req_i,
+  input simmem_pkg::waddr_req_t waddr_i,
   // Number of write data packets that came with the write address
   input logic [simmem_pkg::MaxWBurstLenWidth-1:0] wdata_immediate_cnt_i,
   input logic waddr_valid_i,
@@ -30,7 +30,7 @@ module simmem_delay_calculator_core (
 
   // Read address
   input logic [simmem_pkg::ReadDataBankAddrWidth-1:0] raddr_iid_i,
-  input simmem_pkg::raddr_req_t raddr_req_i,
+  input simmem_pkg::raddr_req_t raddr_i,
   input logic raddr_valid_i,
   output logic raddr_ready_o,
 
@@ -354,16 +354,16 @@ module simmem_delay_calculator_core (
         w_slt_d[i_slt].v = 1'b1;
         w_slt_d[i_slt].tstp = tstp_cnt_q;
         w_slt_d[i_slt].iid = waddr_iid_i;
-        w_slt_d[i_slt].addr = waddr_req_i.addr;
-        w_slt_d[i_slt].burst_size = waddr_req_i.burst_size;
+        w_slt_d[i_slt].addr = waddr_i.addr;
+        w_slt_d[i_slt].burst_size = waddr_i.burst_size;
         w_slt_d[i_slt].mem_pending = '0;
 
         // FUTURE: Implement support for wrap burst here and in the read slot input
 
         for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
           w_slt_d[i_slt].data_v[i_bit] =
-              (i_bit >= waddr_req_i.burst_length) || (i_bit < wdata_immediate_cnt_i);
-          w_slt_d[i_slt].mem_done[i_bit] = i_bit >= waddr_req_i.burst_length;
+              (i_bit >= waddr_i.burst_length) || (i_bit < wdata_immediate_cnt_i);
+          w_slt_d[i_slt].mem_done[i_bit] = i_bit >= waddr_i.burst_length;
 
           w_slt_d[i_slt].data_tstp[i_bit] = tstp_cnt_q;
         end
@@ -378,13 +378,13 @@ module simmem_delay_calculator_core (
         r_slt_d[i_slt].v = 1'b1;
         r_slt_d[i_slt].tstp = tstp_cnt_q;
         r_slt_d[i_slt].iid = raddr_iid_i;
-        r_slt_d[i_slt].addr = raddr_req_i.addr;
-        r_slt_d[i_slt].burst_size = raddr_req_i.burst_size;
+        r_slt_d[i_slt].addr = raddr_i.addr;
+        r_slt_d[i_slt].burst_size = raddr_i.burst_size;
         r_slt_d[i_slt].mem_pending = '0;
 
         for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-          r_slt_d[i_slt].data_v[i_bit] = i_bit >= raddr_req_i.burst_length;
-          r_slt_d[i_slt].mem_done[i_bit] = i_bit >= raddr_req_i.burst_length;
+          r_slt_d[i_slt].data_v[i_bit] = i_bit >= raddr_i.burst_length;
+          r_slt_d[i_slt].mem_done[i_bit] = i_bit >= raddr_i.burst_length;
         end
       end
     end

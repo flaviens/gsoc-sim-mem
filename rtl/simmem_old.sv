@@ -43,16 +43,16 @@ module simmem #(
   output logic  wresp_in_ready_o,
   output logic  wresp_out_valid_o,
 
-  input raddr_req_t raddr_req_i,
-  input waddr_req_t waddr_req_i,
-  input wdata_req_t wdata_req_i,
-  input rdata_t rdata_resp_i,
+  input raddr_req_t raddr_i,
+  input waddr_req_t waddr_i,
+  input wdata_req_t wdata_i,
+  input rdata_t rdata_i,
   input wresp_t wresp_i,
 
-  output raddr_req_t raddr_req_o,
-  output waddr_req_t waddr_req_o,
-  output wdata_req_t wdata_req_o,
-  output rdata_t rdata_resp_o,
+  output raddr_req_t raddr_o,
+  output waddr_req_t waddr_o,
+  output wdata_req_t wdata_o,
+  output rdata_t rdata_o,
   output wresp_t wresp_o
 );
 

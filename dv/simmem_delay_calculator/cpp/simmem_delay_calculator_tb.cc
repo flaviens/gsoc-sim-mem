@@ -97,7 +97,7 @@ class DelayCalculatorTestbench {
   void simmem_input_waddr_apply(uint64_t local_identifier,
                                 WriteAddressRequest waddr_req) {
     module_->waddr_iid_i = local_identifier;
-    module_->waddr_req_i = waddr_req.to_packed();
+    module_->waddr_i = waddr_req.to_packed();
     module_->waddr_valid_i = 1;
   }
 
@@ -109,7 +109,7 @@ class DelayCalculatorTestbench {
    */
   void simmem_input_raddr_apply(uint64_t local_identifier,
                                 ReadAddressRequest raddr_req) {
-    module_->raddr_req_i = raddr_req.to_packed();
+    module_->raddr_i = raddr_req.to_packed();
     module_->raddr_valid_i = 1;
   }
 

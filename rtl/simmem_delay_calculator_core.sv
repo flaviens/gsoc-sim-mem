@@ -68,21 +68,23 @@
 // categorized on 2 bits to ease comparisons.
 //
 
+// TODO: Support interleaving.
+// TODO: Make cost increasing in the burst size.
 // TODO: Support fixed bursts.
 // TODO: Multiply row width by number of ranks
 // TODO: Trouver l'optimal entry pour chaque rank.
 
 module simmem_delay_calculator_core #(
     // Must be a power of two, used for address interleaving
-    parameter int unsigned NumRanks = 2,
+    parameter int unsigned NumRanks = 1, // Interleaving is not supported yet.
 
-    localparam int unsigned NumRanksWidth = $clog2(NumRanks) // derived parameter
+    localparam int unsigned NumRanksWidth = NumRanks == 1 ? 1 : $clog2(NumRanks) // derived parameter
 ) (
     input logic clk_i,
     input logic rst_ni,
 
     // Write address request from the requester.
-    input simmem_pkg::waddr_req_t waddr_req_i,
+    input simmem_pkg::waddr_req_t waddr_i,
     // Internal identifier corresponding to the write address request (issued by the write response
     // bank).
     input simmem_pkg::write_iid_t waddr_iid_i,
@@ -99,7 +101,7 @@ module simmem_delay_calculator_core #(
     input logic wdata_valid_i,
 
     // Write address request from the requester.
-    input simmem_pkg::raddr_req_t raddr_req_i,
+    input simmem_pkg::raddr_req_t raddr_i,
     // Internal identifier corresponding to the read address request (issued by the read response
     // bank).
     input simmem_pkg::read_iid_t  raddr_iid_i,
@@ -214,9 +216,9 @@ module simmem_delay_calculator_core #(
   // is one array of slots for read bursts, and one array for write slots.
 
   // Slot constants definition
-  localparam NumWSlots = 6;
+  localparam NumWSlots = 2;
   localparam NumWSlotsWidth = $clog2(NumWSlots);
-  localparam NumRSlots = 6;
+  localparam NumRSlots = 3;
   localparam NumRSlotsWidth = $clog2(NumRSlots);
 
   // Maximal number of write data entries: at most MaxWBurstLen per slot.
@@ -261,7 +263,7 @@ module simmem_delay_calculator_core #(
       end : candidates_w_inner
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : candidates_r_inner
         for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : candidates_r_bit
-          assign is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = wslt_q[i_slt].v & ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(r_addrs_per_slot[i_slt][i_bit]) & determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat);
+          assign is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = rslt_q[i_slt].v & ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(r_addrs_per_slot[i_slt][i_bit]) & determine_cost_category(r_addrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_address_q[i_rk]) == NumCostCategoriesWidth'(i_cat);
         end : candidates_r_bit
       end : candidates_r_inner
     end : candidates_cat
@@ -470,7 +472,7 @@ module simmem_delay_calculator_core #(
   logic [MainAgeMatrixSide-1:0] matches_cond[NumRanks][NumCostCategories];
 
   // Intermediate signal to determine whether an age matrix entry matches the conditions.
-  logic [MaxWBurstLen-1:0] r_matches_cond_per_slt[NumRanks][NumCostCategories][NumWSlots];
+  logic [MaxWBurstLen-1:0] r_matches_cond_per_slt[NumRanks][NumCostCategories][NumRSlots];
   
   // An entry matches the conditions, for a given (rank, cost category) pair, if all of the
   // following conditions are verified:
@@ -487,7 +489,7 @@ module simmem_delay_calculator_core #(
       end : cond_check_wslt
       // Check conditions for read data entries
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : cond_check_rslt
-        for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : cond_check_rslt_bit
+        for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : cond_check_rslt_bit
           assign r_matches_cond_per_slt[i_rk][i_cat][i_slt][i_bit] = is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit];
         end : cond_check_rslt_bit
         assign matches_cond[i_rk][i_cat][MainAgeMatrixRSlotStartIndex + i_slt] = |r_matches_cond_per_slt[i_rk][i_cat][i_slt];
@@ -596,8 +598,8 @@ module simmem_delay_calculator_core #(
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_w_addrs_per_slt
     assign w_addrs_lsb_per_slot[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
     for (genvar i_bit = 1; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_w_addrs
-      // TODO: assign w_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(w_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(wslt_q[i_slt].burst_size));
-      assign w_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(wslt_q[i_slt].addr[BurstAddrLSBs-1:0] + BurstAddrLSBs'(i_bit * wslt_q[i_slt].burst_size));
+      assign w_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(w_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(wslt_q[i_slt].burst_size));
+      // UNOPTFLAT-proof: assign w_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(wslt_q[i_slt].addr[BurstAddrLSBs-1:0] + BurstAddrLSBs'(i_bit * wslt_q[i_slt].burst_size));
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole entries' addresses.
       assign w_addrs_per_slot[i_slt][i_bit] = {
@@ -611,8 +613,8 @@ module simmem_delay_calculator_core #(
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_r_addrs_per_slt
     assign r_addrs_lsb_per_slot[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
     for (genvar i_bit = 1; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : gen_r_addrs
-      // TODO: assign r_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(r_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(rslt_q[i_slt].burst_size));
-      assign r_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(rslt_q[i_slt].addr[BurstAddrLSBs-1:0] + BurstAddrLSBs'(i_bit * rslt_q[i_slt].burst_size));
+      assign r_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(r_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(rslt_q[i_slt].burst_size));
+      // UNOPTFLAT-proof: assign r_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(rslt_q[i_slt].addr[BurstAddrLSBs-1:0] + BurstAddrLSBs'(i_bit * rslt_q[i_slt].burst_size));
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole entries' addresses.
       assign r_addrs_per_slot[i_slt][i_bit] = {
@@ -703,8 +705,10 @@ module simmem_delay_calculator_core #(
         // request.
         wslt_d[i_slt].v = 1'b1;
         wslt_d[i_slt].iid = waddr_iid_i;
-        wslt_d[i_slt].addr = waddr_req_i.addr;
-        wslt_d[i_slt].burst_size = waddr_req_i.burst_size;
+        wslt_d[i_slt].addr = waddr_i.addr;
+
+        // Support for fixed bursts is provided by setting a burst size of 0.
+        wslt_d[i_slt].burst_size = waddr_i.burst_type == BURST_FIXED ? '0 : waddr_i.burst_size;
 
         // The mem_pending bits of a new request are always set to zero, until an access to the
         // corresponding rank is simulated.
@@ -722,7 +726,7 @@ module simmem_delay_calculator_core #(
           // write data to come in. The rest of the data_v bits (between the two possibly empty
           // ranges of ones) are set to zero, awaiting further write data requests.
           wslt_d[i_slt].data_v[i_bit] =
-              (AxLenWidth'(i_bit) >= waddr_req_i.burst_length) || (i_bit < wdata_immediate_cnt_i);
+              (AxLenWidth'(i_bit) >= waddr_i.burst_length) || (i_bit < wdata_immediate_cnt_i);
           // The age matrix has to be updated for each immediate write data, with the same age
           // relative to the entries external to the slot.
           main_new_entry[i_slt * MaxWBurstLen+i_bit] = i_bit < wdata_immediate_cnt_i;
@@ -731,7 +735,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          wslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= waddr_req_i.burst_length;
+          wslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= waddr_i.burst_length;
         end
       end
     end
@@ -747,8 +751,11 @@ module simmem_delay_calculator_core #(
         // request.
         rslt_d[i_slt].v = 1'b1;
         rslt_d[i_slt].iid = raddr_iid_i;
-        rslt_d[i_slt].addr = raddr_req_i.addr;
-        rslt_d[i_slt].burst_size = raddr_req_i.burst_size;
+        rslt_d[i_slt].addr = raddr_i.addr;
+
+        // Support for fixed bursts is provided by setting a burst size of 0.
+        rslt_d[i_slt].burst_size = raddr_i.burst_type == BURST_FIXED ? '0 : raddr_i.burst_size;
+
         // The mem_pending bits of a new request are always set to zero, until an access to the
         // corresponding rank is simulated.
         rslt_d[i_slt].mem_pending = '0;
@@ -759,7 +766,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          rslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= raddr_req_i.burst_length;
+          rslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= raddr_i.burst_length;
         end
 
         main_new_entry[MainAgeMatrixRSlotStartIndex + i_slt] = 1'b1;
@@ -840,7 +847,7 @@ module simmem_delay_calculator_core #(
           end
         end
         for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
-          for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
+          for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
             // Mark memory operation as done if already done, or was pending.
             rslt_d[i_slt].mem_done[i_bit] = rslt_q[i_slt].mem_done[i_bit] | (rslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rank_id(r_addrs_per_slot[i_slt][i_bit])==NumRanksWidth'(i_rk)));
             rslt_d[i_slt].mem_pending[i_bit] = rslt_d[i_slt].mem_pending[i_bit] & get_assigned_rank_id(r_addrs_per_slot[i_slt][i_bit])!=NumRanksWidth'(i_rk);

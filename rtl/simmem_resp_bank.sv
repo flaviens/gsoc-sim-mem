@@ -443,7 +443,7 @@ module simmem_resp_bank #(
   //    * pyld_ram_out_addr_id,    as the address should be the pre_tail or tail pointer value.
   //    * meta_ram_in_addr_id,        as the address may be the reservation head pointer value.
   //    * meta_ram_out_addr_tail_id,  as the address should be the tail pointer value.
-  //    * meta_ram_out_addr_rsp_head_id,   as the address should be the response head pointer value.
+  //    * meta_ram_out_addrdata_head_id,   as the address should be the response head pointer value.
   //
   //  Rotated signals are used to aggregate the signals, where the dimensions have to be transposed.
   //
@@ -502,19 +502,19 @@ module simmem_resp_bank #(
   logic [BankAddrWidth-1:0] pyld_ram_out_addr;
   logic [BankAddrWidth-1:0] meta_ram_in_addr;
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail;
-  logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_head;
+  logic [BankAddrWidth-1:0] meta_ram_out_addrdata_head;
   // Per-linked list intermediate signals
   logic [BankAddrWidth-1:0] pyld_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] pyld_ram_out_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail_id[NumIds];
-  logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_head_id[NumIds];
+  logic [BankAddrWidth-1:0] meta_ram_out_addrdata_head_id[NumIds];
   // Intermediate aggregation signal
   logic [BankAddrWidth-1:0][NumIds-1:0] pyld_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] pyld_ram_out_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_tail_rot90;
-  logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_rsp_head_rot90;
+  logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addrdata_head_rot90;
 
   // RAM address aggregation
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_address
@@ -525,8 +525,8 @@ module simmem_resp_bank #(
       assign pyld_ram_out_addr_rot90[i_bit][i_id] = pyld_ram_out_addr_id[i_id][i_bit];
       assign meta_ram_in_addr_rot90[i_bit][i_id] = meta_ram_in_addr_id[i_id][i_bit];
       assign meta_ram_out_addr_tail_rot90[i_bit][i_id] = meta_ram_out_addr_tail_id[i_id][i_bit];
-      assign meta_ram_out_addr_rsp_head_rot90[i_bit][i_id] =
-          meta_ram_out_addr_rsp_head_id[i_id][i_bit];
+      assign meta_ram_out_addrdata_head_rot90[i_bit][i_id] =
+          meta_ram_out_addrdata_head_id[i_id][i_bit];
     end : rotate_ram_address_inner
   end : rotate_ram_address
   for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_address
@@ -534,7 +534,7 @@ module simmem_resp_bank #(
     assign pyld_ram_out_addr[i_bit] = |pyld_ram_out_addr_rot90[i_bit];
     assign meta_ram_in_addr[i_bit] = |meta_ram_in_addr_rot90[i_bit];
     assign meta_ram_out_addr_tail[i_bit] = |meta_ram_out_addr_tail_rot90[i_bit];
-    assign meta_ram_out_addr_rsp_head[i_bit] = |meta_ram_out_addr_rsp_head_rot90[i_bit];
+    assign meta_ram_out_addrdata_head[i_bit] = |meta_ram_out_addrdata_head_rot90[i_bit];
   end : aggregate_ram_address
 
   // RAM meta in aggregation
@@ -802,7 +802,7 @@ module simmem_resp_bank #(
       pyld_ram_out_wmask_id[i_id] = '0;
       meta_ram_in_addr_id[i_id] = '0;
       meta_ram_out_addr_tail_id[i_id] = '0;
-      meta_ram_out_addr_rsp_head_id[i_id] = '0;
+      meta_ram_out_addrdata_head_id[i_id] = '0;
 
       meta_ram_in_content_id[i_id] = '0;
 
@@ -880,7 +880,7 @@ module simmem_resp_bank #(
         pyld_ram_in_addr_id[i_id] = rsp_heads[i_id];
 
         // Update the response head pointer position
-        meta_ram_out_addr_rsp_head_id[i_id] = rsp_heads[i_id];
+        meta_ram_out_addrdata_head_id[i_id] = rsp_heads[i_id];
 
         // Set the payload RAM input wmask
         for (int unsigned i_bur = 0; i_bur < MaxRBurstLen; i_bur = i_bur + 1) begin
@@ -1072,7 +1072,7 @@ module simmem_resp_bank #(
       .b_req_i  (meta_ram_out_req),
       .b_write_i(meta_ram_out_write),
       .b_wmask_i(meta_ram_out_wmask),
-      .b_addr_i (meta_ram_out_addr_rsp_head),
+      .b_addr_i (meta_ram_out_addrdata_head),
       .b_wdata_i(),
       .b_rdata_o(meta_ram_out_rsp_head)
   );

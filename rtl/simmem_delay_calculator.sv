@@ -14,13 +14,13 @@
 
 module simmem_delay_calculator #(
     // Must be a power of two, used for address interleaving
-    parameter int unsigned NumRanks = 2
+    parameter int unsigned NumRanks = 1  // Must be one, as interleaving is not yet supported.
 ) (
     input logic clk_i,
     input logic rst_ni,
 
     // Write address request from the requester.
-    input simmem_pkg::waddr_req_t waddr_req_i,
+    input simmem_pkg::waddr_req_t waddr_i,
     // Internal identifier corresponding to the write address request (issued by the write response
     // bank).
     input simmem_pkg::write_iid_t waddr_iid_i,
@@ -37,7 +37,7 @@ module simmem_delay_calculator #(
     output logic wdata_ready_o,
 
     // Write address request from the requester.
-    input simmem_pkg::raddr_req_t raddr_req_i,
+    input simmem_pkg::raddr_req_t raddr_i,
     // Internal identifier corresponding to the read address request (issued by the read response
     // bank).
     input simmem_pkg::read_iid_t  raddr_iid_i,
@@ -96,10 +96,10 @@ module simmem_delay_calculator #(
       wdata_immediate_cnt = 0;
       if (!wdata_cnt_d[MaxPendingWDataWidth]) begin
         // If wdata_cnt_d is nonnegative, then consider sending immediate data
-        if (AxLenWidth'(wdata_cnt_d) >= waddr_req_i.burst_length) begin
+        if (AxLenWidth'(wdata_cnt_d) >= waddr_i.burst_length) begin
           // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
           // transmit all this data with the address request to the delay calculator core.
-          wdata_immediate_cnt = waddr_req_i.burst_length[MaxWBurstLenWidth - 1:0];
+          wdata_immediate_cnt = waddr_i.burst_length[MaxWBurstLenWidth - 1:0];
         end else begin
           // Else, transmit only the already and currently received write data, and set the counter to
           // zero, as it has been emptied.
@@ -108,7 +108,7 @@ module simmem_delay_calculator #(
       end
 
       // Update the write data count to take the new core demand into account.
-      wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(waddr_req_i.burst_length);
+      wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(waddr_i.burst_length);
     end
   end
 
@@ -130,7 +130,7 @@ module simmem_delay_calculator #(
       .rst_ni(rst_ni),
 
       .waddr_iid_i(waddr_iid_i),
-      .waddr_req_i(waddr_req_i),
+      .waddr_i    (waddr_i),
 
       .wdata_immediate_cnt_i(wdata_immediate_cnt),
       .waddr_valid_i        (waddr_valid_i),
@@ -139,7 +139,7 @@ module simmem_delay_calculator #(
       .wdata_valid_i(core_wdata_valid_input),
 
       .raddr_iid_i  (raddr_iid_i),
-      .raddr_req_i  (raddr_req_i),
+      .raddr_i      (raddr_i),
       .raddr_valid_i(raddr_valid_i),
       .raddr_ready_o(raddr_ready_o),
 

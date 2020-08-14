@@ -53,13 +53,20 @@ package simmem_pkg;
 
   localparam int unsigned WStrbWidth = MaxBurstSizeBytes;
 
+  typedef enum logic [AxBurstWidth-1:0] {
+    BURST_FIXED = 0,
+    BURST_INCR = 1,
+    BURST_WRAP = 2,
+    BURST_RESERVED = 3
+  } burst_type_e;
+
   typedef struct packed {
     // logic [AwUserWidth-1:0] user_signal;
     logic [AxQoSWidth-1:0] qos;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxCacheWidth-1:0] memory_type;
     logic [AxLockWidth-1:0] lock_type;
-    logic [AxBurstWidth-1:0] burst_type;
+    burst_type_e burst_type;
     logic [AxSizeWidth-1:0] burst_size;
     logic [AxLenWidth-1:0] burst_length;
     logic [AxAddrWidth-1:0] addr;
@@ -72,7 +79,7 @@ package simmem_pkg;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxCacheWidth-1:0] memory_type;
     logic [AxLockWidth-1:0] lock_type;
-    logic [AxBurstWidth-1:0] burst_type;
+    burst_type_e burst_type;
     logic [AxSizeWidth-1:0] burst_size;
     logic [AxLenWidth-1:0] burst_length;
     logic [AxAddrWidth-1:0] addr;

@@ -67,34 +67,34 @@
 //    pointer ordering.
 
 module simmem_resp_bank (
-  input logic clk_i,
-  input logic rst_ni,
+    input logic clk_i,
+    input logic rst_ni,
 
-  // Reservation interface AXI identifier for which the reseration request is being done.
-  input  logic [NumIds-1:0] rsv_req_id_onehot_i,
-  // Information about currently reserved address. Will be stored by other modules as an internal
-  // identifier to uniquely identify the response (or response burst in case of read data).
-  output logic [BankAddrWidth-1:0] rsv_addr_o,
-  // Reservation handshake signals
-  input  logic rsv_valid_i,
-  output logic rsv_ready_o, 
+    // Reservation interface AXI identifier for which the reseration request is being done.
+    input  logic [       NumIds-1:0] rsv_req_id_onehot_i,
+    // Information about currently reserved address. Will be stored by other modules as an internal
+    // identifier to uniquely identify the response (or response burst in case of read data).
+    output logic [BankAddrWidth-1:0] rsv_addr_o,
+    // Reservation handshake signals
+    input  logic                     rsv_valid_i,
+    output logic                     rsv_ready_o,
 
-  // Interface with the releaser Multi-hot signal that enables the release for given internal
-  // addresses (i.e., RAM addresses).
-  input  logic [TotCapa-1:0] release_en_i,
-  // Signals which address has been released, if any. One-hot signal.
-  output logic [TotCapa-1:0] released_addr_onehot_o,
+    // Interface with the releaser Multi-hot signal that enables the release for given internal
+    // addresses (i.e., RAM addresses).
+    input  logic [TotCapa-1:0] release_en_i,
+    // Signals which address has been released, if any. One-hot signal.
+    output logic [TotCapa-1:0] released_addr_onehot_o,
 
-  // Interface with the real memory controller AXI response excluding handshake
-  input  simmem_pkg::wresp_t rsp_i,
-  output simmem_pkg::wresp_t rsp_o,
-  // Response acquisition handshake signal
-  input  logic in_rsp_valid_i,
-  output logic in_rsp_ready_o,
+    // Interface with the real memory controller AXI response excluding handshake
+    input  simmem_pkg::wresp_t rsp_i,
+    output simmem_pkg::wresp_t rsp_o,
+    // Response acquisition handshake signal
+    input  logic               in_rsp_valid_i,
+    output logic               in_rsp_ready_o,
 
-  // Interface with the requester
-  input  logic out_rsp_ready_i,
-  output logic out_rsp_valid_o
+    // Interface with the requester
+    input  logic out_rsp_ready_i,
+    output logic out_rsp_valid_o
 );
 
   import simmem_pkg::*;
@@ -329,7 +329,7 @@ module simmem_resp_bank (
   //    * payload_ram_out_addr_id,    as the address should be the pre_tail or tail pointer value.
   //    * meta_ram_in_addr_id,        as the address may be the reservation head pointer value.
   //    * meta_ram_out_addr_tail_id,  as the address should be the tail pointer value.
-  //    * meta_ram_out_addr_rsp_head_id,   as the address should be the response head pointer value.
+  //    * meta_ram_out_addrdata_head_id,   as the address should be the response head pointer value.
   //
   //  Rotated signals are used to aggregate the signals, where the dimensions have to be transposed.
 
@@ -354,17 +354,17 @@ module simmem_resp_bank (
   logic [BankAddrWidth-1:0] payload_ram_out_addr;
   logic [BankAddrWidth-1:0] meta_ram_in_addr;
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail;
-  logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_head;
+  logic [BankAddrWidth-1:0] meta_ram_out_addrdata_head;
   logic [BankAddrWidth-1:0] payload_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] payload_ram_out_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_in_addr_id[NumIds];
   logic [BankAddrWidth-1:0] meta_ram_out_addr_tail_id[NumIds];
-  logic [BankAddrWidth-1:0] meta_ram_out_addr_rsp_head_id[NumIds];
+  logic [BankAddrWidth-1:0] meta_ram_out_addrdata_head_id[NumIds];
   logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] payload_ram_out_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_in_addr_rot90;
   logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_tail_rot90;
-  logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addr_rsp_head_rot90;
+  logic [BankAddrWidth-1:0][NumIds-1:0] meta_ram_out_addrdata_head_rot90;
 
   // RAM address aggregation
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_address
@@ -375,8 +375,8 @@ module simmem_resp_bank (
       assign payload_ram_out_addr_rot90[i_bit][i_id] = payload_ram_out_addr_id[i_id][i_bit];
       assign meta_ram_in_addr_rot90[i_bit][i_id] = meta_ram_in_addr_id[i_id][i_bit];
       assign meta_ram_out_addr_tail_rot90[i_bit][i_id] = meta_ram_out_addr_tail_id[i_id][i_bit];
-      assign meta_ram_out_addr_rsp_head_rot90[i_bit][i_id] =
-          meta_ram_out_addr_rsp_head_id[i_id][i_bit];
+      assign meta_ram_out_addrdata_head_rot90[i_bit][i_id] =
+          meta_ram_out_addrdata_head_id[i_id][i_bit];
     end : rotate_ram_address_inner
   end : rotate_ram_address
   for (genvar i_bit = 0; i_bit < BankAddrWidth; i_bit = i_bit + 1) begin : aggregate_ram_address
@@ -384,7 +384,7 @@ module simmem_resp_bank (
     assign payload_ram_out_addr[i_bit] = |payload_ram_out_addr_rot90[i_bit];
     assign meta_ram_in_addr[i_bit] = |meta_ram_in_addr_rot90[i_bit];
     assign meta_ram_out_addr_tail[i_bit] = |meta_ram_out_addr_tail_rot90[i_bit];
-    assign meta_ram_out_addr_rsp_head[i_bit] = |meta_ram_out_addr_rsp_head_rot90[i_bit];
+    assign meta_ram_out_addrdata_head[i_bit] = |meta_ram_out_addrdata_head_rot90[i_bit];
   end : aggregate_ram_address
 
   // RAM meta in aggregation
@@ -620,7 +620,7 @@ module simmem_resp_bank (
       payload_ram_out_addr_id[i_id] = '0;
       meta_ram_in_addr_id[i_id] = '0;
       meta_ram_out_addr_tail_id[i_id] = '0;
-      meta_ram_out_addr_rsp_head_id[i_id] = '0;
+      meta_ram_out_addrdata_head_id[i_id] = '0;
 
       meta_ram_in_content_id[i_id] = '0;
 
@@ -675,7 +675,7 @@ module simmem_resp_bank (
         payload_ram_in_addr_id[i_id] = rsp_heads[i_id];
 
         // Update the response head pointer position
-        meta_ram_out_addr_rsp_head_id[i_id] = rsp_heads[i_id];
+        meta_ram_out_addrdata_head_id[i_id] = rsp_heads[i_id];
       end
 
       // Reservation handshake
@@ -794,74 +794,74 @@ module simmem_resp_bank (
 
   // Payload RAM instance
   prim_generic_ram_2p #(
-    .Width(MsgRamWidth),
-    .DataBitsPerMask(1),
-    .Depth(TotCapa)
+      .Width(MsgRamWidth),
+      .DataBitsPerMask(1),
+      .Depth(TotCapa)
   ) i_payload_ram (
-    .clk_a_i     (clk_i),
-    .clk_b_i     (clk_i),
-    
-    .a_req_i     (payload_ram_in_req),
-    .a_write_i   (payload_ram_in_write),
-    .a_wmask_i   (payload_ram_in_wmask),
-    .a_addr_i    (payload_ram_in_addr),
-    .a_wdata_i   (rsp_i.merged_payload.payload),
-    .a_rdata_o   (),
-    
-    .b_req_i     (payload_ram_out_req),
-    .b_write_i   (payload_ram_out_write),
-    .b_wmask_i   (payload_ram_out_wmask),
-    .b_addr_i    (payload_ram_out_addr),
-    .b_wdata_i   (),
-    .b_rdata_o   (payload_ram_out_data)
+      .clk_a_i(clk_i),
+      .clk_b_i(clk_i),
+
+      .a_req_i  (payload_ram_in_req),
+      .a_write_i(payload_ram_in_write),
+      .a_wmask_i(payload_ram_in_wmask),
+      .a_addr_i (payload_ram_in_addr),
+      .a_wdata_i(rsp_i.merged_payload.payload),
+      .a_rdata_o(),
+
+      .b_req_i  (payload_ram_out_req),
+      .b_write_i(payload_ram_out_write),
+      .b_wmask_i(payload_ram_out_wmask),
+      .b_addr_i (payload_ram_out_addr),
+      .b_wdata_i(),
+      .b_rdata_o(payload_ram_out_data)
   );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-    .Width(BankAddrWidth),
-    .DataBitsPerMask(1),
-    .Depth(TotCapa)
+      .Width(BankAddrWidth),
+      .DataBitsPerMask(1),
+      .Depth(TotCapa)
   ) i_meta_ram_out_tail (
-    .clk_a_i     (clk_i),
-    .clk_b_i     (clk_i),
-    
-    .a_req_i     (meta_ram_in_req),
-    .a_write_i   (meta_ram_in_write),
-    .a_wmask_i   (meta_ram_in_wmask),
-    .a_addr_i    (meta_ram_in_addr),
-    .a_wdata_i   (meta_ram_in_content),
-    .a_rdata_o   (),
-    
-    .b_req_i     (meta_ram_out_req),
-    .b_write_i   (meta_ram_out_write),
-    .b_wmask_i   (meta_ram_out_wmask),
-    .b_addr_i    (meta_ram_out_addr_tail),
-    .b_wdata_i   (),
-    .b_rdata_o   (meta_ram_out_rsp_tail)
+      .clk_a_i(clk_i),
+      .clk_b_i(clk_i),
+
+      .a_req_i  (meta_ram_in_req),
+      .a_write_i(meta_ram_in_write),
+      .a_wmask_i(meta_ram_in_wmask),
+      .a_addr_i (meta_ram_in_addr),
+      .a_wdata_i(meta_ram_in_content),
+      .a_rdata_o(),
+
+      .b_req_i  (meta_ram_out_req),
+      .b_write_i(meta_ram_out_write),
+      .b_wmask_i(meta_ram_out_wmask),
+      .b_addr_i (meta_ram_out_addr_tail),
+      .b_wdata_i(),
+      .b_rdata_o(meta_ram_out_rsp_tail)
   );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-    .Width(BankAddrWidth),
-    .DataBitsPerMask(1),
-    .Depth(TotCapa)
+      .Width(BankAddrWidth),
+      .DataBitsPerMask(1),
+      .Depth(TotCapa)
   ) i_meta_ram_out_rsp_head (
-    .clk_a_i     (clk_i),
-    .clk_b_i     (clk_i),
-    
-    .a_req_i     (meta_ram_in_req),
-    .a_write_i   (meta_ram_in_write),
-    .a_wmask_i   (meta_ram_in_wmask),
-    .a_addr_i    (meta_ram_in_addr),
-    .a_wdata_i   (meta_ram_in_content),
-    .a_rdata_o   (),
-    
-    .b_req_i     (meta_ram_out_req),
-    .b_write_i   (meta_ram_out_write),
-    .b_wmask_i   (meta_ram_out_wmask),
-    .b_addr_i    (meta_ram_out_addr_rsp_head),
-    .b_wdata_i   (),
-    .b_rdata_o   (meta_ram_out_rsp_head)
+      .clk_a_i(clk_i),
+      .clk_b_i(clk_i),
+
+      .a_req_i  (meta_ram_in_req),
+      .a_write_i(meta_ram_in_write),
+      .a_wmask_i(meta_ram_in_wmask),
+      .a_addr_i (meta_ram_in_addr),
+      .a_wdata_i(meta_ram_in_content),
+      .a_rdata_o(),
+
+      .b_req_i  (meta_ram_out_req),
+      .b_write_i(meta_ram_out_write),
+      .b_wmask_i(meta_ram_out_wmask),
+      .b_addr_i (meta_ram_out_addrdata_head),
+      .b_wdata_i(),
+      .b_rdata_o(meta_ram_out_rsp_head)
   );
 
 endmodule

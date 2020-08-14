@@ -85,6 +85,9 @@ filesets:
       - dv/simmem_delay_calculator/cpp/simmem_delay_calculator_tb.cc
     file_type: cppSource
 
+  files_delay_calculator_waiver:
+    files:
+      - lint/simmem_delay_calculator_core_waiver.vlt: {file_type: vlt}
 
   files_rtl_write_only_nocontent:
     depend:
@@ -217,6 +220,7 @@ targets:
     filesets:
       - files_rtl_delay_calculator
       - files_dv_delay_calculator
+      - files_delay_calculator_waiver
     toplevel: simmem_delay_calculator
     tools:
       verilator:
