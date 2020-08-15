@@ -84,7 +84,7 @@ package simmem_pkg;
     logic [AxLenWidth-1:0] burst_length;
     logic [AxAddrWidth-1:0] addr;
     logic [IDWidth-1:0] id;
-  } raddr_req_t;
+  } raddr_t;
 
   typedef struct packed {
     // logic [WUserWidth-1:0] user_signal;
@@ -92,7 +92,7 @@ package simmem_pkg;
     logic [WStrbWidth-1:0] strobes;
     logic [MaxBurstSizeBytes-1:0] data;
   // logic [IDWidth-1:0] id; AXI4 does not allocate identifiers in write data messages
-  } wdata_req_t;
+  } wdata_t;
 
   typedef struct packed {
     // logic [RUserWidth-1:0] user_signal;

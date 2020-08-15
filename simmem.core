@@ -115,6 +115,9 @@ filesets:
       - dv/simmem_top/cpp/simmem_top_tb.cc
     file_type: cppSource
 
+  files_simmem_top_waiver:
+    files:
+      - lint/simmem_top_waiver.vlt: {file_type: vlt}
 
 targets:
   sim_resp_bank:
@@ -250,6 +253,7 @@ targets:
       - files_rtl_simmem_top
       #- files_dv_simmem_top
       #- files_delay_calculator_waiver
+      - files_simmem_top_waiver
     toplevel: simmem_top
     tools:
       verilator:

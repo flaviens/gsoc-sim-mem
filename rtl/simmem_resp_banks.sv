@@ -15,7 +15,7 @@ module simmem_resp_banks (
     output logic [WriteRespBankAddrWidth-1:0] wrsv_iid_o,
     output logic [ ReadDataBankAddrWidth-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [     MaxRBurstLenWidth-1:0] rrsv_burst_len_i,
+    input  logic [       MaxRBurstLenWidth:0] rrsv_burst_len_i,
     // Reservation handshake signals
     input  logic                              wrsv_valid_i,
     output logic                              wrsv_ready_o,
@@ -61,7 +61,8 @@ module simmem_resp_banks (
 
   simmem_resp_bank #(
       .TotCapa(WriteRespBankCapacity),
-      .DataType(wdata_t)
+      .MaxBurstLen(1),  // There is no burst in the write responses
+      .DataType(wresp_t)
   ) i_simmem_wresp_bank (
       .clk_i                 (clk_i),
       .rst_ni                (rst_ni),
@@ -84,6 +85,7 @@ module simmem_resp_banks (
 
   simmem_resp_bank #(
       .TotCapa(ReadDataBankCapacity),
+      .MaxBurstLen(MaxRBurstLen),
       .DataType(rdata_t)
   ) i_simmem_rdata_bank (
       .clk_i                 (clk_i),

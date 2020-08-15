@@ -48,9 +48,6 @@ module simmem_top (
 
   import simmem_pkg::*;
 
-  logic [WriteRespBankCapacity-1:0] wresp_release_en;
-  logic [ReadDataBankCapacity-1:0] rdata_release_en;
-
   // Reservation identifier
   logic [NumIds-1:0] wrsv_req_id_onehot;
   logic [NumIds-1:0] rrsv_req_id_onehot;
@@ -89,12 +86,12 @@ module simmem_top (
   assign wdata_valid_in_delay_calc = wdata_out_ready_i & wdata_in_valid_i;
 
   // Release enable signals
-  logic wresp_release_en_onehot;
-  logic rdata_release_en_onehot;
+  logic [WriteRespBankCapacity-1:0] wresp_release_en_onehot;
+  logic [ReadDataBankCapacity-1:0] rdata_release_en_onehot;
 
   // Released addresses feedback
-  logic wresp_released_onehot;
-  logic rdata_released_onehot;
+  logic [WriteRespBankCapacity-1:0] wresp_released_onehot;
+  logic [ReadDataBankCapacity-1:0] rdata_released_onehot;
 
   // Mutual ready signals (directions are given in the point of view of the response banks
   logic w_delay_calc_ready_in;  // From the delay calculator
@@ -102,6 +99,18 @@ module simmem_top (
   logic w_delay_calc_ready_out;  // From the response banks
   logic r_delay_calc_ready_out;  // From the response banks
 
+  // Output hanshake signals for upstream signals (from the requester to the real memory controller).
+  assign waddr_in_ready_o = waddr_out_ready_i & wrsv_ready_out;
+  assign raddr_in_ready_o = raddr_out_ready_i & rrsv_ready_out;
+  assign waddr_out_valid_o = waddr_in_valid_i & wrsv_ready_out;
+  assign raddr_out_valid_o = raddr_in_valid_i & rrsv_ready_out;
+  assign wdata_in_ready_o = wdata_out_ready_i & wdata_ready_out_delay_calc;
+  assign wdata_out_valid_o = wdata_in_valid_i & wdata_ready_out_delay_calc;
+
+  // Output upstream signals
+  assign wdata_o = wdata_i;
+  assign raddr_o = raddr_i;
+  assign waddr_o = waddr_i;
 
   // Response banks instance
   simmem_resp_banks i_simmem_resp_banks (
@@ -111,7 +120,7 @@ module simmem_top (
       .rrsv_req_id_onehot_i    (rrsv_req_id_onehot),
       .wrsv_iid_o              (wrsv_iid),
       .rrsv_iid_o              (rrsv_iid),
-      .rrsv_burst_len_i        (MaxRBurstLenWidth'(raddr_i.burst_length)),
+      .rrsv_burst_len_i        ((MaxRBurstLenWidth + 1)'(raddr_i.burst_length)),
       .wrsv_valid_i            (wrsv_valid_in),
       .wrsv_ready_o            (wrsv_ready_out),
       .rrsv_valid_i            (rrsv_valid_in),
@@ -161,7 +170,5 @@ module simmem_top (
       .r_resp_bank_ready_i         (r_delay_calc_ready_out)
 
   );
-
-
 
 endmodule
