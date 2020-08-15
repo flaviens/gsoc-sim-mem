@@ -11,3 +11,5 @@
 
 `verilator_config
 lint_off -rule UNUSED -file "*/rtl/simmem_top.sv" -match "*'wdata_i'*"
+lint_off -rule UNUSED -file "*/rtl/simmem_top.sv" -match "*'waddr_ready_out_delay_calc'*"
+lint_off -rule UNUSED -file "*/rtl/simmem_top.sv" -match "*'raddr_ready_out_delay_calc'*"

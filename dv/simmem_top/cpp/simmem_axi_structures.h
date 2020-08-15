@@ -19,7 +19,7 @@ struct WriteAddressRequest {
   static const uint64_t burst_size_off, burst_size_w;
   static const uint64_t burst_type_off, burst_type_w;
   static const uint64_t lock_type_off, lock_type_w;
-  static const uint64_t memtype_off, memtype_w;
+  static const uint64_t mem_type_off, mem_type_w;
   static const uint64_t prot_off, prot_w;
   static const uint64_t qos_off, qos_w;
   // TODO: Implement region
@@ -30,7 +30,7 @@ struct WriteAddressRequest {
   uint64_t burst_size;
   uint64_t burst_type;
   uint64_t lock_type;
-  uint64_t memtype;
+  uint64_t mem_type;
   uint64_t prot;
   uint64_t qos;
 
@@ -70,7 +70,7 @@ struct ReadAddressRequest {
   static const uint64_t burst_size_off, burst_size_w;
   static const uint64_t burst_type_off, burst_type_w;
   static const uint64_t lock_type_off, lock_type_w;
-  static const uint64_t memtype_off, memtype_w;
+  static const uint64_t mem_type_off, mem_type_w;
   static const uint64_t prot_off, prot_w;
   static const uint64_t qos_off, qos_w;
   // TODO: Implement region
@@ -81,7 +81,7 @@ struct ReadAddressRequest {
   uint64_t burst_size;
   uint64_t burst_type;
   uint64_t lock_type;
-  uint64_t memtype;
+  uint64_t mem_type;
   uint64_t prot;
   uint64_t qos;
 

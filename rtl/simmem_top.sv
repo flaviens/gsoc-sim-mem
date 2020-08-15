@@ -86,8 +86,8 @@ module simmem_top (
   assign wdata_valid_in_delay_calc = wdata_out_ready_i & wdata_in_valid_i;
 
   // Release enable signals
-  logic [WriteRespBankCapacity-1:0] wresp_release_en_onehot;
-  logic [ReadDataBankCapacity-1:0] rdata_release_en_onehot;
+  logic [WriteRespBankCapacity-1:0] wresp_release_en_mhot;
+  logic [ReadDataBankCapacity-1:0] rdata_release_en_mhot;
 
   // Released addresses feedback
   logic [WriteRespBankCapacity-1:0] wresp_released_onehot;
@@ -125,8 +125,8 @@ module simmem_top (
       .wrsv_ready_o            (wrsv_ready_out),
       .rrsv_valid_i            (rrsv_valid_in),
       .rrsv_ready_o            (rrsv_ready_out),
-      .w_release_en_i          (wresp_release_en_onehot),
-      .r_release_en_i          (rdata_release_en_onehot),
+      .w_release_en_i          (wresp_release_en_mhot),
+      .r_release_en_i          (rdata_release_en_mhot),
       .w_released_addr_onehot_o(wresp_released_onehot),
       .r_released_addr_onehot_o(rdata_released_onehot),
       .wresp_i                 (wresp_i),
@@ -154,14 +154,14 @@ module simmem_top (
       .waddr_iid_i                 (wrsv_iid),
       .waddr_valid_i               (waddr_valid_in_delay_calc),
       .waddr_ready_o               (waddr_ready_out_delay_calc),
-      .wdata_valid_i               (wdata_in_valid_i),
+      .wdata_valid_i               (wdata_valid_in_delay_calc),
       .wdata_ready_o               (wdata_ready_out_delay_calc),
       .raddr_i                     (raddr_i),
       .raddr_iid_i                 (rrsv_iid),
       .raddr_valid_i               (raddr_valid_in_delay_calc),
       .raddr_ready_o               (raddr_ready_out_delay_calc),
-      .wresp_release_en_onehot_o   (wresp_release_en_onehot),
-      .rdata_release_en_onehot_o   (rdata_release_en_onehot),
+      .wresp_release_en_mhot_o     (wresp_release_en_mhot),
+      .rdata_release_en_mhot_o     (rdata_release_en_mhot),
       .wresp_released_addr_onehot_i(wresp_released_onehot),
       .rdata_released_addr_onehot_i(rdata_released_onehot),
       .w_resp_bank_ready_o         (w_delay_calc_ready_in),

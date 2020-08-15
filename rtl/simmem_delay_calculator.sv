@@ -48,8 +48,8 @@ module simmem_delay_calculator #(
     output logic raddr_ready_o,
 
     // Release enable output signals and released address feedback.
-    output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_onehot_o,
-    output logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_onehot_o,
+    output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_mhot_o,
+    output logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_mhot_o,
 
     // Release confirmations sent by the message banks
     input logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_released_addr_onehot_i,
@@ -151,8 +151,8 @@ module simmem_delay_calculator #(
       .raddr_valid_i(raddr_valid_i),
       .raddr_ready_o(raddr_ready_o),
 
-      .wresp_release_en_onehot_o(wresp_release_en_onehot_o),
-      .rdata_release_en_onehot_o(rdata_release_en_onehot_o),
+      .wresp_release_en_mhot_o(wresp_release_en_mhot_o),
+      .rdata_release_en_mhot_o(rdata_release_en_mhot_o),
 
       .wresp_released_addr_onehot_i(wresp_released_addr_onehot_i),
       .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i),

@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Vsimmem_write_only_nocontent.h"
+#include "Vsimmem_top.h"
 #include "simmem_axi_structures.h"
 #include "verilated.h"
 #include <cassert>
@@ -27,14 +27,20 @@ const int kTraceLevel = 6;
 // const size_t kNbLocalIdentifiers = 32;
 const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 
-typedef Vsimmem_write_only_nocontent Module;
+typedef Vsimmem_top Module;
 
 typedef std::map<uint64_t, std::queue<WriteResponse>> wresp_queue_map_t;
 // Maps mapping AXI identifiers to queues of pairs (timestamp, response)
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>
     waddr_time_queue_map_t;
+typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteData>>>
+    wdata_time_queue_map_t;
+typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadAddrRequest>>>
+    raddr_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
     wresp_time_queue_map_t;
+typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadData>>>
+    rdata_time_queue_map_t;
 
 // This class implements elementary operations for the testbench
 class SimmemTestbench {
@@ -107,7 +113,7 @@ class SimmemTestbench {
    * @param waddr_req the input address request
    */
   void simmem_requester_waddr_apply(WriteAddressRequest waddr_req) {
-    module_->waddr_data_i = waddr_req.to_packed();
+    module_->waddr_i = waddr_req.to_packed();
     module_->waddr_in_valid_i = 1;
   }
 
@@ -123,6 +129,52 @@ class SimmemTestbench {
    * Stops applying a valid input write address request as the requester.
    */
   void simmem_requester_waddr_stop(void) { module_->waddr_in_valid_i = 0; }
+
+  /**
+   * Applies a valid input data request as the requester.
+   *
+   * @param wdata_req the input address request
+   */
+  void simmem_requester_wdata_apply(WriteData wdata_req) {
+    module_->wdata_i = wdata_req.to_packed();
+    module_->wdata_in_valid_i = 1;
+  }
+
+  /**
+   * Checks whether the input request has been accepted.
+   */
+  bool simmem_requester_wdata_check() {
+    module_->eval();
+    return (bool)(module_->wdata_in_ready_o);
+  }
+
+  /**
+   * Stops applying a valid input write address request as the requester.
+   */
+  void simmem_requester_wdata_stop(void) { module_->wdata_in_valid_i = 0; }
+
+  /**
+   * Applies a valid input address request as the requester.
+   *
+   * @param raddr_req the input address request
+   */
+  void simmem_requester_raddr_apply(ReadAddressRequest raddr_req) {
+    module_->raddr_i = raddr_req.to_packed();
+    module_->raddr_in_valid_i = 1;
+  }
+
+  /**
+   * Checks whether the input request has been accepted.
+   */
+  bool simmem_requester_raddr_check() {
+    module_->eval();
+    return (bool)(module_->raddr_in_ready_o);
+  }
+
+  /**
+   * Stops applying a valid input read address request as the requester.
+   */
+  void simmem_requester_raddr_stop(void) { module_->raddr_in_valid_i = 0; }
 
   /**
    * Sets the ready signal to one on the DUT output side for the write response.
@@ -141,7 +193,7 @@ class SimmemTestbench {
     module_->eval();
     assert(module_->wresp_out_ready_i);
 
-    out_data.from_packed(module_->wresp_data_o);
+    out_data.from_packed(module_->wresp_o);
     return (bool)(module_->wresp_out_valid_o);
   }
 
@@ -152,12 +204,39 @@ class SimmemTestbench {
   void simmem_requester_wresp_stop(void) { module_->wresp_out_ready_i = 0; }
 
   /**
+   * Sets the ready signal to one on the DUT output side for the read data.
+   */
+  void simmem_requester_rdata_request(void) { module_->rdata_out_ready_i = 1; }
+
+  /**
+   * Fetches a read data as the requester. Requires the ready signal to be
+   * one at the DUT output.
+   *
+   * @param out_data the output read data from the DUT
+   *
+   * @return true iff the data is valid
+   */
+  bool simmem_requester_rdata_fetch(ReadData &out_data) {
+    module_->eval();
+    assert(module_->rdata_out_ready_i);
+
+    out_data.from_packed(module_->rdata_o);
+    return (bool)(module_->rdata_out_valid_o);
+  }
+
+  /**
+   * Sets the ready signal to zero on the DUT output side for the write
+   * response.
+   */
+  void simmem_requester_rdata_stop(void) { module_->rdata_out_ready_i = 0; }
+
+  /**
    * Applies a valid write response the real memory controller.
    *
    * @param wresp the input write response
    */
   void simmem_realmem_wresp_apply(WriteResponse wresp) {
-    module_->wresp_data_i = wresp.to_packed();
+    module_->wresp_i = wresp.to_packed();
 
     module_->wresp_in_valid_i = 1;
   }
@@ -176,6 +255,30 @@ class SimmemTestbench {
   void simmem_realmem_wresp_stop(void) { module_->wresp_in_valid_i = 0; }
 
   /**
+   * Applies a valid read data the real memory controller.
+   *
+   * @param rdata the input read data
+   */
+  void simmem_realmem_rdata_apply(WriteResponse rdata) {
+    module_->rdata_i = rdata.to_packed();
+
+    module_->rdata_in_valid_i = 1;
+  }
+
+  /**
+   * Checks whether the input request has been accepted.
+   */
+  bool simmem_realmem_rdata_check() {
+    module_->eval();
+    return (bool)(module_->rdata_in_ready_o);
+  }
+
+  /**
+   * Stops applying a valid input read data as the real memory controller.
+   */
+  void simmem_realmem_rdata_stop(void) { module_->rdata_in_valid_i = 0; }
+
+  /**
    * Sets the ready signal to one on the DUT output side for the write address.
    */
   void simmem_realmem_waddr_request(void) { module_->waddr_out_ready_i = 1; }
@@ -192,7 +295,7 @@ class SimmemTestbench {
     module_->eval();
     assert(module_->waddr_out_ready_i);
 
-    out_data.from_packed(module_->waddr_data_o);
+    out_data.from_packed(module_->waddr_o);
     return (bool)(module_->waddr_out_valid_o);
   }
 
@@ -201,6 +304,60 @@ class SimmemTestbench {
    * address.
    */
   void simmem_realmem_waddr_stop(void) { module_->waddr_out_ready_i = 0; }
+
+  /**
+   * Sets the ready signal to one on the DUT output side for the write data.
+   */
+  void simmem_realmem_wdata_request(void) { module_->wdata_out_ready_i = 1; }
+
+  /**
+   * Fetches a write data as the real memory controller. Requires the ready
+   * signal to be one at the DUT output.
+   *
+   * @param out_data the output write data request from the DUT
+   *
+   * @return true iff the data is valid
+   */
+  bool simmem_realmem_wdata_fetch(WriteData &out_data) {
+    module_->eval();
+    assert(module_->wdata_out_ready_i);
+
+    out_data.from_packed(module_->wdata_o);
+    return (bool)(module_->wdata_out_valid_o);
+  }
+
+  /**
+   * Sets the ready signal to zero on the DUT output side for the write
+   * data.
+   */
+  void simmem_realmem_wdata_stop(void) { module_->wdata_out_ready_i = 0; }
+
+  /**
+   * Sets the ready signal to one on the DUT output side for the read address.
+   */
+  void simmem_realmem_raddr_request(void) { module_->raddr_out_ready_i = 1; }
+
+  /**
+   * Fetches a read address as the real memory controller. Requires the ready
+   * signal to be one at the DUT output.
+   *
+   * @param out_data the output read address request from the DUT
+   *
+   * @return true iff the data is valid
+   */
+  bool simmem_realmem_raddr_fetch(ReadAddressRequest &out_data) {
+    module_->eval();
+    assert(module_->raddr_out_ready_i);
+
+    out_data.from_packed(module_->raddr_o);
+    return (bool)(module_->raddr_out_valid_o);
+  }
+
+  /**
+   * Sets the ready signal to zero on the DUT output side for the read
+   * address.
+   */
+  void simmem_realmem_raddr_stop(void) { module_->raddr_out_ready_i = 0; }
 
   /**
    * Informs the testbench that all the requests have been performed and
@@ -227,10 +384,11 @@ class SimmemTestbench {
 
 class RealMemoryController {
  public:
-  RealMemoryController(std::vector<uint64_t> identifiers) {
-    for (size_t i = 0; i < identifiers.size(); i++) {
+  RealMemoryController(std::vector<uint64_t> ids) {
+    for (size_t i = 0; i < ids.size(); i++) {
       wresp_out_queues.insert(std::pair<uint64_t, std::queue<WriteResponse>>(
-          identifiers[i], std::queue<WriteResponse>()));
+          ids[i], std::queue<WriteResponse>()));
+      available_rdata
     }
   }
 
@@ -297,12 +455,41 @@ class RealMemoryController {
 
  private:
   wresp_queue_map_t wresp_out_queues;
+  // Counts how many read data remain to be released to the simulated memory
+  // controller.
+  std::map<uint64_t, uint64_t> available_rdata;
 };
 
 void simple_testbench(SimmemTestbench *tb) {
   tb->simmem_reset();
 
   tb->simmem_tick(5);
+
+  WriteAddressRequest w_addr_req;
+  w_addr_req.id = 0;
+  w_addr_req.addr = 7;
+  w_addr_req.burst_len = 2;
+  w_addr_req.burst_size = 8;
+  w_addr_req.burst_type = 0;
+  w_addr_req.lock_type = 0;
+  w_addr_req.mem_type = 0;
+  w_addr_req.prot = 0;
+  w_addr_req.qos = 0;
+
+  tb->simmem_requester_waddr_apply(w_addr_req);
+
+  tb->simmem_tick(3);
+
+  tb->simmem_realmem_waddr_request();
+  tb->simmem_tick(4);
+
+  WriteData w_data;
+  w_data.from_packed(0UL);
+
+  tb->simmem_requester_wdata_apply(w_data);
+  tb->simmem_realmem_wdata_request();
+
+  // tb->simmem_requester_waddr_stop();
 
   while (!tb->simmem_is_done()) {
     tb->simmem_tick();
@@ -315,46 +502,75 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
   size_t nb_iterations = 1000;
 
-  std::vector<uint64_t> identifiers;
+  std::vector<uint64_t> ids;
 
   for (size_t i = 0; i < num_identifiers; i++) {
-    identifiers.push_back(i);
+    ids.push_back(i);
   }
 
-  RealMemoryController realmem(identifiers);
+  RealMemoryController realmem(ids);
 
   waddr_time_queue_map_t waddr_in_queues;
   waddr_time_queue_map_t waddr_out_queues;
+  wdata_time_queue_map_t wdata_in_queues;
+  wdata_time_queue_map_t wdata_out_queues;
+  raddr_time_queue_map_t raddr_in_queues;
+  raddr_time_queue_map_t raddr_out_queues;
+  rdata_time_queue_map_t rdata_in_queues;
+  rdata_time_queue_map_t rdata_out_queues;
   wresp_time_queue_map_t wresp_in_queues;
   wresp_time_queue_map_t wresp_out_queues;
 
   for (size_t i = 0; i < num_identifiers; i++) {
     waddr_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
-            identifiers[i],
-            std::queue<std::pair<size_t, WriteAddressRequest>>()));
+            ids[i], std::queue<std::pair<size_t, WriteAddressRequest>>()));
     waddr_out_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
-            identifiers[i],
-            std::queue<std::pair<size_t, WriteAddressRequest>>()));
+            ids[i], std::queue<std::pair<size_t, WriteAddressRequest>>()));
+    wdata_in_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
+            ids[i], std::queue<std::pair<size_t, WriteData>>()));
+    wdata_out_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
+            ids[i], std::queue<std::pair<size_t, WriteData>>()));
+    raddr_in_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddressRequest>>>(
+            ids[i], std::queue<std::pair<size_t, ReadAddressRequest>>()));
+    raddr_out_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddressRequest>>>(
+            ids[i], std::queue<std::pair<size_t, ReadAddressRequest>>()));
+    rdata_in_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadData>>>(
+            ids[i], std::queue<std::pair<size_t, ReadData>>()));
+    rdata_out_queues.insert(
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadData>>>(
+            ids[i], std::queue<std::pair<size_t, ReadData>>()));
     wresp_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>(
-            identifiers[i], std::queue<std::pair<size_t, WriteResponse>>()));
+            ids[i], std::queue<std::pair<size_t, WriteResponse>>()));
     wresp_out_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>(
-            identifiers[i], std::queue<std::pair<size_t, WriteResponse>>()));
+            ids[i], std::queue<std::pair<size_t, WriteResponse>>()));
   }
 
-  bool requester_apply_waddr_input_data;
-  bool realmem_apply_wresp_input_data;
-  bool requester_req_wresp_output_data;
-  bool realmem_req_waddr_output_data;
+  bool requester_apply_waddr_input;
+  bool requester_apply_wdata_input;
+  bool requester_apply_raddr_input;
+  bool realmem_apply_rdata_input;
+  bool realmem_apply_wresp_input;
+
+  bool realmem_req_waddr_output;
+  bool realmem_req_wdata_output;
+  bool realmem_req_raddr_output;
+  bool requester_req_rdata_output;
+  bool requester_req_wresp_output;
 
   bool iteration_announced;  // Variable only used for display
 
   WriteAddressRequest requester_current_input;  // Input from the requester
   requester_current_input.from_packed(rand());
-  requester_current_input.id = identifiers[rand() % num_identifiers];
+  requester_current_input.id = ids[rand() % num_identifiers];
   WriteResponse requester_current_output;  // Output to the requester
 
   WriteResponse realmem_current_input;         // Input from the realmem
@@ -367,35 +583,34 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
     // Randomize the boolean signals deciding which interactions will take place
     // in this cycle
-    requester_apply_waddr_input_data = (bool)(rand() & 1);
-    requester_req_wresp_output_data = true;
+    requester_apply_waddr_input = (bool)(rand() & 1);
+    requester_req_wresp_output = true;
     // The requester is supposedly always ready to get data, for precise delay
     // calculation
-    realmem_apply_wresp_input_data = realmem.has_wresp_to_input();
+    realmem_apply_wresp_input = realmem.has_wresp_to_input();
     // The real memory controller is supposedly always ready to get data, for
     // precise delay calculation
-    realmem_req_waddr_output_data = 1;
+    realmem_req_waddr_output = 1;
 
-    if (requester_apply_waddr_input_data) {
+    if (requester_apply_waddr_input) {
       // Apply a given input
       tb->simmem_requester_waddr_apply(requester_current_input);
     }
-    if (requester_req_wresp_output_data) {
+    if (requester_req_wresp_output) {
       // Express readiness
       tb->simmem_requester_wresp_request();
     }
-    if (realmem_apply_wresp_input_data) {
+    if (realmem_apply_wresp_input) {
       // Apply the next available wresp from the real memory controller
       tb->simmem_realmem_wresp_apply(realmem.get_next_wresp());
     }
-    if (realmem_req_waddr_output_data) {
+    if (realmem_req_waddr_output) {
       // Express readiness
       tb->simmem_realmem_waddr_request();
     }
 
     // Input handshakes
-    if (requester_apply_waddr_input_data &&
-        tb->simmem_requester_waddr_check()) {
+    if (requester_apply_waddr_input && tb->simmem_requester_waddr_check()) {
       // If the input handshake between the requester and the simmem has been
       // successful, then accept the input
 
@@ -414,9 +629,9 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
       // Renew the input data if the input handshake has been successful
       requester_current_input.from_packed(rand());
-      requester_current_input.id = identifiers[rand() % num_identifiers];
+      requester_current_input.id = ids[rand() % num_identifiers];
     }
-    if (realmem_apply_wresp_input_data && tb->simmem_realmem_wresp_check()) {
+    if (realmem_apply_wresp_input && tb->simmem_realmem_wresp_check()) {
       // If the input handshake between the realmem and the simmem has been
       // successful, then accept the input
 
@@ -437,15 +652,15 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
       // Renew the input data if the input handshake has been successful
       realmem_current_input.from_packed(rand());
-      realmem_current_input.id = identifiers[rand() % num_identifiers];
+      realmem_current_input.id = ids[rand() % num_identifiers];
     }
 
     // Output handshakes
-    if (requester_req_wresp_output_data &&
+    if (requester_req_wresp_output &&
         tb->simmem_requester_wresp_fetch(requester_current_output)) {
       // If the output handshake between the requester and the simmem has been
       // successful, then accept the output
-      wresp_out_queues[identifiers[requester_current_output.id]].push(
+      wresp_out_queues[ids[requester_current_output.id]].push(
           std::pair<size_t, WriteResponse>(curr_itern,
                                            requester_current_output));
 
@@ -459,11 +674,11 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                   << requester_current_output.to_packed() << std::endl;
       }
     }
-    if (realmem_req_waddr_output_data &&
+    if (realmem_req_waddr_output &&
         tb->simmem_realmem_waddr_fetch(realmem_current_output)) {
       // If the output handshake between the realmem and the simmem has been
       // successful, then accept the output
-      waddr_out_queues[identifiers[realmem_current_output.id]].push(
+      waddr_out_queues[ids[realmem_current_output.id]].push(
           std::pair<size_t, WriteAddressRequest>(curr_itern,
                                                  realmem_current_output));
 
@@ -486,16 +701,16 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
     // Reset all signals after tick (they may be set again before the next DUT
     // evaluation during the beginning of the next iteration)
 
-    if (requester_apply_waddr_input_data) {
+    if (requester_apply_waddr_input) {
       tb->simmem_requester_waddr_stop();
     }
-    if (requester_req_wresp_output_data) {
+    if (requester_req_wresp_output) {
       tb->simmem_requester_wresp_stop();
     }
-    if (realmem_apply_wresp_input_data) {
+    if (realmem_apply_wresp_input) {
       tb->simmem_realmem_wresp_stop();
     }
-    if (realmem_req_waddr_output_data) {
+    if (realmem_req_waddr_output) {
       tb->simmem_realmem_waddr_stop();
     }
   }
@@ -534,8 +749,7 @@ int main(int argc, char **argv, char **env) {
   Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
 
-  SimmemTestbench *tb =
-      new SimmemTestbench(100, true, "write_only_nocontent.fst");
+  SimmemTestbench *tb = new SimmemTestbench(1000, true, "top.fst");
 
   // Choose testbench type
   // simple_testbench(tb);

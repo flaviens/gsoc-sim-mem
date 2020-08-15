@@ -110,8 +110,8 @@ module simmem_delay_calculator_core #(
     output logic raddr_ready_o,
 
     // Release enable output signals and released address feedback.
-    output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_onehot_o,
-    output logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_onehot_o,
+    output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_mhot_o,
+    output logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_mhot_o,
 
     // Release confirmations sent by the message banks
     input logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_released_addr_onehot_i,
@@ -210,6 +210,9 @@ module simmem_delay_calculator_core #(
   */
   function automatic logic [NumRanksWidth-1:0] get_assigned_rank_id(
     logic[GlobalMemoryCapaWidth-1:0] address);
+    if (NumRanks == 1) begin
+      return 0;
+    end
     return address[NumRanksWidth-1:0];
   endfunction : get_assigned_rank_id
 
@@ -671,7 +674,7 @@ module simmem_delay_calculator_core #(
 
   // Set the read data release_en outputs to one, where the corresponding counter is not zero.
   for (genvar i_iid = 0; i_iid < ReadDataBankCapacity; i_iid = i_iid + 1) begin : en_rdata_release
-    assign rdata_release_en_onehot_o[i_iid] = |rdata_release_en_counters_q[i_iid];
+    assign rdata_release_en_mhot_o[i_iid] = |rdata_release_en_counters_q[i_iid];
   end : en_rdata_release
 
 
@@ -688,7 +691,7 @@ module simmem_delay_calculator_core #(
       open_row_start_address_d[i_rk] = open_row_start_address_q[i_rk];
     end
 
-    wresp_release_en_onehot_d = wresp_release_en_onehot_o;
+    wresp_release_en_onehot_d = wresp_release_en_mhot_o;
     rdata_release_en_counters_d = rdata_release_en_counters_q;
 
     main_new_entry = '{default: '0};
@@ -869,7 +872,7 @@ module simmem_delay_calculator_core #(
 
     // Decrement the rdata_release_en_counters_d if data has been released for this address (aka.
     // iid). If a counter is decremented, it was originally not zero, because a message bank is not
-    // allowed to release read responses of the corresponding rdata_release_en_onehot_o bit is zero,
+    // allowed to release read responses of the corresponding rdata_release_en_mhot_o bit is zero,
     // which happens iff the corresponding counter is zero.
     for (int unsigned i_iid = 0; i_iid < ReadDataBankCapacity; i_iid = i_iid + 1) begin
       if (rdata_released_addr_onehot_i[i_iid]) begin
@@ -916,7 +919,7 @@ module simmem_delay_calculator_core #(
       is_row_open_q <= '{default: '0};
       open_row_start_address_q <= '{default: '0};
       rank_delay_cnt_q <= '{default: '0};
-      wresp_release_en_onehot_o <= '0;
+      wresp_release_en_mhot_o <= '0;
       rdata_release_en_counters_q <= '0;
     end else begin
       wslt_q <= wslt_d;
@@ -924,7 +927,7 @@ module simmem_delay_calculator_core #(
       is_row_open_q <= is_row_open_d;
       open_row_start_address_q <= open_row_start_address_d;
       rank_delay_cnt_q <= rank_delay_cnt_d;
-      wresp_release_en_onehot_o <= wresp_release_en_onehot_d;
+      wresp_release_en_mhot_o <= wresp_release_en_onehot_d;
       rdata_release_en_counters_q <= rdata_release_en_counters_d;
     end
   end
