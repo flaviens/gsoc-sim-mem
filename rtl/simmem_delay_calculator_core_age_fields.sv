@@ -362,8 +362,8 @@ module simmem_delay_calculator_core (
 
         for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
           w_slt_d[i_slt].data_v[i_bit] =
-              (i_bit >= waddr_i.burst_length) || (i_bit < wdata_immediate_cnt_i);
-          w_slt_d[i_slt].mem_done[i_bit] = i_bit >= waddr_i.burst_length;
+              (i_bit >= waddr_i.burst_len) || (i_bit < wdata_immediate_cnt_i);
+          w_slt_d[i_slt].mem_done[i_bit] = i_bit >= waddr_i.burst_len;
 
           w_slt_d[i_slt].data_tstp[i_bit] = tstp_cnt_q;
         end
@@ -383,8 +383,8 @@ module simmem_delay_calculator_core (
         r_slt_d[i_slt].mem_pending = '0;
 
         for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
-          r_slt_d[i_slt].data_v[i_bit] = i_bit >= raddr_i.burst_length;
-          r_slt_d[i_slt].mem_done[i_bit] = i_bit >= raddr_i.burst_length;
+          r_slt_d[i_slt].data_v[i_bit] = i_bit >= raddr_i.burst_len;
+          r_slt_d[i_slt].mem_done[i_bit] = i_bit >= raddr_i.burst_len;
         end
       end
     end

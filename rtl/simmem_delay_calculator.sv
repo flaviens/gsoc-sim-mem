@@ -104,10 +104,10 @@ module simmem_delay_calculator #(
       wdata_immediate_cnt = 0;
       if (!wdata_cnt_d[MaxPendingWDataWidth]) begin
         // If wdata_cnt_d is nonnegative, then consider sending immediate data
-        if (AxLenWidth'(wdata_cnt_d) >= waddr_i.burst_length) begin
+        if (AxLenWidth'(wdata_cnt_d) >= waddr_i.burst_len) begin
           // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
           // transmit all this data with the address request to the delay calculator core.
-          wdata_immediate_cnt = waddr_i.burst_length[MaxWBurstLenWidth - 1:0];
+          wdata_immediate_cnt = waddr_i.burst_len[MaxWBurstLenWidth - 1:0];
         end else begin
           // Else, transmit only the already and currently received write data, and set the counter to
           // zero, as it has been emptied.
@@ -116,7 +116,7 @@ module simmem_delay_calculator #(
       end
 
       // Update the write data count to take the new core demand into account.
-      wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(waddr_i.burst_length);
+      wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(waddr_i.burst_len);
     end
   end
 

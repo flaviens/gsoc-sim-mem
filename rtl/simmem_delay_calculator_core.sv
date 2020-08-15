@@ -19,7 +19,7 @@
 //   wdata_immediate_cnt_i of write data requests, it occupies the lowest-identifier available write
 //   slot. The wdata_immediate_cnt_i first bits of the data_v signal are set to one to indicate that
 //   the slots are occupied. As they are to be treated, the corresponding bits of mem_pending and
-//   mem_done are set to 0. The next burst_length-wdata_immediate_cnt_i bits, corresponding to the
+//   mem_done are set to 0. The next burst_len-wdata_immediate_cnt_i bits, corresponding to the
 //   still awaited write data requests, are set to zero in the three signals. The rest of the bits,
 //   corresponding to data beyond the burst length, are set to (data_v, mem_pending,
 //   mem_done)=(1,0,1).
@@ -737,7 +737,7 @@ module simmem_delay_calculator_core #(
           // write data to come in. The rest of the data_v bits (between the two possibly empty
           // ranges of ones) are set to zero, awaiting further write data requests.
           wslt_d[i_slt].data_v[i_bit] =
-              (AxLenWidth'(i_bit) >= waddr_i.burst_length) || (i_bit < wdata_immediate_cnt_i);
+              (AxLenWidth'(i_bit) >= waddr_i.burst_len) || (i_bit < wdata_immediate_cnt_i);
           // The age matrix has to be updated for each immediate write data, with the same age
           // relative to the entries external to the slot.
           main_new_entry[i_slt * MaxWBurstLen+i_bit] = i_bit < wdata_immediate_cnt_i;
@@ -746,7 +746,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          wslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= waddr_i.burst_length;
+          wslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= waddr_i.burst_len;
         end
       end
     end
@@ -777,7 +777,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          rslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= raddr_i.burst_length;
+          rslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= raddr_i.burst_len;
         end
 
         main_new_entry[MainAgeMatrixRSlotStartIndex + i_slt] = 1'b1;

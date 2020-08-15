@@ -30,12 +30,14 @@ const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 typedef Vsimmem_top Module;
 
 typedef std::map<uint64_t, std::queue<WriteResponse>> wresp_queue_map_t;
+typedef std::map<uint64_t, std::queue<ReadData>> rdata_queue_map_t;
+
 // Maps mapping AXI identifiers to queues of pairs (timestamp, response)
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>
     waddr_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteData>>>
     wdata_time_queue_map_t;
-typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadAddrRequest>>>
+typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadAddressRequest>>>
     raddr_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
     wresp_time_queue_map_t;
@@ -388,14 +390,15 @@ class RealMemoryController {
     for (size_t i = 0; i < ids.size(); i++) {
       wresp_out_queues.insert(std::pair<uint64_t, std::queue<WriteResponse>>(
           ids[i], std::queue<WriteResponse>()));
-      available_rdata
+      rdata_out_queues.insert(std::pair<uint64_t, std::queue<ReadData>>(
+          ids[i], std::queue<ReadData>()));
     }
   }
 
   /**
    * Adds a new write address to the received list.
    */
-  void add_waddr(WriteAddressRequest waddr) {
+  void accept_waddr(WriteAddressRequest waddr) {
     WriteResponse new_resp;
     new_resp.id = waddr.id;
     new_resp.rsp =  // Copy the low order rsp of the incoming waddr in
@@ -407,14 +410,44 @@ class RealMemoryController {
   }
 
   /**
+   * Enables the release of read data.
+   */
+  void accept_raddr(ReadAddressRequest raddr) {
+    for (size_t i = 0; i < raddr.burst_len; i++) {
+      ReadData new_rdata;
+      new_rdata.id = raddr.id;
+      new_rdata.data = raddr.addr + i;
+      new_rdata.rsp = 0;  // "OK" response
+      new_rdata.last = i == raddr.burst_len - 1;
+      rdata_out_queues[raddr.id].push(new_rdata);
+    }
+  }
+
+  /**
    * Simulates immediate operation of the real memory controller.
    * The messages are arbitrarily issued by lowest AXI identifier first.
    *
-   * @return 1 iff the real controller holds a valid write response.
+   * @return true iff the real controller holds a valid write response.
    */
   bool has_wresp_to_input() {
     wresp_queue_map_t::iterator it;
     for (it = wresp_out_queues.begin(); it != wresp_out_queues.end(); it++) {
+      if (it->second.size()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Simulates immediate operation of the real memory controller.
+   * The read data are arbitrarily issued by lowest AXI identifier first.
+   *
+   * @return true iff the real controller holds a valid read data.
+   */
+  bool has_rdata_to_input() {
+    rdata_queue_map_t::iterator it;
+    for (it = rdata_out_queues.begin(); it != rdata_out_queues.end(); it++) {
       if (it->second.size()) {
         return true;
       }
@@ -439,8 +472,23 @@ class RealMemoryController {
   }
 
   /**
-   * Pops the next write response. Assumes there is one ready.
+   * Gets the next read data. Assumes there is one ready.
+   * This function is not destructive: the read data is not popped.
    *
+   * @return the read data.
+   */
+  ReadData get_next_rdata() {
+    rdata_queue_map_t::iterator it;
+    for (it = rdata_out_queues.begin(); it != rdata_out_queues.end(); it++) {
+      if (it->second.size()) {
+        return it->second.front();
+      }
+    }
+    assert(false);
+  }
+
+  /**
+   * Pops the next write response. Assumes there is one ready.
    */
   void pop_next_wresp() {
     wresp_queue_map_t::iterator it;
@@ -453,11 +501,23 @@ class RealMemoryController {
     assert(false);
   }
 
+  /**
+   * Pops the next read data. Assumes there is one ready.
+   */
+  void pop_next_rdata() {
+    rdata_queue_map_t::iterator it;
+    for (it = rdata_out_queues.begin(); it != rdata_out_queues.end(); it++) {
+      if (it->second.size()) {
+        it->second.pop();
+        return;
+      }
+    }
+    assert(false);
+  }
+
  private:
   wresp_queue_map_t wresp_out_queues;
-  // Counts how many read data remain to be released to the simulated memory
-  // controller.
-  std::map<uint64_t, uint64_t> available_rdata;
+  rdata_queue_map_t rdata_out_queues;
 };
 
 void simple_testbench(SimmemTestbench *tb) {
@@ -581,8 +641,8 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   for (size_t curr_itern = 0; curr_itern < nb_iterations; curr_itern++) {
     iteration_announced = false;
 
-    // Randomize the boolean signals deciding which interactions will take place
-    // in this cycle
+    // Randomize the boolean signals deciding which interactions will take
+    // place in this cycle
     requester_apply_waddr_input = (bool)(rand() & 1);
     requester_req_wresp_output = true;
     // The requester is supposedly always ready to get data, for precise delay
@@ -683,7 +743,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                                                  realmem_current_output));
 
       // Let the realmem treat the freshly received waddr
-      realmem.add_waddr(realmem_current_output);
+      realmem.accept_waddr(realmem_current_output);
 
       if (kTransactionVerbose) {
         if (!iteration_announced) {
