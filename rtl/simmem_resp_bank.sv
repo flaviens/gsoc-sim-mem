@@ -70,7 +70,8 @@ module simmem_resp_bank #(
     parameter int unsigned TotCapa = simmem_pkg::ReadDataBankCapacity,
     parameter type DataType = simmem_pkg::rdata_t,
 
-    localparam int unsigned BurstLenWidth = $clog2 (simmem::MaxRBurstLen + 1),  // derived parameter
+    localparam
+        int unsigned BurstLenWidth = $clog2 (simmem_pkg::MaxRBurstLen + 1),  // derived parameter
     localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
     localparam int unsigned DataWidth = $bits (DataType)  // derived parameter
 ) (
@@ -81,7 +82,7 @@ module simmem_resp_bank #(
     input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
     // Information about currently reserved address. Will be stored by other modules as an internal
     // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [     BankAddrWidth-1:0] rsv_addr_o,
+    output logic [     BankAddrWidth-1:0] rsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
     input  logic [     BurstLenWidth-1:0] rsv_burst_len_i,
     // Reservation handshake signals
@@ -104,7 +105,12 @@ module simmem_resp_bank #(
 
     // Interface with the requester
     input  logic out_rsp_ready_i,
-    output logic out_rsp_valid_o
+    output logic out_rsp_valid_o,
+
+    // Ready signals from the delay calculator
+    input  logic delay_calc_ready_i,
+    // Ready signals for the delay calculator
+    output logic delay_calc_ready_o
 );
 
   import simmem_pkg::*;
@@ -423,7 +429,7 @@ module simmem_resp_bank #(
     end
   end
 
-  assign rsv_addr_o = nxt_free_addr;
+  assign rsv_iid_o = nxt_free_addr;
 
 
   ////////////////////////////
@@ -691,8 +697,8 @@ module simmem_resp_bank #(
   // Input is ready if there is room and data is not flowing out
   assign in_rsp_ready_o =
       in_rsp_valid_i && |is_id_rsvd;  // AXI 4 allows ready to depend on the valid signal
-  assign rsv_ready_o = |(~ram_v);
-
+  assign delay_calc_ready_o = |(~ram_v);
+  assign rsv_ready_o = delay_calc_ready_o & delay_calc_ready_i;
 
   /////////////
   // Outputs //

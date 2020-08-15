@@ -4,25 +4,25 @@
 //
 // Simulated memory controller top-level
 
-module simmem_write_only_nocontent (  
-  input  logic  clk_i,
-  input  logic  rst_ni,
+module simmem_write_only_nocontent (
+    input logic clk_i,
+    input logic rst_ni,
 
-  input  logic  waddr_in_valid_i,
-  input  logic  waddr_out_ready_i,
-  output logic  waddr_in_ready_o,
-  output logic  waddr_out_valid_o,
+    input  logic waddr_in_valid_i,
+    input  logic waddr_out_ready_i,
+    output logic waddr_in_ready_o,
+    output logic waddr_out_valid_o,
 
-  input  logic  wresp_in_valid_i,
-  input  logic  wresp_out_ready_i,
-  output logic  wresp_in_ready_o,
-  output logic  wresp_out_valid_o,
+    input  logic wresp_in_valid_i,
+    input  logic wresp_out_ready_i,
+    output logic wresp_in_ready_o,
+    output logic wresp_out_valid_o,
 
-  input simmem_pkg::waddr_req_t waddr_data_i,
-  input simmem_pkg::wresp_t wresp_data_i,
+    input simmem_pkg::waddr_t waddr_data_i,
+    input simmem_pkg::wresp_t wresp_data_i,
 
-  output simmem_pkg::waddr_req_t waddr_data_o,
-  output simmem_pkg::wresp_t wresp_data_o
+    output simmem_pkg::waddr_t waddr_data_o,
+    output simmem_pkg::wresp_t wresp_data_o
 );
 
   import simmem_pkg::*;
@@ -74,25 +74,25 @@ module simmem_write_only_nocontent (
       .rst_ni,
 
       .wresp_res_req_id_i(wresp_res_req_id),
-      .wresp_rsv_addr_o(wresp_res_addr), // Reserved address
+      .wresp_rsv_iid_o   (wresp_res_addr),  // Reserved address
       // Reservation handshake signals
-      .wresp_rsv_valid_i(wresp_res_req_valid),
-      .wresp_rsv_ready_o(wresp_res_req_ready), 
+      .wresp_rsv_valid_i (wresp_res_req_valid),
+      .wresp_rsv_ready_o (wresp_res_req_ready),
 
       // Interface with the releaser
-      .wresp_release_en_i(wresp_release_en),  // Multi-hot signal
+      .wresp_release_en_i          (wresp_release_en),  // Multi-hot signal
       .wresp_released_addr_onehot_o(wresp_released_addr_onehot),
 
       // Interface with the real memory controller
-      .wresp_data_i(wresp_bank_in_data), // AXI response excluding handshake
-      .wresp_data_o(wresp_bank_out_data), // AXI response excluding handshake
+      .wresp_data_i        (wresp_bank_in_data),  // AXI response excluding handshake
+      .wresp_data_o        (wresp_bank_out_data),  // AXI response excluding handshake
       .wresp_in_rsp_valid_i(wresp_bank_in_rsp_valid),
       .wresp_in_rsp_ready_o(wresp_bank_in_rsp_ready),
 
       // Interface with the requester
       .wresp_out_rsp_ready_i(wresp_bank_out_rsp_ready),
       .wresp_out_rsp_valid_o(wresp_bank_out_rsp_valid)
-    );
+  );
 
   assign wresp_res_req_id = waddr_data_i.id;
   assign wresp_res_req_valid = waddr_handshake;
@@ -118,12 +118,12 @@ module simmem_write_only_nocontent (
       // .rst_ni,
 
       .wresp_local_id_i(dcal_wresp_in_local_id),
-      .in_valid_i(dcal_wresp_in_valid),
-      
-      .local_id_o(dcal_wresp_out_local_id),
-      .delay_o(dcal_wresp_out_delay),
+      .in_valid_i      (dcal_wresp_in_valid),
+
+      .local_id_o (dcal_wresp_out_local_id),
+      .delay_o    (dcal_wresp_out_delay),
       .out_valid_o(dcal_wresp_out_valid)
-    );
+  );
 
   assign dcal_wresp_in_local_id = wresp_res_addr;
   assign dcal_wresp_in_valid = waddr_handshake;
@@ -141,15 +141,15 @@ module simmem_write_only_nocontent (
   simmem_delay_bank i_simmem_delay_bank (
       .clk_i,
       .rst_ni,
-      
+
       .local_identifier_i(dbank_in_local_id),
-      .delay_i(dbank_in_delay),
-      .in_valid_i(dbank_in_valid),
-      
+      .delay_i           (dbank_in_delay),
+      .in_valid_i        (dbank_in_valid),
+
       // Signals at output
       .address_released_onehot_i(dbank_in_released_onehot),
-      .release_en_o(dbank_out_release_en)
-    );
+      .release_en_o             (dbank_out_release_en)
+  );
 
   assign dbank_in_local_id = dcal_wresp_out_local_id;
   assign dbank_in_delay = dcal_wresp_out_delay;

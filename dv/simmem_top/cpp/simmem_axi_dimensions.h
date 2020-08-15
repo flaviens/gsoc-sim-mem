@@ -12,7 +12,7 @@
 
 const uint64_t GlobalMemoryCapaWidth = 16;
 
-const uint64_t IDWidth = 4;
+const uint64_t IDWidth = 2;
 const uint64_t NumIds = 1 << IDWidth;
 
 // Address field widths
@@ -29,7 +29,8 @@ const uint64_t AwUserWidth = 0;
 const uint64_t ArUserWidth = 0;
 
 // Data & response field widths
-const uint64_t XDataWidth = 16;
+const uint64_t MaxBurstSizeBytes = 4;
+const uint64_t MaxBurstSizeBits = MaxBurstSizeBytes << 3;
 const uint64_t XLastWidth = 1;
 // TODO: Set XRespWidth to 3 when all tests are passed
 const uint64_t XRespWidth = 10;
@@ -37,7 +38,7 @@ const uint64_t WUserWidth = 0;
 const uint64_t RUserWidth = 0;
 const uint64_t BUserWidth = 0;
 
-const uint64_t WStrbWidth = XDataWidth >> 3;
+const uint64_t WStrbWidth = MaxBurstSizeBytes;
 
 const unsigned int PackedW = 64;
 
@@ -46,6 +47,6 @@ const unsigned int PackedW = 64;
 ////////////////////////////
 
 const uint64_t WriteRespBankCapacity = 32;
-const uint64_t ReadDataBankCapacity = 32;
+const uint64_t ReadDataBankCapacity = 16;
 
 #endif  // SIMMEM_DV_AXI_DIMENSIONS

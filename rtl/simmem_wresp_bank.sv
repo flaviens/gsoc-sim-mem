@@ -74,7 +74,7 @@ module simmem_resp_bank (
     input  logic [       NumIds-1:0] rsv_req_id_onehot_i,
     // Information about currently reserved address. Will be stored by other modules as an internal
     // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [BankAddrWidth-1:0] rsv_addr_o,
+    output logic [BankAddrWidth-1:0] rsv_iid_o,
     // Reservation handshake signals
     input  logic                     rsv_valid_i,
     output logic                     rsv_ready_o,
@@ -309,7 +309,7 @@ module simmem_resp_bank (
     end
   end : get_nxt_free_addr_from_onehot
 
-  assign rsv_addr_o = nxt_free_addr;
+  assign rsv_iid_o = nxt_free_addr;
 
 
   ////////////////////////////

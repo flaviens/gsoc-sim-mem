@@ -71,7 +71,7 @@ package simmem_pkg;
     logic [AxLenWidth-1:0] burst_length;
     logic [AxAddrWidth-1:0] addr;
     logic [IDWidth-1:0] id;
-  } waddr_req_t;
+  } waddr_t;
 
   typedef struct packed {
     // logic [ArUserWidth-1:0] user_signal;
@@ -121,7 +121,6 @@ package simmem_pkg;
   // For the write response, the union is only a wrapper helping generic response bank implementation
   typedef union packed {wresp_merged_payload_t merged_payload;} wresp_t;
 
-
   localparam int unsigned MaxRBurstLen = AxLenWidth >> 1;
   localparam int unsigned MaxWBurstLen = AxLenWidth >> 1;
 
@@ -133,7 +132,7 @@ package simmem_pkg;
   ////////////////////////////
 
   localparam int unsigned WriteRespBankCapacity = 32;
-  localparam int unsigned ReadDataBankCapacity = 32;
+  localparam int unsigned ReadDataBankCapacity = 16;
 
   localparam int unsigned WriteRespBankAddrWidth = $clog2(WriteRespBankCapacity);
   localparam int unsigned ReadDataBankAddrWidth = $clog2(ReadDataBankCapacity);
@@ -143,6 +142,5 @@ package simmem_pkg;
   typedef logic [ReadDataBankAddrWidth-1:0] read_iid_t;
 
   localparam int unsigned DelayWidth = 6;
-  localparam int unsigned TimestampWidth = 20;
 
 endpackage

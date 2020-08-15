@@ -56,20 +56,6 @@ filesets:
       - dv/simmem_delay_bank/cpp/simmem_delay_bank_tb.cc
     file_type: cppSource
 
-  files_rtl_delay_calculator_core:
-    files:
-      - rtl/simmem_pkg.sv
-      - rtl/simmem_delay_calculator_core.sv
-    file_type: systemVerilogSource
-
-  files_dv_delay_calculator_core:
-    files:
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_dimensions.h : {is_include_file: true}
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_structures.h : {is_include_file: true}
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_structures.cc
-      - dv/simmem_delay_calculator_core/cpp/simmem_delay_calculator_core_tb.cc
-    file_type: cppSource
-
   files_rtl_delay_calculator:
     files:
       - rtl/simmem_pkg.sv
@@ -79,9 +65,9 @@ filesets:
 
   files_dv_delay_calculator:
     files:
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_dimensions.h : {is_include_file: true}
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_structures.h : {is_include_file: true}
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_structures.cc
+      - dv/simemm_top/cpp/simmem_axi_dimensions.h : {is_include_file: true}
+      - dv/simemm_top/cpp/simmem_axi_structures.h : {is_include_file: true}
+      - dv/simemm_top/cpp/simmem_axi_structures.cc
       - dv/simmem_delay_calculator/cpp/simmem_delay_calculator_tb.cc
     file_type: cppSource
 
@@ -103,11 +89,32 @@ filesets:
 
   files_dv_write_only_nocontent:
     files:
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_dimensions.h : {is_include_file: true}
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_structures.h : {is_include_file: true}
-      - dv/simmem_write_only_nocontent/cpp/simmem_axi_structures.cc
+      - dv/simemm_top/cpp/simmem_axi_dimensions.h : {is_include_file: true}
+      - dv/simemm_top/cpp/simmem_axi_structures.h : {is_include_file: true}
+      - dv/simemm_top/cpp/simmem_axi_structures.cc
       - dv/simmem_write_only_nocontent/cpp/simmem_write_only_nocontent_tb.cc
     file_type: cppSource
+
+  files_rtl_simmem_top:
+    depend:
+      - lowrisc:prim_generic:ram_2p
+    files:
+      - rtl/simmem_pkg.sv
+      - rtl/simmem_delay_calculator_core.sv
+      - rtl/simmem_delay_calculator.sv
+      - rtl/simmem_resp_bank.sv
+      - rtl/simmem_resp_banks.sv
+      - rtl/simmem_top.sv
+    file_type: systemVerilogSource
+
+  files_dv_simmem_top:
+    files:
+      - dv/simemm_top/cpp/simmem_axi_dimensions.h : {is_include_file: true}
+      - dv/simemm_top/cpp/simmem_axi_structures.h : {is_include_file: true}
+      - dv/simemm_top/cpp/simmem_axi_structures.cc
+      - dv/simmem_top/cpp/simmem_top_tb.cc
+    file_type: cppSource
+
 
 targets:
   sim_resp_bank:
@@ -194,27 +201,6 @@ targets:
           - "-Wno-PINCONNECTEMPTY"
           - "-Wno-fatal"
 
-  sim_delay_calculator_core:
-    default_tool: verilator
-    filesets:
-      - files_rtl_delay_calculator_core
-      - files_dv_delay_calculator_core
-    toplevel: simmem_delay_calculator_core
-    tools:
-      verilator:
-        mode: cc
-        verilator_options:
-          - '--trace'
-          - '--trace-fst' # this requires -DVM_TRACE_FMT_FST in CFLAGS below!
-          - '--trace-structs'
-          - '--trace-params'
-          - '--trace-max-array 1024'
-          - '-CFLAGS "-std=c++11 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=simmem_delay_calculator_core_tb -g -O0"'
-          - '-LDFLAGS "-pthread -lutil"'
-          - "-Wall"
-          - "-Wno-PINCONNECTEMPTY"
-          - "-Wno-fatal"
-
   sim_delay_calculator:
     default_tool: verilator
     filesets:
@@ -237,7 +223,6 @@ targets:
           - "-Wno-PINCONNECTEMPTY"
           - "-Wno-fatal"
 
-
   sim_write_only_nocontent:
     default_tool: verilator
     filesets:
@@ -254,6 +239,28 @@ targets:
           - '--trace-params'
           - '--trace-max-array 1024'
           - '-CFLAGS "-std=c++11 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=simmem_write_only_nocontent_tb -g -O0"'
+          - '-LDFLAGS "-pthread -lutil"'
+          - "-Wall"
+          - "-Wno-PINCONNECTEMPTY"
+          - "-Wno-fatal"
+
+  sim_simmem_top:
+    default_tool: verilator
+    filesets:
+      - files_rtl_simmem_top
+      #- files_dv_simmem_top
+      #- files_delay_calculator_waiver
+    toplevel: simmem_top
+    tools:
+      verilator:
+        mode: cc
+        verilator_options:
+          - '--trace'
+          - '--trace-fst' # this requires -DVM_TRACE_FMT_FST in CFLAGS below!
+          - '--trace-structs'
+          - '--trace-params'
+          - '--trace-max-array 1024'
+          - '-CFLAGS "-std=c++11 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=simmem_top_tb -g -O0"'
           - '-LDFLAGS "-pthread -lutil"'
           - "-Wall"
           - "-Wno-PINCONNECTEMPTY"

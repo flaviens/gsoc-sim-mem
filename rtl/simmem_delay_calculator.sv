@@ -20,7 +20,7 @@ module simmem_delay_calculator #(
     input logic rst_ni,
 
     // Write address request from the requester.
-    input simmem_pkg::waddr_req_t waddr_i,
+    input simmem_pkg::waddr_t     waddr_i,
     // Internal identifier corresponding to the write address request (issued by the write response
     // bank).
     input simmem_pkg::write_iid_t waddr_iid_i,
@@ -37,10 +37,10 @@ module simmem_delay_calculator #(
     output logic wdata_ready_o,
 
     // Write address request from the requester.
-    input simmem_pkg::raddr_req_t raddr_i,
+    input simmem_pkg::raddr_t    raddr_i,
     // Internal identifier corresponding to the read address request (issued by the read response
     // bank).
-    input simmem_pkg::read_iid_t  raddr_iid_i,
+    input simmem_pkg::read_iid_t raddr_iid_i,
 
     // Read address request valid from the requester.
     input  logic raddr_valid_i,
@@ -53,7 +53,15 @@ module simmem_delay_calculator #(
 
     // Release confirmations sent by the message banks
     input logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_released_addr_onehot_i,
-    input logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_released_addr_onehot_i
+    input logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_released_addr_onehot_i,
+
+    // Ready signals from the response banks
+    input logic w_resp_bank_ready_i,
+    input logic r_resp_bank_ready_i,
+
+    // Ready signals for the response banks
+    output logic w_resp_bank_ready_o,
+    output logic r_resp_bank_ready_o
 );
 
   import simmem_pkg::*;
@@ -147,7 +155,12 @@ module simmem_delay_calculator #(
       .rdata_release_en_onehot_o(rdata_release_en_onehot_o),
 
       .wresp_released_addr_onehot_i(wresp_released_addr_onehot_i),
-      .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i)
+      .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i),
+
+      .w_resp_bank_ready_i(w_resp_bank_ready_i),
+      .r_resp_bank_ready_i(r_resp_bank_ready_i),
+      .w_resp_bank_ready_o(w_resp_bank_ready_o),
+      .r_resp_bank_ready_o(r_resp_bank_ready_o)
   );
 
 endmodule

@@ -13,8 +13,8 @@ module simmem_linkedlist_bank #(
     input logic rst_ni,
 
     // Interface with the real memory controller
-    input  simmem_pkg::waddr_req_t rsp_i,
-    output simmem_pkg::waddr_req_t rsp_o,
+    input  simmem_pkg::waddr_t rsp_i,
+    output simmem_pkg::waddr_t rsp_o,
 
     input  logic in_rsp_valid_i,
     output logic in_rsp_ready_o,
@@ -459,47 +459,47 @@ module simmem_linkedlist_bank #(
       .Width(RspWidth),
       .DataBitsPerMask(1),
       .Depth(TotCapa)
-    ) i_payload_ram (
-      .clk_a_i     (clk_i),
-      .clk_b_i     (clk_i),
-      
-      .a_req_i     (payload_ram_in_req),
-      .a_write_i   (payload_ram_in_write),
-      .a_wmask_i   (payload_ram_in_wmask),
-      .a_addr_i    (payload_ram_in_addr),
-      .a_wdata_i   (rsp_i.payload),
-      .a_rdata_o   (),
-      
-      .b_req_i     (payload_ram_out_req),
-      .b_write_i   (payload_ram_out_write),
-      .b_wmask_i   (payload_ram_out_wmask),
-      .b_addr_i    (payload_ram_out_addr),
-      .b_wdata_i   (),
-      .b_rdata_o   (rsp_out_ram_data)
-    );
+  ) i_payload_ram (
+      .clk_a_i(clk_i),
+      .clk_b_i(clk_i),
+
+      .a_req_i  (payload_ram_in_req),
+      .a_write_i(payload_ram_in_write),
+      .a_wmask_i(payload_ram_in_wmask),
+      .a_addr_i (payload_ram_in_addr),
+      .a_wdata_i(rsp_i.payload),
+      .a_rdata_o(),
+
+      .b_req_i  (payload_ram_out_req),
+      .b_write_i(payload_ram_out_write),
+      .b_wmask_i(payload_ram_out_wmask),
+      .b_addr_i (payload_ram_out_addr),
+      .b_wdata_i(),
+      .b_rdata_o(rsp_out_ram_data)
+  );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
       .Width(WriteRespMetadataWidth),
       .DataBitsPerMask(1),
       .Depth(TotCapa)
-    ) i_meta_ram (
-      .clk_a_i     (clk_i),
-      .clk_b_i     (clk_i),
-      
-      .a_req_i     (meta_ram_in_req),
-      .a_write_i   (meta_ram_in_write),
-      .a_wmask_i   (meta_ram_in_wmask),
-      .a_addr_i    (meta_ram_in_addr),
-      .a_wdata_i   (meta_ram_in_content),
-      .a_rdata_o   (),
-      
-      .b_req_i     (meta_ram_out_req),
-      .b_write_i   (meta_ram_out_write),
-      .b_wmask_i   (meta_ram_out_wmask),
-      .b_addr_i    (meta_ram_out_addr),
-      .b_wdata_i   (),
-      .b_rdata_o   (meta_ram_out_data)
-    );
+  ) i_meta_ram (
+      .clk_a_i(clk_i),
+      .clk_b_i(clk_i),
+
+      .a_req_i  (meta_ram_in_req),
+      .a_write_i(meta_ram_in_write),
+      .a_wmask_i(meta_ram_in_wmask),
+      .a_addr_i (meta_ram_in_addr),
+      .a_wdata_i(meta_ram_in_content),
+      .a_rdata_o(),
+
+      .b_req_i  (meta_ram_out_req),
+      .b_write_i(meta_ram_out_write),
+      .b_wmask_i(meta_ram_out_wmask),
+      .b_addr_i (meta_ram_out_addr),
+      .b_wdata_i(),
+      .b_rdata_o(meta_ram_out_data)
+  );
 
 endmodule

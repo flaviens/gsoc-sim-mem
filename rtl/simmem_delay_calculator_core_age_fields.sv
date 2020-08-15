@@ -18,7 +18,7 @@ module simmem_delay_calculator_core (
   
   // Write address
   input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] waddr_iid_i,
-  input simmem_pkg::waddr_req_t waddr_i,
+  input simmem_pkg::waddr_t waddr_i,
   // Number of write data packets that came with the write address
   input logic [simmem_pkg::MaxWBurstLenWidth-1:0] wdata_immediate_cnt_i,
   input logic waddr_valid_i,
@@ -30,7 +30,7 @@ module simmem_delay_calculator_core (
 
   // Read address
   input logic [simmem_pkg::ReadDataBankAddrWidth-1:0] raddr_iid_i,
-  input simmem_pkg::raddr_req_t raddr_i,
+  input simmem_pkg::raddr_t raddr_i,
   input logic raddr_valid_i,
   output logic raddr_ready_o,
 
