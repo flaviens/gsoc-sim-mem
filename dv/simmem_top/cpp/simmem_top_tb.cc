@@ -22,6 +22,7 @@ const bool kTransactionVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
+const int kTrailingTicks = 100;
 
 // TODO Implement reads
 
@@ -1098,11 +1099,11 @@ int main(int argc, char **argv, char **env) {
   Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
 
-  SimmemTestbench *tb = new SimmemTestbench(1000, true, "top.fst");
+  SimmemTestbench *tb = new SimmemTestbench(kTrailingTicks, true, "top.fst");
 
   // Choose testbench type
-  // simple_testbench(tb);
-  randomized_testbench(tb, 1, 0);
+  simple_testbench(tb);
+  // randomized_testbench(tb, 1, 0);
 
   delete tb;
 
