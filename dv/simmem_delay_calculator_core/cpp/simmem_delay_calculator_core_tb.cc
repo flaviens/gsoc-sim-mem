@@ -95,7 +95,7 @@
 //   //  * @param waddr_req the input address request
 //   //  */
 //   // void simmem_input_waddr_apply(uint64_t local_identifier,
-//   //                               ReadAddress waddr_req) {
+//   //                               WriteAddress waddr_req) {
 //   //   module_->waddr_iid_i = local_identifier;
 //   //   module_->waddr_req_i = waddr_req.to_packed();
 //   //   module_->waddr_valid_i = 1;
@@ -166,7 +166,7 @@
 // //    * @param waddr_req the input address request
 // //    */
 // //   void simmem_input_waddr_apply(uint64_t local_identifier,
-// //                                 ReadAddress waddr_req) {
+// //                                 WriteAddress waddr_req) {
 // //     module_->waddr_iid_i = local_identifier;
 // //     module_->waddr_req_i = waddr_req.to_packed();
 // //     module_->waddr_valid_i = 1;
@@ -373,7 +373,7 @@
 
 //   // tb->simmem_tick(5);
 
-//   // ReadAddress waddr_req;
+//   // WriteAddress waddr_req;
 //   // waddr_req.from_packed(0UL);
 //   // waddr_req.id = 1;
 //   // waddr_req.addr = 5;
