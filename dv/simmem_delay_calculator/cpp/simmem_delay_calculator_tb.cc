@@ -95,7 +95,7 @@ class DelayCalculatorTestbench {
    * @param waddr_req the input address request
    */
   void simmem_input_waddr_apply(uint64_t local_identifier,
-                                WriteAddressRequest waddr_req) {
+                                ReadAddress waddr_req) {
     module_->waddr_iid_i = local_identifier;
     module_->waddr_i = waddr_req.to_packed();
     module_->waddr_valid_i = 1;
@@ -108,7 +108,7 @@ class DelayCalculatorTestbench {
    * @param raddr_req the input address request
    */
   void simmem_input_raddr_apply(uint64_t local_identifier,
-                                ReadAddressRequest raddr_req) {
+                                ReadAddress raddr_req) {
     module_->raddr_i = raddr_req.to_packed();
     module_->raddr_valid_i = 1;
   }
@@ -166,7 +166,7 @@ class DelayCalculatorTestbench {
 //    * @param waddr_req the input address request
 //    */
 //   void simmem_input_waddr_apply(uint64_t local_identifier,
-//                                 WriteAddressRequest waddr_req) {
+//                                 ReadAddress waddr_req) {
 //     module_->waddr_iid_i = local_identifier;
 //     module_->waddr_req_i = waddr_req.to_packed();
 //     module_->waddr_valid_i = 1;
@@ -179,7 +179,7 @@ class DelayCalculatorTestbench {
 //    * @param raddr_req the input address request
 //    */
 //   void simmem_input_raddr_apply(uint64_t local_identifier,
-//                                 ReadAddressRequest raddr_req) {
+//                                 ReadAddress raddr_req) {
 //     module_->raddr_req_i = raddr_req.to_packed();
 //     module_->raddr_valid_i = 1;
 //   }
@@ -365,7 +365,7 @@ void sequential_test(DelayCalculatorTestbench *tb) {
 
   tb->simmem_tick(5);
 
-  WriteAddressRequest waddr_req;
+  ReadAddress waddr_req;
   waddr_req.from_packed(0UL);
   waddr_req.id = 1;
   waddr_req.addr = 5;

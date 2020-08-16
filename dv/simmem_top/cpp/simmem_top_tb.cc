@@ -33,11 +33,11 @@ typedef std::map<uint64_t, std::queue<WriteResponse>> wresp_queue_map_t;
 typedef std::map<uint64_t, std::queue<ReadData>> rdata_queue_map_t;
 
 // Maps mapping AXI identifiers to queues of pairs (timestamp, response)
-typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>
+typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>
     waddr_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteData>>>
     wdata_time_queue_map_t;
-typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadAddressRequest>>>
+typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>
     raddr_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
     wresp_time_queue_map_t;
@@ -114,7 +114,7 @@ class SimmemTestbench {
    *
    * @param waddr_req the input address request
    */
-  void simmem_requester_waddr_apply(WriteAddressRequest waddr_req) {
+  void simmem_requester_waddr_apply(ReadAddress waddr_req) {
     module_->waddr_i = waddr_req.to_packed();
     module_->waddr_in_valid_i = 1;
   }
@@ -160,7 +160,7 @@ class SimmemTestbench {
    *
    * @param raddr_req the input address request
    */
-  void simmem_requester_raddr_apply(ReadAddressRequest raddr_req) {
+  void simmem_requester_raddr_apply(ReadAddress raddr_req) {
     module_->raddr_i = raddr_req.to_packed();
     module_->raddr_in_valid_i = 1;
   }
@@ -293,7 +293,7 @@ class SimmemTestbench {
    *
    * @return true iff the data is valid
    */
-  bool simmem_realmem_waddr_fetch(WriteAddressRequest &out_data) {
+  bool simmem_realmem_waddr_fetch(ReadAddress &out_data) {
     module_->eval();
     assert(module_->waddr_out_ready_i);
 
@@ -347,7 +347,7 @@ class SimmemTestbench {
    *
    * @return true iff the data is valid
    */
-  bool simmem_realmem_raddr_fetch(ReadAddressRequest &out_data) {
+  bool simmem_realmem_raddr_fetch(ReadAddress &out_data) {
     module_->eval();
     assert(module_->raddr_out_ready_i);
 
@@ -398,12 +398,12 @@ class RealMemoryController {
   /**
    * Adds a new write address to the received list.
    */
-  void accept_waddr(WriteAddressRequest waddr) {
+  void accept_waddr(ReadAddress waddr) {
     WriteResponse new_resp;
     new_resp.id = waddr.id;
     new_resp.rsp =  // Copy the low order rsp of the incoming waddr in
                     // the corresponding wresp
-        (waddr.to_packed() >> WriteAddressRequest::id_w) &
+        (waddr.to_packed() >> ReadAddress::id_w) &
         ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::rsp_w));
 
     wresp_out_queues[waddr.id].push(new_resp);
@@ -412,7 +412,7 @@ class RealMemoryController {
   /**
    * Enables the release of read data.
    */
-  void accept_raddr(ReadAddressRequest raddr) {
+  void accept_raddr(ReadAddress raddr) {
     for (size_t i = 0; i < raddr.burst_len; i++) {
       ReadData new_rdata;
       new_rdata.id = raddr.id;
@@ -525,7 +525,7 @@ void simple_testbench(SimmemTestbench *tb) {
 
   tb->simmem_tick(5);
 
-  WriteAddressRequest w_addr_req;
+  ReadAddress w_addr_req;
   w_addr_req.id = 0;
   w_addr_req.addr = 7;
   w_addr_req.burst_len = 2;
@@ -583,11 +583,11 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
   for (size_t i = 0; i < num_identifiers; i++) {
     waddr_in_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
-            ids[i], std::queue<std::pair<size_t, WriteAddressRequest>>()));
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>(
+            ids[i], std::queue<std::pair<size_t, ReadAddress>>()));
     waddr_out_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
-            ids[i], std::queue<std::pair<size_t, WriteAddressRequest>>()));
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>(
+            ids[i], std::queue<std::pair<size_t, ReadAddress>>()));
     wdata_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
             ids[i], std::queue<std::pair<size_t, WriteData>>()));
@@ -595,11 +595,11 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
             ids[i], std::queue<std::pair<size_t, WriteData>>()));
     raddr_in_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddressRequest>>>(
-            ids[i], std::queue<std::pair<size_t, ReadAddressRequest>>()));
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>(
+            ids[i], std::queue<std::pair<size_t, ReadAddress>>()));
     raddr_out_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddressRequest>>>(
-            ids[i], std::queue<std::pair<size_t, ReadAddressRequest>>()));
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>(
+            ids[i], std::queue<std::pair<size_t, ReadAddress>>()));
     rdata_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, ReadData>>>(
             ids[i], std::queue<std::pair<size_t, ReadData>>()));
@@ -628,78 +628,208 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
   bool iteration_announced;  // Variable only used for display
 
-  WriteAddressRequest requester_current_input;  // Input from the requester
-  requester_current_input.from_packed(rand());
-  requester_current_input.id = ids[rand() % num_identifiers];
-  WriteResponse requester_current_output;  // Output to the requester
+  // TODO: Provide more control on the read and write addresses
 
-  WriteResponse realmem_current_input;         // Input from the realmem
-  WriteAddressRequest realmem_current_output;  // Output to the realmem
+  ///////////////////////
+  // Requester signals //
+  ///////////////////////
+
+  // Input waddr from the requester
+  ReadAddress requester_current_waddr;
+  requester_current_waddr.from_packed(rand());
+  requester_current_waddr.id = ids[rand() % num_identifiers];
+  // Input waddr from the requester
+  ReadAddress requester_current_raddr;
+  requester_current_raddr.from_packed(rand());
+  requester_current_raddr.id = ids[rand() % num_identifiers];
+  // Input wdata from the requester
+  WriteData requester_current_wdata;
+  requester_current_wdata.from_packed(rand());
+
+  WriteResponse requester_current_wresp;  // Output wresp to the requester
+  ReadData requester_current_rdata;       // Output rdata to the requester
+
+  /////////////////////
+  // Realmem signals //
+  /////////////////////
+
+  WriteResponse realmem_current_wresp;  // Input wresp from the realmem
+  ReadData realmem_current_rdata;       // Input rdata from the realmem
+
+  ReadAddress realmem_current_waddr;  // Output to the realmem
+  ReadAddress realmem_current_raddr;  // Output to the realmem
+  WriteData realmem_current_wdata;    // Output to the realmem
+
+  //////////////////////
+  // Simulation start //
+  //////////////////////
 
   tb->simmem_reset();
 
   for (size_t curr_itern = 0; curr_itern < nb_iterations; curr_itern++) {
     iteration_announced = false;
 
+    ///////////////////////////////////////////////////////////
+    // Determine which signals to apply during the iteration //
+    ///////////////////////////////////////////////////////////
+
+    ///////////////////////
+    // Requester signals //
+    ///////////////////////
+
     // Randomize the boolean signals deciding which interactions will take
     // place in this cycle
     requester_apply_waddr_input = (bool)(rand() & 1);
+    requester_apply_raddr_input = (bool)(rand() & 1);
+    requester_apply_wdata_input = (bool)(rand() & 1);
+    // The requester is supposedly always ready to get data, for more accurate
+    // delay calculation
     requester_req_wresp_output = true;
-    // The requester is supposedly always ready to get data, for precise delay
-    // calculation
+    requester_req_rdata_output = true;
+
+    /////////////////////
+    // Realmem signals //
+    /////////////////////
+
+    // The real memory controller is supposed to always output data when
+    // possible. This translates the assumption that it operates much faster
+    // than normal.
     realmem_apply_wresp_input = realmem.has_wresp_to_input();
+    realmem_apply_rdata_input = realmem.has_rdata_to_input();
     // The real memory controller is supposedly always ready to get data, for
-    // precise delay calculation
-    realmem_req_waddr_output = 1;
+    // more accurate delay calculation
+    realmem_req_waddr_output = true;
+    realmem_req_raddr_output = true;
+    realmem_req_wdata_output = true;
+
+    ////////////////////////////////////////////////////
+    // Signal application and readiness for requester //
+    ////////////////////////////////////////////////////
 
     if (requester_apply_waddr_input) {
       // Apply a given input
-      tb->simmem_requester_waddr_apply(requester_current_input);
+      tb->simmem_requester_waddr_apply(requester_current_waddr);
     }
+    if (requester_apply_raddr_input) {
+      // Apply a given input
+      tb->simmem_requester_raddr_apply(requester_current_raddr);
+    }
+    if (requester_apply_wdata_input) {
+      // Apply a given input
+      tb->simmem_requester_wdata_apply(requester_current_wdata);
+    }
+
     if (requester_req_wresp_output) {
       // Express readiness
       tb->simmem_requester_wresp_request();
     }
+    if (requester_req_rdata_output) {
+      // Express readiness
+      tb->simmem_requester_rdata_request();
+    }
+
+    //////////////////////////////////////////////////
+    // Signal application and readiness for realmem //
+    //////////////////////////////////////////////////
+
     if (realmem_apply_wresp_input) {
       // Apply the next available wresp from the real memory controller
       tb->simmem_realmem_wresp_apply(realmem.get_next_wresp());
+    }
+    if (realmem_apply_rdata_input) {
+      // Apply the next available rdata from the real memory controller
+      tb->simmem_realmem_rdata_apply(realmem.get_next_rdata());
     }
     if (realmem_req_waddr_output) {
       // Express readiness
       tb->simmem_realmem_waddr_request();
     }
+    if (realmem_req_raddr_output) {
+      // Express readiness
+      tb->simmem_realmem_raddr_request();
+    }
+    if (realmem_req_wdata_output) {
+      // Express readiness
+      tb->simmem_realmem_wdata_request();
+    }
 
-    // Input handshakes
+    ////////////////////////////////////
+    // Input handshakes to the simmem //
+    ////////////////////////////////////
+
+    // waddr handshake
     if (requester_apply_waddr_input && tb->simmem_requester_waddr_check()) {
       // If the input handshake between the requester and the simmem has been
-      // successful, then accept the input
+      // successful for waddr, then accept the input.
 
-      waddr_in_queues[requester_current_input.id].push(
-          std::pair<size_t, WriteAddressRequest>(curr_itern,
-                                                 requester_current_input));
+      waddr_in_queues[requester_current_waddr.id].push(
+          std::pair<size_t, ReadAddress>(curr_itern, requester_current_waddr));
       if (kTransactionVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
           std::cout << std::endl
                     << "Step " << std::dec << curr_itern << std::endl;
         }
-        std::cout << "Requester inputted " << std::hex
-                  << requester_current_input.to_packed() << std::endl;
+        std::cout << "Requester inputted waddr " << std::hex
+                  << requester_current_waddr.to_packed() << std::endl;
       }
 
       // Renew the input data if the input handshake has been successful
-      requester_current_input.from_packed(rand());
-      requester_current_input.id = ids[rand() % num_identifiers];
+      requester_current_waddr.from_packed(rand());
+      requester_current_waddr.id = ids[rand() % num_identifiers];
     }
+    // raddr handshake
+    if (requester_apply_raddr_input && tb->simmem_requester_raddr_check()) {
+      // If the input handshake between the requester and the simmem has been
+      // successful for raddr, then accept the input.
+
+      raddr_in_queues[requester_current_raddr.id].push(
+          std::pair<size_t, ReadAddress>(curr_itern, requester_current_raddr));
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
+        }
+        std::cout << "Requester inputted raddr " << std::hex
+                  << requester_current_raddr.to_packed() << std::endl;
+      }
+
+      // Renew the input data if the input handshake has been successful
+      requester_current_raddr.from_packed(rand());
+      requester_current_raddr.id = ids[rand() % num_identifiers];
+    }
+    // wdata handshake
+    if (requester_apply_wdata_input && tb->simmem_requester_wdata_check()) {
+      // If the input handshake between the requester and the simmem has been
+      // successful for wdata, then accept the input.
+
+      wdata_in_queues[requester_current_wdata.id].push(
+          std::pair<size_t, ReadAddress>(curr_itern, requester_current_wdata));
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
+        }
+        std::cout << "Requester inputted wdata " << std::hex
+                  << requester_current_wdata.to_packed() << std::endl;
+      }
+
+      // Renew the input data if the input handshake has been successful
+      requester_current_wdata.from_packed(rand());
+      requester_current_wdata.id = ids[rand() % num_identifiers];
+    }
+    // wresp handshake
     if (realmem_apply_wresp_input && tb->simmem_realmem_wresp_check()) {
       // If the input handshake between the realmem and the simmem has been
-      // successful, then accept the input
+      // successful, then accept the input.
 
-      realmem_current_input = realmem.get_next_wresp();
+      realmem_current_wresp = realmem.get_next_wresp();
       realmem.pop_next_wresp();
 
-      wresp_in_queues[realmem_current_input.id].push(
-          std::pair<size_t, WriteResponse>(curr_itern, realmem_current_input));
+      wresp_in_queues[realmem_current_wresp.id].push(
+          std::pair<size_t, WriteResponse>(curr_itern, realmem_current_wresp));
       if (kTransactionVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
@@ -707,40 +837,49 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                     << "Step " << std::dec << curr_itern << std::endl;
         }
         std::cout << "Realmem inputted " << std::hex
-                  << realmem_current_input.to_packed() << std::endl;
+                  << realmem_current_wresp.to_packed() << std::endl;
       }
 
       // Renew the input data if the input handshake has been successful
-      realmem_current_input.from_packed(rand());
-      realmem_current_input.id = ids[rand() % num_identifiers];
+      realmem_current_wresp.from_packed(rand());
+      realmem_current_wresp.id = ids[rand() % num_identifiers];
     }
+    // rdata handshake
+    if (realmem_apply_rdata_input && tb->simmem_realmem_rdata_check()) {
+      // If the input handshake between the realmem and the simmem has been
+      // successful, then accept the input.
 
-    // Output handshakes
-    if (requester_req_wresp_output &&
-        tb->simmem_requester_wresp_fetch(requester_current_output)) {
-      // If the output handshake between the requester and the simmem has been
-      // successful, then accept the output
-      wresp_out_queues[ids[requester_current_output.id]].push(
-          std::pair<size_t, WriteResponse>(curr_itern,
-                                           requester_current_output));
+      realmem_current_rdata = realmem.get_next_rdata();
+      realmem.pop_next_rdata();
 
+      rdata_in_queues[realmem_current_rdata.id].push(
+          std::pair<size_t, WriteResponse>(curr_itern, realmem_current_rdata));
       if (kTransactionVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
           std::cout << std::endl
                     << "Step " << std::dec << curr_itern << std::endl;
         }
-        std::cout << "Requester received wresp " << std::hex
-                  << requester_current_output.to_packed() << std::endl;
+        std::cout << "Realmem inputted " << std::hex
+                  << realmem_current_rdata.to_packed() << std::endl;
       }
+
+      // Renew the input data if the input handshake has been successful
+      realmem_current_rdata.from_packed(rand());
+      realmem_current_rdata.id = ids[rand() % num_identifiers];
     }
+
+    ///////////////////////////////////////
+    // Output handshakes from the simmem //
+    ///////////////////////////////////////
+
+    // waddr handshake
     if (realmem_req_waddr_output &&
         tb->simmem_realmem_waddr_fetch(realmem_current_output)) {
       // If the output handshake between the realmem and the simmem has been
-      // successful, then accept the output
+      // successful, then accept the output.
       waddr_out_queues[ids[realmem_current_output.id]].push(
-          std::pair<size_t, WriteAddressRequest>(curr_itern,
-                                                 realmem_current_output));
+          std::pair<size_t, ReadAddress>(curr_itern, realmem_current_output));
 
       // Let the realmem treat the freshly received waddr
       realmem.accept_waddr(realmem_current_output);
@@ -753,6 +892,67 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
         }
         std::cout << "Realmem received waddr " << std::hex
                   << realmem_current_output.to_packed() << std::endl;
+      }
+    }
+    // raddr handshake
+    if (realmem_req_raddr_output &&
+        tb->simmem_realmem_raddr_fetch(realmem_current_output)) {
+      // If the output handshake between the realmem and the simmem has been
+      // successful, then accept the output.
+      raddr_out_queues[ids[realmem_current_output.id]].push(
+          std::pair<size_t, ReadAddress>(curr_itern, realmem_current_output));
+
+      // Let the realmem treat the freshly received raddr
+      realmem.accept_raddr(realmem_current_output);
+
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
+        }
+        std::cout << "Realmem received raddr " << std::hex
+                  << realmem_current_output.to_packed() << std::endl;
+      }
+    }
+    // wdata handshake
+    if (realmem_req_wdata_output &&
+        tb->simmem_realmem_wdata_fetch(realmem_current_output)) {
+      // If the output handshake between the realmem and the simmem has been
+      // successful, then accept the output.
+      wdata_out_queues[ids[realmem_current_output.id]].push(
+          std::pair<size_t, WriteData>(curr_itern, realmem_current_output));
+
+      // Let the realmem treat the freshly received wdata
+      realmem.accept_wdata(realmem_current_output);
+
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
+        }
+        std::cout << "Realmem received wdata " << std::hex
+                  << realmem_current_output.to_packed() << std::endl;
+      }
+    }
+
+    if (requester_req_wresp_output &&
+        tb->simmem_requester_wresp_fetch(requester_current_wresp)) {
+      // If the output handshake between the requester and the simmem has been
+      // successful, then accept the output.
+      wresp_out_queues[ids[requester_current_wresp.id]].push(
+          std::pair<size_t, WriteResponse>(curr_itern,
+                                           requester_current_wresp));
+
+      if (kTransactionVerbose) {
+        if (!iteration_announced) {
+          iteration_announced = true;
+          std::cout << std::endl
+                    << "Step " << std::dec << curr_itern << std::endl;
+        }
+        std::cout << "Requester received wresp " << std::hex
+                  << requester_current_wresp.to_packed() << std::endl;
       }
     }
 
@@ -782,7 +982,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
   // Time of response entrance and output
   size_t in_time, out_time;
-  WriteAddressRequest in_req;
+  ReadAddress in_req;
   WriteResponse out_res;
 
   for (size_t curr_id = 0; curr_id < num_identifiers; curr_id++) {

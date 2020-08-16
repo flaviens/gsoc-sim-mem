@@ -30,7 +30,7 @@ typedef Vsimmem_write_only_nocontent Module;
 
 typedef std::map<uint64_t, std::queue<WriteResponse>> wresp_queue_map_t;
 // Maps mapping AXI identifiers to queues of pairs (timestamp, response)
-typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>
+typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>
     waddr_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
     wresp_time_queue_map_t;
@@ -105,7 +105,7 @@ class SimmemWriteOnlyNoBurstTestbench {
    *
    * @param waddr_req the input address request
    */
-  void simmem_requester_waddr_apply(WriteAddressRequest waddr_req) {
+  void simmem_requester_waddr_apply(ReadAddress waddr_req) {
     module_->waddr_data_i = waddr_req.to_packed();
     module_->waddr_in_valid_i = 1;
   }
@@ -187,7 +187,7 @@ class SimmemWriteOnlyNoBurstTestbench {
    *
    * @return true iff the data is valid
    */
-  bool simmem_realmem_waddr_fetch(WriteAddressRequest &out_data) {
+  bool simmem_realmem_waddr_fetch(ReadAddress &out_data) {
     module_->eval();
     assert(module_->waddr_out_ready_i);
 
@@ -236,12 +236,12 @@ class RealMemoryController {
   /**
    * Adds a new write address to the received list.
    */
-  void add_waddr(WriteAddressRequest waddr) {
+  void add_waddr(ReadAddress waddr) {
     WriteResponse new_resp;
     new_resp.id = waddr.id;
     new_resp.rsp =  // Copy the low order rsp of the incoming waddr in
                     // the corresponding wresp
-        (waddr.to_packed() >> WriteAddressRequest::id_w) &
+        (waddr.to_packed() >> ReadAddress::id_w) &
         ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::rsp_w));
 
     wresp_out_queues[waddr.id].push(new_resp);
@@ -329,13 +329,11 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
   for (size_t i = 0; i < num_identifiers; i++) {
     waddr_in_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
-            identifiers[i],
-            std::queue<std::pair<size_t, WriteAddressRequest>>()));
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>(
+            identifiers[i], std::queue<std::pair<size_t, ReadAddress>>()));
     waddr_out_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddressRequest>>>(
-            identifiers[i],
-            std::queue<std::pair<size_t, WriteAddressRequest>>()));
+        std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>(
+            identifiers[i], std::queue<std::pair<size_t, ReadAddress>>()));
     wresp_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>(
             identifiers[i], std::queue<std::pair<size_t, WriteResponse>>()));
@@ -351,13 +349,13 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
   bool iteration_announced;  // Variable only used for display
 
-  WriteAddressRequest requester_current_input;  // Input from the requester
+  ReadAddress requester_current_input;  // Input from the requester
   requester_current_input.from_packed(rand());
   requester_current_input.id = identifiers[rand() % num_identifiers];
   WriteResponse requester_current_output;  // Output to the requester
 
-  WriteResponse realmem_current_input;         // Input from the realmem
-  WriteAddressRequest realmem_current_output;  // Output to the realmem
+  WriteResponse realmem_current_input;  // Input from the realmem
+  ReadAddress realmem_current_output;   // Output to the realmem
 
   tb->simmem_reset();
 
@@ -399,8 +397,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
       // successful, then accept the input
 
       waddr_in_queues[requester_current_input.id].push(
-          std::pair<size_t, WriteAddressRequest>(curr_itern,
-                                                 requester_current_input));
+          std::pair<size_t, ReadAddress>(curr_itern, requester_current_input));
       if (kTransactionVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
@@ -463,8 +460,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
       // If the output handshake between the realmem and the simmem has been
       // successful, then accept the output
       waddr_out_queues[identifiers[realmem_current_output.id]].push(
-          std::pair<size_t, WriteAddressRequest>(curr_itern,
-                                                 realmem_current_output));
+          std::pair<size_t, ReadAddress>(curr_itern, realmem_current_output));
 
       // Let the realmem treat the freshly received waddr
       realmem.add_waddr(realmem_current_output);
@@ -506,7 +502,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
   // Time of response entrance and output
   size_t in_time, out_time;
-  WriteAddressRequest in_req;
+  ReadAddress in_req;
   WriteResponse out_res;
 
   for (size_t curr_id = 0; curr_id < num_identifiers; curr_id++) {

@@ -11,7 +11,7 @@
 // Write address request //
 ///////////////////////////
 
-struct WriteAddressRequest {
+struct ReadAddress {
   // Shift offsets and widths in the packed representation
   static const uint64_t id_off, id_w;
   static const uint64_t addr_off, addr_w;
@@ -62,7 +62,7 @@ struct WriteData {
 // Read address request //
 //////////////////////////
 
-struct ReadAddressRequest {
+struct ReadAddress {
   // Shift offsets and widths in the packed representation
   static const uint64_t id_off, id_w;
   static const uint64_t addr_off, addr_w;

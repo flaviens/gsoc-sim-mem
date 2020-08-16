@@ -5,25 +5,25 @@
 #include "simmem_axi_structures.h"
 
 // Static constant definition (widths)
-const uint64_t WriteAddressRequest::id_w = IDWidth;
-const uint64_t WriteAddressRequest::addr_w = AxAddrWidth;
-const uint64_t WriteAddressRequest::burst_len_w = AxLenWidth;
-const uint64_t WriteAddressRequest::burst_size_w = AxSizeWidth;
-const uint64_t WriteAddressRequest::burst_type_w = AxBurstWidth;
-const uint64_t WriteAddressRequest::lock_type_w = AxLockWidth;
-const uint64_t WriteAddressRequest::mem_type_w = AxCacheWidth;
-const uint64_t WriteAddressRequest::prot_w = AxProtWidth;
-const uint64_t WriteAddressRequest::qos_w = AxQoSWidth;
+const uint64_t ReadAddress::id_w = IDWidth;
+const uint64_t ReadAddress::addr_w = AxAddrWidth;
+const uint64_t ReadAddress::burst_len_w = AxLenWidth;
+const uint64_t ReadAddress::burst_size_w = AxSizeWidth;
+const uint64_t ReadAddress::burst_type_w = AxBurstWidth;
+const uint64_t ReadAddress::lock_type_w = AxLockWidth;
+const uint64_t ReadAddress::mem_type_w = AxCacheWidth;
+const uint64_t ReadAddress::prot_w = AxProtWidth;
+const uint64_t ReadAddress::qos_w = AxQoSWidth;
 
-const uint64_t ReadAddressRequest::id_w = IDWidth;
-const uint64_t ReadAddressRequest::addr_w = AxAddrWidth;
-const uint64_t ReadAddressRequest::burst_len_w = AxLenWidth;
-const uint64_t ReadAddressRequest::burst_size_w = AxSizeWidth;
-const uint64_t ReadAddressRequest::burst_type_w = AxBurstWidth;
-const uint64_t ReadAddressRequest::lock_type_w = AxLockWidth;
-const uint64_t ReadAddressRequest::mem_type_w = AxCacheWidth;
-const uint64_t ReadAddressRequest::prot_w = AxProtWidth;
-const uint64_t ReadAddressRequest::qos_w = AxQoSWidth;
+const uint64_t ReadAddress::id_w = IDWidth;
+const uint64_t ReadAddress::addr_w = AxAddrWidth;
+const uint64_t ReadAddress::burst_len_w = AxLenWidth;
+const uint64_t ReadAddress::burst_size_w = AxSizeWidth;
+const uint64_t ReadAddress::burst_type_w = AxBurstWidth;
+const uint64_t ReadAddress::lock_type_w = AxLockWidth;
+const uint64_t ReadAddress::mem_type_w = AxCacheWidth;
+const uint64_t ReadAddress::prot_w = AxProtWidth;
+const uint64_t ReadAddress::qos_w = AxQoSWidth;
 
 const uint64_t WriteResponse::id_w = IDWidth;
 const uint64_t WriteResponse::rsp_w = XRespWidth;
@@ -39,41 +39,39 @@ const uint64_t ReadData::rsp_w = XRespWidth;
 const uint64_t ReadData::last_w = XLastWidth;
 
 // Static constant definition (offsets)
-const uint64_t WriteAddressRequest::id_off = 0UL;
-const uint64_t WriteAddressRequest::addr_off =
-    WriteAddressRequest::id_off + WriteAddressRequest::id_w;
-const uint64_t WriteAddressRequest::burst_len_off =
-    WriteAddressRequest::addr_off + WriteAddressRequest::addr_w;
-const uint64_t WriteAddressRequest::burst_size_off =
-    WriteAddressRequest::burst_len_off + WriteAddressRequest::burst_len_w;
-const uint64_t WriteAddressRequest::burst_type_off =
-    WriteAddressRequest::burst_size_off + WriteAddressRequest::burst_size_w;
-const uint64_t WriteAddressRequest::lock_type_off =
-    WriteAddressRequest::burst_type_off + WriteAddressRequest::burst_type_w;
-const uint64_t WriteAddressRequest::mem_type_off =
-    WriteAddressRequest::lock_type_off + WriteAddressRequest::lock_type_w;
-const uint64_t WriteAddressRequest::prot_off =
-    WriteAddressRequest::mem_type_off + WriteAddressRequest::mem_type_w;
-const uint64_t WriteAddressRequest::qos_off =
-    WriteAddressRequest::prot_off + WriteAddressRequest::prot_w;
+const uint64_t ReadAddress::id_off = 0UL;
+const uint64_t ReadAddress::addr_off = ReadAddress::id_off + ReadAddress::id_w;
+const uint64_t ReadAddress::burst_len_off =
+    ReadAddress::addr_off + ReadAddress::addr_w;
+const uint64_t ReadAddress::burst_size_off =
+    ReadAddress::burst_len_off + ReadAddress::burst_len_w;
+const uint64_t ReadAddress::burst_type_off =
+    ReadAddress::burst_size_off + ReadAddress::burst_size_w;
+const uint64_t ReadAddress::lock_type_off =
+    ReadAddress::burst_type_off + ReadAddress::burst_type_w;
+const uint64_t ReadAddress::mem_type_off =
+    ReadAddress::lock_type_off + ReadAddress::lock_type_w;
+const uint64_t ReadAddress::prot_off =
+    ReadAddress::mem_type_off + ReadAddress::mem_type_w;
+const uint64_t ReadAddress::qos_off =
+    ReadAddress::prot_off + ReadAddress::prot_w;
 
-const uint64_t ReadAddressRequest::id_off = 0UL;
-const uint64_t ReadAddressRequest::addr_off =
-    ReadAddressRequest::id_off + ReadAddressRequest::id_w;
-const uint64_t ReadAddressRequest::burst_len_off =
-    ReadAddressRequest::addr_off + ReadAddressRequest::addr_w;
-const uint64_t ReadAddressRequest::burst_size_off =
-    ReadAddressRequest::burst_len_off + ReadAddressRequest::burst_len_w;
-const uint64_t ReadAddressRequest::burst_type_off =
-    ReadAddressRequest::burst_size_off + ReadAddressRequest::burst_size_w;
-const uint64_t ReadAddressRequest::lock_type_off =
-    ReadAddressRequest::burst_type_off + ReadAddressRequest::burst_type_w;
-const uint64_t ReadAddressRequest::mem_type_off =
-    ReadAddressRequest::lock_type_off + ReadAddressRequest::lock_type_w;
-const uint64_t ReadAddressRequest::prot_off =
-    ReadAddressRequest::mem_type_off + ReadAddressRequest::mem_type_w;
-const uint64_t ReadAddressRequest::qos_off =
-    ReadAddressRequest::prot_off + ReadAddressRequest::prot_w;
+const uint64_t ReadAddress::id_off = 0UL;
+const uint64_t ReadAddress::addr_off = ReadAddress::id_off + ReadAddress::id_w;
+const uint64_t ReadAddress::burst_len_off =
+    ReadAddress::addr_off + ReadAddress::addr_w;
+const uint64_t ReadAddress::burst_size_off =
+    ReadAddress::burst_len_off + ReadAddress::burst_len_w;
+const uint64_t ReadAddress::burst_type_off =
+    ReadAddress::burst_size_off + ReadAddress::burst_size_w;
+const uint64_t ReadAddress::lock_type_off =
+    ReadAddress::burst_type_off + ReadAddress::burst_type_w;
+const uint64_t ReadAddress::mem_type_off =
+    ReadAddress::lock_type_off + ReadAddress::lock_type_w;
+const uint64_t ReadAddress::prot_off =
+    ReadAddress::mem_type_off + ReadAddress::mem_type_w;
+const uint64_t ReadAddress::qos_off =
+    ReadAddress::prot_off + ReadAddress::prot_w;
 
 const uint64_t WriteResponse::id_off = 0UL;
 const uint64_t WriteResponse::rsp_off =
@@ -134,7 +132,7 @@ void single_to_packed(uint64_t &packed, uint64_t field, uint64_t field_w,
 // Write address request //
 ///////////////////////////
 
-void WriteAddressRequest::from_packed(uint64_t packed) {
+void ReadAddress::from_packed(uint64_t packed) {
   id = single_from_packed(packed, id_w, id_off);
   addr = single_from_packed(packed, addr_w, addr_off);
   burst_len = single_from_packed(packed, burst_len_w, burst_len_off);
@@ -146,7 +144,7 @@ void WriteAddressRequest::from_packed(uint64_t packed) {
   qos = single_from_packed(packed, qos_w, qos_off);
 }
 
-uint64_t WriteAddressRequest::to_packed() {
+uint64_t ReadAddress::to_packed() {
   uint64_t packed = 0UL;
 
   single_to_packed(packed, id, id_w, id_off);
@@ -166,7 +164,7 @@ uint64_t WriteAddressRequest::to_packed() {
 // Read address request //
 ///////////////////////////
 
-void ReadAddressRequest::from_packed(uint64_t packed) {
+void ReadAddress::from_packed(uint64_t packed) {
   id = single_from_packed(packed, id_w, id_off);
   addr = single_from_packed(packed, addr_w, addr_off);
   burst_len = single_from_packed(packed, burst_len_w, burst_len_off);
@@ -178,7 +176,7 @@ void ReadAddressRequest::from_packed(uint64_t packed) {
   qos = single_from_packed(packed, qos_w, qos_off);
 }
 
-uint64_t ReadAddressRequest::to_packed() {
+uint64_t ReadAddress::to_packed() {
   uint64_t packed = 0UL;
 
   single_to_packed(packed, id, id_w, id_off);
