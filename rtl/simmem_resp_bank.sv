@@ -322,9 +322,9 @@ module simmem_resp_bank #(
   //    * rsp_cnt_id: Tracks the number of responses contained under the response head pointer. This
   //      is useful to set the input mask of the payload RAM.
   //    * pre_tail_rsp_cnt_id: Tracks the number of responses contained under the pre_tail pointer. This
-  //      is useful to set the output mask of the payload RAM.
+  //      is useful to set the output mask of the payload RAM. // TODO Update comment
   //    * tail_rsp_cnt_id: Tracks the number of responses contained under the tail pointer. This is
-  //      useful to set the output mask of the payload RAM.
+  //      useful to set the output mask of the payload RAM. // TODO Update comment
 
   logic [XBurstLenWidth-1:0] rsv_cnt_d[TotCapa];
   logic [XBurstLenWidth-1:0] rsv_cnt_q[TotCapa];
@@ -814,9 +814,11 @@ module simmem_resp_bank #(
   end
 
   // Calculate the length of each AXI identifier queue after the potential output
+  // TODO Document
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id
-        ] && tail_rsp_cnt_id[i_id] == 1 ? rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
+    assign
+        rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] &&
+        tail_rsp_cnt_id[i_id] + tail_rsv_cnt_id[i_id] == 1 ? rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
   end : gen_len_after_output
 
   // Recall if the current output is valid
@@ -885,7 +887,7 @@ module simmem_resp_bank #(
         // currently provide output (handshake), make sure to be ready in the next cycle. The RAM
         // has a read latency of one clock cycle.
         if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
-          if (tail_rsp_cnt_id[i_id] == 0) begin
+          if (tail_rsp_cnt_id[i_id] == 1) begin
             pyld_ram_out_addr_id[i_id] = pre_tails[i_id];
             // Set the corresponding payload RAM output offset.
             pyld_ram_out_offset_id[i_id] =
@@ -914,12 +916,14 @@ module simmem_resp_bank #(
       // Input handshake
       if (in_rsp_ready_o && in_rsp_valid_i && rsp_i.merged_payload.id == i_id) begin
 
+        // TODO Document
+        if (rsp_burst_len_id[i_id] == rsp_rsv_cnt_id[i_id]) begin
+          rsp_len_d[i_id] = rsp_len_d[i_id] + 1;
+        end
         // If this is the last data of the burst, then update the pointers.
         // rsp_burst_len_id[i_id] - rsp_rsv_cnt_id[i_id] corresponds to the remaining burst data to
-        // receive.
-        if (rsp_burst_len_id[i_id] - rsp_rsv_cnt_id[i_id] == 1) begin
-
-          rsp_len_d[i_id] = rsp_len_d[i_id] + 1;
+        // receive. TODO Correct comment
+        if (rsv_cnt_id[i_id] == 1) begin
 
           // As the reservation length refers to the number of reserved cells that are not occupied,
           // it must be decremented on response input.
@@ -1007,7 +1011,7 @@ module simmem_resp_bank #(
       if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
 
         // If this is the last response in the burst, then update the pointers.
-        if (tail_rsp_cnt_id[i_id] == 1) begin
+        if (tail_rsp_cnt_id[i_id] + tail_rsv_cnt_id[i_id] == 1) begin
 
           rsp_len_d[i_id] = rsp_len_d[i_id] - 1;
           // Update the tail to take the current value of the pre_tail.

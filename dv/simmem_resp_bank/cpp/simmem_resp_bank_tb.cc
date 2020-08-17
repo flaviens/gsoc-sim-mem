@@ -31,7 +31,7 @@ typedef enum {
 typedef Vsimmem_resp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
-const int kTestStrategy = SINGLE_ID_TEST;
+const int kTestStrategy = SEQUENTIAL_TEST;
 
 // This class implements elementary operations for the testbench
 class WriteRespBankTestbench {
@@ -135,7 +135,7 @@ class WriteRespBankTestbench {
    */
   uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t rsp) {
     // Checks if the given values are not too big
-    assert(!(rsp >> kRspWidth));
+    assert(!(rsp >> (kRspWidth - kIdWidth)));
     assert(!(identifier >> kIdWidth));
 
     uint32_t in_data = rsp << kIdWidth | identifier;
@@ -258,22 +258,48 @@ void sequential_test(WriteRespBankTestbench *tb) {
   tb->simmem_tick(4);
 
   // Apply inputs for 6 ticks
+  tb->simmem_input_data_apply(1, 0);
+  tb->simmem_tick();
+  tb->simmem_input_data_apply(1, 1);
+  tb->simmem_tick();
+  tb->simmem_input_data_apply(1, 2);
+  tb->simmem_tick();
   tb->simmem_input_data_apply(1, 3);
-  tb->simmem_tick(10);
+  tb->simmem_tick();
+  tb->simmem_input_data_apply(1, 4);
+  tb->simmem_tick();
+  tb->simmem_input_data_apply(1, 5);
+  tb->simmem_tick();
+  tb->simmem_input_data_apply(1, 6);
+  tb->simmem_tick();
+  tb->simmem_input_data_apply(1, 7);
+  tb->simmem_tick();
   tb->simmem_input_data_stop();
 
-  tb->simmem_tick(4);
+  tb->simmem_tick();
 
   // Enable data output
-  tb->simmem_output_data_allow();
-  tb->simmem_tick(4);
-
-  // Express readiness for output data
   tb->simmem_output_data_request();
-  tb->simmem_tick(16);
+  tb->simmem_output_data_allow();
+  tb->simmem_tick(10);
+  tb->simmem_output_data_forbid();
   tb->simmem_output_data_stop();
 
+  tb->simmem_input_data_apply(1, 8);
+  tb->simmem_tick();
+  tb->simmem_input_data_apply(1, 9);
+  tb->simmem_tick();
+
+  tb->simmem_input_data_stop();
+  tb->simmem_tick();
+
+  tb->simmem_output_data_request();
+  tb->simmem_output_data_allow();
   tb->simmem_tick(10);
+  tb->simmem_output_data_forbid();
+  tb->simmem_output_data_stop();
+
+  tb->simmem_tick(50);
 }
 
 /**
