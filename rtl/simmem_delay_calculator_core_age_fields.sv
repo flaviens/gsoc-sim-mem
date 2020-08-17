@@ -47,9 +47,9 @@ module simmem_delay_calculator_core (
   // Compresses the actual cost to have min reductions on fewer bits
   localparam MemCompressedWidth = 2;
   typedef enum logic [MemCompressedWidth-1:0]{
-    COST_CAS = 0,
-    COST_ACTIVATION_CAS = 1,
-    COST_PRECHARGE_ACTIVATION_CAS = 2
+    COST_CAS_CAT = 0,
+    COST_ACTIVATION_CAS_CAT = 1,
+    COST_PRECHARGE_ACTIVATION_CAS_CAT = 2
   } mem_compressed_cost_e;
 
   function automatic mem_compressed_cost_e determine_compressed_cost(
@@ -58,11 +58,11 @@ module simmem_delay_calculator_core (
     logic [GlobalMemoryCapaWidth-1:0] mask;
     mask = {{(GlobalMemoryCapaWidth - RowBufferLenWidth) {1'b1}}, {RowBufferLenWidth{1'b0}}};
     if (is_row_open && (address & mask) == (open_row_start_address & mask)) begin
-      return COST_CAS;
+      return COST_CAS_CAT;
     end else if (!is_row_open) begin
-      return COST_ACTIVATION_CAS;
+      return COST_ACTIVATION_CAS_CAT;
     end else begin
-      return COST_PRECHARGE_ACTIVATION_CAS;
+      return COST_PRECHARGE_ACTIVATION_CAS_CAT;
     end
   endfunction : determine_compressed_cost
 
@@ -70,10 +70,10 @@ module simmem_delay_calculator_core (
   function automatic logic [DelayWidth-1:0] decompress_mem_cost(
       mem_compressed_cost_e compressed_cost);
     case (compressed_cost)
-      COST_CAS: begin
+      COST_CAS_CAT: begin
         return RowHitCost;
       end
-      COST_ACTIVATION_CAS: begin
+      COST_ACTIVATION_CAS_CAT: begin
         return RowHitCost + ActivationCost;
       end
       default: begin

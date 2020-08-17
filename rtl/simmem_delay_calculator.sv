@@ -98,7 +98,7 @@ module simmem_delay_calculator #(
     end
 
     if (waddr_valid_i && waddr_ready_o) begin
-      // Considering wdata_cnt_d instead of wdata_cnt_q, allows the module to take into account the
+      // Considering wdata_cnt_d, instead of wdata_cnt_q, allows the module to take into account the
       // data coming in during the same cycle as the address. Safety of this operation is granted by
       // the order in which wdata_cnt_d is updated in the combinatorial block.
       wdata_immediate_cnt = 0;

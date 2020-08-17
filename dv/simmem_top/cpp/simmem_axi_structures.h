@@ -44,12 +44,10 @@ struct WriteAddress {
 
 struct WriteData {
   // Shift offsets and widths in the packed representation
-  static const uint64_t id_off, id_w;
   static const uint64_t data_off, data_w;
   static const uint64_t strb_off, strb_w;
   static const uint64_t last_off, last_w;
 
-  uint64_t id;
   uint64_t data;
   uint64_t strb;
   uint64_t last;

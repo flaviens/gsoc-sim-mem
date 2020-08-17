@@ -135,9 +135,9 @@ module simmem_delay_calculator_core #(
   // Compresses the actual cost to have comparisons on fewer bits. Therefore, the ordering of the
   // values in the enumeration is important.
   typedef enum logic [1:0] {
-    COST_CAS = 0,
-    COST_ACTIVATION_CAS = 1,
-    COST_PRECHARGE_ACTIVATION_CAS = 2,
+    COST_CAS_CAT = 0,
+    COST_ACTIVATION_CAS_CAT = 1,
+    COST_PRECHARGE_ACTIVATION_CAS_CAT = 2,
     // Special state: if the optimal cost for all the candidates for a rank is COST_NO_CANDIDATE,
     // then it means that the set of candidates for this rank is the empty set.
     COST_NO_CANDIDATE = 3 
@@ -164,11 +164,11 @@ module simmem_delay_calculator_core #(
       logic [GlobalMemoryCapaWidth-1:0] open_row_start_address);
     if (is_row_open && (address & CostCategorizationMask) == (
         open_row_start_address & CostCategorizationMask)) begin
-      return COST_CAS;
+      return COST_CAS_CAT;
     end else if (!is_row_open) begin
-      return COST_ACTIVATION_CAS;
+      return COST_ACTIVATION_CAS_CAT;
     end else begin
-      return COST_PRECHARGE_ACTIVATION_CAS;
+      return COST_PRECHARGE_ACTIVATION_CAS_CAT;
     end
   endfunction : determine_cost_category
 
@@ -181,13 +181,13 @@ module simmem_delay_calculator_core #(
   function automatic logic [DelayWidth-1:0] decategorize_mem_cost(
       mem_cost_category_e cost_category);
     case (cost_category)
-      COST_CAS: begin
+      COST_CAS_CAT: begin
         return DelayWidth'(RowHitCost);
       end
-      COST_ACTIVATION_CAS: begin
+      COST_ACTIVATION_CAS_CAT: begin
         return DelayWidth'(RowHitCost + ActivationCost);
       end
-      COST_PRECHARGE_ACTIVATION_CAS: begin
+      COST_PRECHARGE_ACTIVATION_CAS_CAT: begin
         return DelayWidth'(RowHitCost + ActivationCost + PrechargeCost);
       end
       default: begin // COST_NO_CANDIDATE
@@ -225,9 +225,9 @@ module simmem_delay_calculator_core #(
   // is one array of slots for read bursts, and one array for write slots.
 
   // Slot constants definition
-  localparam NumWSlots = 2;
+  localparam NumWSlots = 1;
   localparam NumWSlotsWidth = $clog2(NumWSlots);
-  localparam NumRSlots = 3;
+  localparam NumRSlots = 1;
   localparam NumRSlotsWidth = $clog2(NumRSlots);
 
   // Maximal number of write data entries: at most MaxWBurstLen per slot.
@@ -295,12 +295,12 @@ module simmem_delay_calculator_core #(
     // Find the lowest cost entry per rank and per slot
     for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : find_rdata_reduce
       always_comb begin
-        if (|nxt_rdata_per_slt_cat_onehot[i_rk][COST_CAS][i_slt]) begin
-          nxt_rdata_per_slt_onehot[i_rk][i_slt] = nxt_rdata_per_slt_cat_onehot[i_rk][COST_CAS][i_slt];
-        end else if (|nxt_rdata_per_slt_cat_onehot[i_rk][COST_ACTIVATION_CAS][i_slt]) begin
-          nxt_rdata_per_slt_onehot[i_rk][i_slt] = nxt_rdata_per_slt_cat_onehot[i_rk][COST_ACTIVATION_CAS][i_slt];
+        if (|nxt_rdata_per_slt_cat_onehot[i_rk][COST_CAS_CAT][i_slt]) begin
+          nxt_rdata_per_slt_onehot[i_rk][i_slt] = nxt_rdata_per_slt_cat_onehot[i_rk][COST_CAS_CAT][i_slt];
+        end else if (|nxt_rdata_per_slt_cat_onehot[i_rk][COST_ACTIVATION_CAS_CAT][i_slt]) begin
+          nxt_rdata_per_slt_onehot[i_rk][i_slt] = nxt_rdata_per_slt_cat_onehot[i_rk][COST_ACTIVATION_CAS_CAT][i_slt];
         end else begin
-          nxt_rdata_per_slt_onehot[i_rk][i_slt] = nxt_rdata_per_slt_cat_onehot[i_rk][COST_PRECHARGE_ACTIVATION_CAS][i_slt];
+          nxt_rdata_per_slt_onehot[i_rk][i_slt] = nxt_rdata_per_slt_cat_onehot[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT][i_slt];
         end
       end
     end : find_rdata_reduce
@@ -334,7 +334,7 @@ module simmem_delay_calculator_core #(
 
   // Determine the next free slot for read slots.
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_nxt_free_r_slot
-    assign free_rslt_mhot[i_slt] = ~rslt_q[0].v;
+    assign free_rslt_mhot[i_slt] = ~rslt_q[i_slt].v;
     if (i_slt == 0) begin
       assign nxt_free_r_slot_onehot[0] = free_rslt_mhot[0];
     end else begin
@@ -527,27 +527,27 @@ module simmem_delay_calculator_core #(
     // if/else_if sequence
     // Reduce among categories: take the lowest cost category
     always_comb begin
-      if (|oldest_entry_of_category[i_rk][COST_CAS]) begin
-        opti_cost_cat[i_rk] = COST_CAS;
-      end else if (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
-        opti_cost_cat[i_rk] = COST_ACTIVATION_CAS;
-      end else if (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]) begin
-        opti_cost_cat[i_rk] = COST_PRECHARGE_ACTIVATION_CAS;
+      if (|oldest_entry_of_category[i_rk][COST_CAS_CAT]) begin
+        opti_cost_cat[i_rk] = COST_CAS_CAT;
+      end else if (|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]) begin
+        opti_cost_cat[i_rk] = COST_ACTIVATION_CAS_CAT;
+      end else if (|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]) begin
+        opti_cost_cat[i_rk] = COST_PRECHARGE_ACTIVATION_CAS_CAT;
       end else begin
         opti_cost_cat[i_rk] = COST_NO_CANDIDATE;
       end
     end
     
     // masked (linear) "reduction"
-    // assign opti_cost_cat[i_rk] = ({NumCostCategoriesWidth{|oldest_entry_of_category[i_rk][COST_CAS]}} & COST_CAS) |
-    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS] & |oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]}} & COST_ACTIVATION_CAS) |
-    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & |oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS]}} & COST_PRECHARGE_ACTIVATION_CAS) |
-    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & ~|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS]}} & COST_NO_CANDIDATE);
+    // assign opti_cost_cat[i_rk] = ({NumCostCategoriesWidth{|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} & COST_CAS_CAT) |
+    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] & |oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}} & COST_ACTIVATION_CAS_CAT) |
+    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] & |oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} & COST_PRECHARGE_ACTIVATION_CAS_CAT) |
+    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] & ~|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} & COST_NO_CANDIDATE);
 
     // Using masks, find the optimal entry and its cost category
-    assign opti_entry_onehot[i_rk] = oldest_entry_of_category[i_rk][COST_CAS] |
-        (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS] & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS]}}) |
-        (oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS] & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS]}} & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS]}});
+    assign opti_entry_onehot[i_rk] = oldest_entry_of_category[i_rk][COST_CAS_CAT] |
+        (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS_CAT]}}) |
+        (oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT] & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}});
   end
 
 
@@ -683,7 +683,7 @@ module simmem_delay_calculator_core #(
   ////////////////////////////////////
 
   // Delay calculator management logic
-  always_comb begin : del_calc_mgmt_comb
+  always_comb begin
 
     // Default assignments
     for (int unsigned i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin
@@ -910,7 +910,7 @@ module simmem_delay_calculator_core #(
         end
       end
     end
-  end : del_calc_mgmt_comb
+  end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin

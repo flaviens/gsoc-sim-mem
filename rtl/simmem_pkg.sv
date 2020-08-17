@@ -16,9 +16,10 @@ package simmem_pkg;
   localparam int unsigned GlobalMemoryCapaWidth = $clog2(GlobalMemoryCapa);
   localparam int unsigned RowBufferLenWidth = 8;
 
-  localparam int unsigned RowHitCost = 10;  // Cycles (must be at least 3)
-  localparam int unsigned PrechargeCost = 50;  // Cycles
-  localparam int unsigned ActivationCost = 45;  // Cycles
+  // TODO: 10, 50, 45
+  localparam int unsigned RowHitCost = 2;  // Cycles (must be at least 3)
+  localparam int unsigned PrechargeCost = 5;  // Cycles
+  localparam int unsigned ActivationCost = 4;  // Cycles
 
 
   /////////////////

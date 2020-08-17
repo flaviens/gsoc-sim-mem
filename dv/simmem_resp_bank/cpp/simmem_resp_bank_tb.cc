@@ -13,9 +13,9 @@
 #include <vector>
 #include <verilated_fst_c.h>
 
-const bool kIterationVerbose = false;
-const bool kTransactionsVerbose = false;
-const bool kPairsVerbose = false;
+const bool kIterationVerbose = true;
+const bool kTransactionsVerbose = true;
+const bool kPairsVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -57,6 +57,8 @@ class WriteRespBankTestbench {
     // Puts ones at the fields' places
     id_mask_ = ~((1 << 31) >> (31 - kIdWidth));
     content_mask_ = ~((1 << 31) >> (31 - kRspWidth - kIdWidth)) & ~id_mask_;
+
+    module_->delay_calc_ready_i = 1;
   }
 
   ~WriteRespBankTestbench(void) { simmem_close_trace(); }
@@ -77,7 +79,8 @@ class WriteRespBankTestbench {
   void simmem_tick(int nb_ticls = 1) {
     for (size_t i = 0; i < nb_ticls; i++) {
       if (kIterationVerbose) {
-        std::cout << "Running iteration" << tick_count_ << std::endl;
+        std::cout << "Running iteration " << std::dec << tick_count_
+                  << std::endl;
       }
 
       tick_count_++;
@@ -144,7 +147,7 @@ class WriteRespBankTestbench {
   /**
    * Gets the newly reserved address as offered by the DUT.
    */
-  uint32_t simmem_reservation_get_address(void) { return module_->rsv_addr_o; }
+  uint32_t simmem_reservation_get_address(void) { return module_->rsv_iid_o; }
 
   /**
    * Checks whether the input data has been accepted by checking the ready
@@ -567,7 +570,7 @@ int main(int argc, char **argv, char **env) {
   // Counts the number of mismatches during the whole test
   size_t total_nb_mismatches = 0;
 
-  for (unsigned int seed = 0; seed < 100; seed++) {
+  for (unsigned int seed = 0; seed < 1; seed++) {
     // Counts the number of mismatches during the loop iteration
     size_t local_nb_mismatches;
 

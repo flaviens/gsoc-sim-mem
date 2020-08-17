@@ -17,12 +17,14 @@
 // WARNING: The module does not enforce ordering between read and write data of
 // same AXI id.
 
+// TODO: Warning with wdata counter overflow.
+
 const bool kIterationVerbose = false;
 const bool kTransactionVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kTrailingTicks = 100;
+const int kTrailingTicks = 200;
 
 // TODO Implement reads
 
@@ -575,7 +577,11 @@ void simple_testbench(SimmemTestbench *tb) {
 
   tb->simmem_requester_waddr_apply(w_addr_req);
 
-  tb->simmem_tick(3);
+  tb->simmem_tick();
+
+  w_addr_req.id = 1;
+  w_addr_req.addr = 3;
+  w_addr_req.burst_len = 4;
 
   tb->simmem_realmem_waddr_request();
   tb->simmem_tick(4);
@@ -586,11 +592,9 @@ void simple_testbench(SimmemTestbench *tb) {
   tb->simmem_requester_wdata_apply(w_data);
   tb->simmem_realmem_wdata_request();
 
-  // tb->simmem_requester_waddr_stop();
+  tb->simmem_requester_waddr_stop();
 
-  while (!tb->simmem_is_done()) {
-    tb->simmem_tick();
-  }
+  tb->simmem_tick(600);
 }
 
 void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
@@ -609,8 +613,8 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
   waddr_time_queue_map_t waddr_in_queues;
   waddr_time_queue_map_t waddr_out_queues;
-  wdata_time_queue_map_t wdata_in_queues;
-  wdata_time_queue_map_t wdata_out_queues;
+  // wdata_time_queue_map_t wdata_in_queues;
+  // wdata_time_queue_map_t wdata_out_queues;
   raddr_time_queue_map_t raddr_in_queues;
   raddr_time_queue_map_t raddr_out_queues;
   rdata_time_queue_map_t rdata_in_queues;
@@ -625,12 +629,12 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
     waddr_out_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddress>>>(
             ids[i], std::queue<std::pair<size_t, WriteAddress>>()));
-    wdata_in_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
-            ids[i], std::queue<std::pair<size_t, WriteData>>()));
-    wdata_out_queues.insert(
-        std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
-            ids[i], std::queue<std::pair<size_t, WriteData>>()));
+    // wdata_in_queues.insert(
+    //     std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
+    //         ids[i], std::queue<std::pair<size_t, WriteData>>()));
+    // wdata_out_queues.insert(
+    //     std::pair<uint64_t, std::queue<std::pair<size_t, WriteData>>>(
+    //         ids[i], std::queue<std::pair<size_t, WriteData>>()));
     raddr_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, ReadAddress>>>(
             ids[i], std::queue<std::pair<size_t, ReadAddress>>()));
@@ -675,10 +679,15 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   WriteAddress requester_current_waddr;
   requester_current_waddr.from_packed(rand());
   requester_current_waddr.id = ids[rand() % num_identifiers];
+  requester_current_waddr.burst_len = 4;
+  requester_current_waddr.burst_size = 2;
   // Input waddr from the requester
   ReadAddress requester_current_raddr;
   requester_current_raddr.from_packed(rand());
   requester_current_raddr.id = ids[rand() % num_identifiers];
+  requester_current_raddr.burst_len = 4;
+  requester_current_raddr.burst_size = 2;
+
   // Input wdata from the requester
   WriteData requester_current_wdata;
   requester_current_wdata.from_packed(rand());
@@ -814,6 +823,8 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       // Renew the input data if the input handshake has been successful
       requester_current_waddr.from_packed(rand());
       requester_current_waddr.id = ids[rand() % num_identifiers];
+      requester_current_waddr.burst_len = 4;
+      requester_current_waddr.burst_size = 2;
     }
     // raddr handshake
     if (requester_apply_raddr_input && tb->simmem_requester_raddr_check()) {
@@ -835,14 +846,16 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       // Renew the input data if the input handshake has been successful
       requester_current_raddr.from_packed(rand());
       requester_current_raddr.id = ids[rand() % num_identifiers];
+      requester_current_raddr.burst_len = 4;
+      requester_current_raddr.burst_size = 2;
     }
     // wdata handshake
     if (requester_apply_wdata_input && tb->simmem_requester_wdata_check()) {
       // If the input handshake between the requester and the simmem has been
       // successful for wdata, then accept the input.
 
-      wdata_in_queues[requester_current_wdata.id].push(
-          std::pair<size_t, WriteData>(curr_itern, requester_current_wdata));
+      // wdata_in_queues[requester_current_wdata.id].push(
+      //     std::pair<size_t, WriteData>(curr_itern, requester_current_wdata));
       if (kTransactionVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
@@ -855,7 +868,6 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
       // Renew the input data if the input handshake has been successful
       requester_current_wdata.from_packed(rand());
-      requester_current_wdata.id = ids[rand() % num_identifiers];
     }
     // wresp handshake
     if (realmem_apply_wresp_input && tb->simmem_realmem_wresp_check()) {
@@ -915,6 +927,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
         tb->simmem_realmem_waddr_fetch(realmem_current_waddr)) {
       // If the output handshake between the realmem and the simmem has been
       // successful, then accept the output.
+
       waddr_out_queues[ids[realmem_current_waddr.id]].push(
           std::pair<size_t, WriteAddress>(curr_itern, realmem_current_waddr));
 
@@ -957,8 +970,9 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
         tb->simmem_realmem_wdata_fetch(realmem_current_wdata)) {
       // If the output handshake between the realmem and the simmem has been
       // successful, then accept the output.
-      wdata_out_queues[ids[realmem_current_wdata.id]].push(
-          std::pair<size_t, WriteData>(curr_itern, realmem_current_wdata));
+
+      // wdata_out_queues[ids[realmem_current_wdata.id]].push(
+      //     std::pair<size_t, WriteData>(curr_itern, realmem_current_wdata));
 
       // Let the realmem treat the freshly received wdata
       realmem.accept_wdata(realmem_current_wdata);
@@ -1102,8 +1116,8 @@ int main(int argc, char **argv, char **env) {
   SimmemTestbench *tb = new SimmemTestbench(kTrailingTicks, true, "top.fst");
 
   // Choose testbench type
-  simple_testbench(tb);
-  // randomized_testbench(tb, 1, 0);
+  // simple_testbench(tb);
+  randomized_testbench(tb, 1, 0);
 
   delete tb;
 

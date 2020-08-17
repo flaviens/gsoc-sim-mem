@@ -28,7 +28,6 @@ const uint64_t ReadAddress::qos_w = AxQoSWidth;
 const uint64_t WriteResponse::id_w = IDWidth;
 const uint64_t WriteResponse::rsp_w = XRespWidth;
 
-const uint64_t WriteData::id_w = IDWidth;
 const uint64_t WriteData::data_w = MaxBurstSizeBytes;
 const uint64_t WriteData::strb_w = WStrbWidth;
 const uint64_t WriteData::last_w = XLastWidth;
@@ -78,8 +77,7 @@ const uint64_t WriteResponse::id_off = 0UL;
 const uint64_t WriteResponse::rsp_off =
     WriteResponse::id_off + WriteResponse::id_w;
 
-const uint64_t WriteData::id_off = 0UL;
-const uint64_t WriteData::data_off = WriteData::id_off + WriteData::id_w;
+const uint64_t WriteData::data_off = 0UL;
 const uint64_t WriteData::strb_off = WriteData::data_off + WriteData::data_w;
 const uint64_t WriteData::last_off = WriteData::strb_off + WriteData::strb_w;
 
@@ -220,7 +218,6 @@ uint64_t WriteResponse::to_packed() {
 void WriteData::from_packed(uint64_t packed) {
   uint64_t low_mask;
 
-  id = single_from_packed(packed, id_w, id_off);
   data = single_from_packed(packed, data_w, data_off);
   strb = single_from_packed(packed, strb_w, strb_off);
   last = single_from_packed(packed, last_w, last_off);
@@ -229,7 +226,6 @@ void WriteData::from_packed(uint64_t packed) {
 uint64_t WriteData::to_packed() {
   uint64_t packed = 0UL;
 
-  single_to_packed(packed, id, id_w, id_off);
   single_to_packed(packed, data, data_w, data_off);
   single_to_packed(packed, strb, strb_w, strb_off);
   single_to_packed(packed, last, last_w, last_off);
