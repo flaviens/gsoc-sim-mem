@@ -107,58 +107,57 @@ module simmem_resp_bank #(
     parameter int unsigned MaxBurstLen = simmem_pkg::MaxRBurstLen,
     parameter type DataType = simmem_pkg::rdata_t,
 
-    // BurstLenWidth is the bit width to encode MaxBurstLen-1 in binary format.
+    // BurstLenWidth is the bit width to encode up to MaxBurstLen-1 in binary format.
     //
-    // XBurstLenWidth is the bit width to encode MaxBurstLen in binary format. This is useful, as
-    // any RAM cell can contain or reserve 0, 1, ... or MaxBurstLen burst data.
-
+    // XBurstLenWidth is the bit width to encode up to MaxBurstLen in binary format. This is useful,
+    // as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLen burst data.
     localparam int unsigned XBurstLenWidth = $clog2 (MaxBurstLen + 1),  // derived parameter
     localparam int unsigned BurstLenWidth = MaxBurstLen == 1 ? 1 : $clog2 (MaxBurstLen),  // derived parameter
-    localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
-    localparam int unsigned DataWidth = $bits (DataType)  // derived parameter
+    localparam int unsigned BankAddrWidth = $clog2 (TotCapa),   // derived parameter
+    localparam int unsigned DataWidth = $bits (DataType),       // derived parameter
+    localparam int PayloadRamDepth = TotCapa * MaxBurstLen      // derived parameter
 ) (
-    input logic clk_i,
-    input logic rst_ni,
+  input logic clk_i,
+  input logic rst_ni,
 
-    // Reservation interface AXI identifier for which the reseration request is being done.
-    input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
-    // Information about currently reserved address. Will be stored by other modules as an internal
-    // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [     BankAddrWidth-1:0] rsv_iid_o,
-    // The number of data elements to reserve in the RAM cell, in binary representation.
-    input  logic [    XBurstLenWidth-1:0] rsv_burst_len_i,
-    // Reservation handshake signals
-    input  logic                          rsv_valid_i,
-    output logic                          rsv_ready_o,
+  // Reservation interface AXI identifier for which the reseration request is being done.
+  input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
+  // Information about currently reserved address. Will be stored by other modules as an internal
+  // identifier to uniquely identify the response (or response burst in case of read data).
+  output logic [     BankAddrWidth-1:0] rsv_iid_o,
+  // The number of data elements to reserve in the RAM cell, in binary representation.
+  input  logic [    XBurstLenWidth-1:0] rsv_burst_len_i,
+  // Reservation handshake signals
+  input  logic                          rsv_valid_i,
+  output logic                          rsv_ready_o,
 
-    // Interface with the releaser Multi-hot signal that enables the release for given internal
-    // addresses (i.e., RAM addresses).
-    input  logic [TotCapa-1:0] release_en_i,
-    // Signals which address has been released, if any. One-hot signal. Is set to one for each
-    // released response in a burst.
-    output logic [TotCapa-1:0] released_addr_onehot_o,
+  // Interface with the releaser Multi-hot signal that enables the release for given internal
+  // addresses (i.e., RAM addresses).
+  input  logic [TotCapa-1:0] release_en_i,
+  // Signals which address has been released, if any. One-hot signal. Is set to one for each
+  // released response in a burst.
+  output logic [TotCapa-1:0] released_addr_onehot_o,
 
-    // Interface with the real memory controller AXI response excluding handshake
-    input  DataType rsp_i,
-    output DataType rsp_o,
-    // Response acquisition handshake signal
-    input  logic    in_rsp_valid_i,
-    output logic    in_rsp_ready_o,
+  // Interface with the real memory controller AXI response excluding handshake
+  input  DataType rsp_i,
+  output DataType rsp_o,
+  // Response acquisition handshake signal
+  input  logic in_rsp_valid_i,
+  output logic in_rsp_ready_o,
 
-    // Interface with the requester
-    input  logic out_rsp_ready_i,
-    output logic out_rsp_valid_o,
+  // Interface with the requester
+  input  logic out_rsp_ready_i,
+  output logic out_rsp_valid_o,
 
-    // Ready signals from the delay calculator
-    input  logic delay_calc_ready_i,
-    // Ready signals for the delay calculator
-    output logic delay_calc_ready_o
+  // Ready signal from the delay calculator
+  input  logic delay_calc_ready_i,
+  // Ready signal to the delay calculator
+  output logic delay_calc_ready_o
 );
 
   import simmem_pkg::*;
 
   localparam int PayloadWidth = DataWidth - IDWidth;
-  localparam int PayloadRamDepth = TotCapa * MaxBurstLen;
 
   typedef struct packed {logic [BankAddrWidth-1:0] nxt_elem;} metadata_e;
 
@@ -382,6 +381,8 @@ module simmem_resp_bank #(
       assign cnt_in_mask_id_addr[i_addr][i_id] =
           rsp_i.merged_payload.id == i_id && rsp_heads[i_id] == i_addr;
 
+      // Here is determined cnt_in_mask_id, which, for each AXI identifiers, gives a boolean signal
+      // translating whether the response head is currently receiving data.
       always_comb begin
         if (rsp_heads[i_id] == i_addr) begin
           cnt_in_mask_id[i_id] = cnt_in_mask[i_addr];
@@ -406,9 +407,9 @@ module simmem_resp_bank #(
       end
     end
 
+    // Update immediately the rsp_cnt on related output.
     assign rsp_cnt[i_addr] = cnt_out_mask[i_addr] ? rsp_cnt_q[i_addr] - 1 : rsp_cnt_q[i_addr];
   end : cnt_update
-
 
   assign released_addr_onehot_o = cnt_out_mask;
 
@@ -1119,74 +1120,74 @@ module simmem_resp_bank #(
 
   // Payload RAM instance
   prim_generic_ram_2p #(
-      .Width(PayloadWidth),
-      .DataBitsPerMask(1),
-      .Depth(PayloadRamDepth)
+    .Width(PayloadWidth),
+    .DataBitsPerMask(1),
+    .Depth(PayloadRamDepth)
   ) i_payload_ram (
-      .clk_a_i(clk_i),
-      .clk_b_i(clk_i),
+    .clk_a_i     (clk_i),
+    .clk_b_i     (clk_i),
 
-      .a_req_i  (pyld_ram_in_req),
-      .a_write_i(pyld_ram_in_write),
-      .a_wmask_i(pyld_ram_in_wmask),
-      .a_addr_i (pyld_ram_in_full_addr),
-      .a_wdata_i(rsp_i.merged_payload.payload),
-      .a_rdata_o(),
+    .a_req_i     (pyld_ram_in_req),
+    .a_write_i   (pyld_ram_in_write),
+    .a_wmask_i   (pyld_ram_in_wmask),
+    .a_addr_i    (pyld_ram_in_full_addr),
+    .a_wdata_i   (rsp_i.merged_payload.payload),
+    .a_rdata_o   (),
 
-      .b_req_i  (pyld_ram_out_req),
-      .b_write_i(pyld_ram_out_write),
-      .b_wmask_i(pyld_ram_out_wmask),
-      .b_addr_i (pyld_ram_out_full_addr),
-      .b_wdata_i(),
-      .b_rdata_o(rsp_o.merged_payload.payload)
+    .b_req_i     (pyld_ram_out_req),
+    .b_write_i   (pyld_ram_out_write),
+    .b_wmask_i   (pyld_ram_out_wmask),
+    .b_addr_i    (pyld_ram_out_full_addr),
+    .b_wdata_i   (),
+    .b_rdata_o   (rsp_o.merged_payload.payload)
   );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-      .Width(BankAddrWidth),
-      .DataBitsPerMask(1),
-      .Depth(TotCapa)
+    .Width(BankAddrWidth),
+    .DataBitsPerMask(1),
+    .Depth(TotCapa)
   ) i_meta_ram_out_tail (
-      .clk_a_i(clk_i),
-      .clk_b_i(clk_i),
+    .clk_a_i     (clk_i),
+    .clk_b_i     (clk_i),
 
-      .a_req_i  (meta_ram_in_req),
-      .a_write_i(meta_ram_in_write),
-      .a_wmask_i(meta_ram_in_wmask),
-      .a_addr_i (meta_ram_in_addr),
-      .a_wdata_i(meta_ram_in_content),
-      .a_rdata_o(),
+    .a_req_i     (meta_ram_in_req),
+    .a_write_i   (meta_ram_in_write),
+    .a_wmask_i   (meta_ram_in_wmask),
+    .a_addr_i    (meta_ram_in_addr),
+    .a_wdata_i   (meta_ram_in_content),
+    .a_rdata_o   (),
 
-      .b_req_i  (meta_ram_out_req),
-      .b_write_i(meta_ram_out_write),
-      .b_wmask_i(meta_ram_out_wmask),
-      .b_addr_i (meta_ram_out_addr_tail),
-      .b_wdata_i(),
-      .b_rdata_o(meta_ram_out_rsp_tail)
+    .b_req_i     (meta_ram_out_req),
+    .b_write_i   (meta_ram_out_write),
+    .b_wmask_i   (meta_ram_out_wmask),
+    .b_addr_i    (meta_ram_out_addr_tail),
+    .b_wdata_i   (),
+    .b_rdata_o   (meta_ram_out_rsp_tail)
   );
 
   // Metadata RAM instance
   prim_generic_ram_2p #(
-      .Width(BankAddrWidth),
-      .DataBitsPerMask(1),
-      .Depth(TotCapa)
+    .Width(BankAddrWidth),
+    .DataBitsPerMask(1),
+    .Depth(TotCapa)
   ) i_meta_ram_out_rsp_head (
-      .clk_a_i(clk_i),
-      .clk_b_i(clk_i),
+    .clk_a_i     (clk_i),
+    .clk_b_i     (clk_i),
 
-      .a_req_i  (meta_ram_in_req),
-      .a_write_i(meta_ram_in_write),
-      .a_wmask_i(meta_ram_in_wmask),
-      .a_addr_i (meta_ram_in_addr),
-      .a_wdata_i(meta_ram_in_content),
-      .a_rdata_o(),
+    .a_req_i     (meta_ram_in_req),
+    .a_write_i   (meta_ram_in_write),
+    .a_wmask_i   (meta_ram_in_wmask),
+    .a_addr_i    (meta_ram_in_addr),
+    .a_wdata_i   (meta_ram_in_content),
+    .a_rdata_o   (),
 
-      .b_req_i  (meta_ram_out_req),
-      .b_write_i(meta_ram_out_write),
-      .b_wmask_i(meta_ram_out_wmask),
-      .b_addr_i (meta_ram_out_addr_head),
-      .b_wdata_i(),
-      .b_rdata_o(meta_ram_out_rsp_head)
+    .b_req_i     (meta_ram_out_req),
+    .b_write_i   (meta_ram_out_write),
+    .b_wmask_i   (meta_ram_out_wmask),
+    .b_addr_i    (meta_ram_out_addr_head),
+    .b_wdata_i   (),
+    .b_rdata_o   (meta_ram_out_rsp_head)
   );
 
 endmodule
