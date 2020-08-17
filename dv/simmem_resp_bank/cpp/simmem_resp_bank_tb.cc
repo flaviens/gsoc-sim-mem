@@ -31,7 +31,7 @@ typedef enum {
 typedef Vsimmem_resp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
-const int kTestStrategy = SEQUENTIAL_TEST;
+const int kTestStrategy = SINGLE_ID_TEST;
 
 // This class implements elementary operations for the testbench
 class WriteRespBankTestbench {
@@ -56,7 +56,7 @@ class WriteRespBankTestbench {
 
     // Puts ones at the fields' places
     id_mask_ = ~((1 << 31) >> (31 - kIdWidth));
-    content_mask_ = ~((1 << 31) >> (31 - kRspWidth - kIdWidth)) & ~id_mask_;
+    content_mask_ = ~((1 << 31) >> (31 - kRspWidth + kIdWidth)) & ~id_mask_;
 
     module_->delay_calc_ready_i = 1;
   }
@@ -116,7 +116,7 @@ class WriteRespBankTestbench {
   void simmem_reservation_start(uint32_t axi_id) {
     module_->rsv_valid_i = 1;
     module_->rsv_req_id_onehot_i = 1 << axi_id;
-    module_->rsv_burst_len_i = 3;
+    module_->rsv_burst_len_i = 4;
   }
 
   /**
@@ -316,7 +316,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   srand(seed);
 
   uint32_t current_input_id = 1;
-  size_t nb_iterations = 1000;
+  size_t nb_iterations = 200;
 
   // Generate inputs
   std::queue<uint32_t> input_queue;
@@ -602,7 +602,7 @@ int main(int argc, char **argv, char **env) {
   // Counts the number of mismatches during the whole test
   size_t total_nb_mismatches = 0;
 
-  for (unsigned int seed = 0; seed < 1; seed++) {
+  for (unsigned int seed = 1; seed < 2; seed++) {
     // Counts the number of mismatches during the loop iteration
     size_t local_nb_mismatches;
 
