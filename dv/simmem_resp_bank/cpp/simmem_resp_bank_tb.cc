@@ -13,8 +13,8 @@
 #include <vector>
 #include <verilated_fst_c.h>
 
-const bool kIterationVerbose = true;
-const bool kTransactionsVerbose = true;
+const bool kIterationVerbose = false;
+const bool kTransactionsVerbose = false;
 const bool kPairsVerbose = true;
 
 const int kResetLength = 5;
@@ -31,7 +31,7 @@ typedef enum {
 typedef Vsimmem_resp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
-const int kTestStrategy = SINGLE_ID_TEST;
+const int kTestStrategy = MULTIPLE_ID_TEST;
 
 // This class implements elementary operations for the testbench
 class WriteRespBankTestbench {
@@ -116,7 +116,7 @@ class WriteRespBankTestbench {
   void simmem_reservation_start(uint32_t axi_id) {
     module_->rsv_valid_i = 1;
     module_->rsv_req_id_onehot_i = 1 << axi_id;
-    module_->rsv_burst_len_i = 4;
+    module_->rsv_burst_len_i = 3;
   }
 
   /**
@@ -602,7 +602,7 @@ int main(int argc, char **argv, char **env) {
   // Counts the number of mismatches during the whole test
   size_t total_nb_mismatches = 0;
 
-  for (unsigned int seed = 1; seed < 2; seed++) {
+  for (unsigned int seed = 0; seed < 100; seed++) {
     // Counts the number of mismatches during the loop iteration
     size_t local_nb_mismatches;
 

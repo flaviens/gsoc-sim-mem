@@ -75,8 +75,7 @@
 //
 //  Example of addresses and full addresses for MaxBurstLen=4:
 //
-//    +---------Pyld RAM---------+
-//    | Burst id 0, data 0.      |  Addr: 0, full addr: 0.
+//    +---------Pyld RAM---------+ | Burst id 0, data 0.      |  Addr: 0, full addr: 0.
 //    +--------------------------+
 //    | Burst id 0, data 1.      |  Addr: 0, full addr: 1.
 //    +--------------------------+
@@ -102,8 +101,10 @@
 //    +--------------------------+
 //
 
+// TODO Test for maxburstlen=1
+
 module simmem_resp_bank #(
-    parameter int unsigned TotCapa = 32,  // TODO simmem_pkg::ReadDataBankCapacity,
+    parameter int unsigned TotCapa = simmem_pkg::ReadDataBankCapacity,
     parameter int unsigned MaxBurstLen = simmem_pkg::MaxRBurstLen,
     parameter type DataType = simmem_pkg::rdata_t,
 
@@ -303,43 +304,66 @@ module simmem_resp_bank #(
   //  This part is dedicated to counting the burst elements in a RAM cell.
   //
   //  Counters:
-  //    * rsv_cnt_d, rsv_cnt_q: Count the elements reserved but not acquired yet in a given RAM
-  //      address. The counters are set at reservation time and decreased when responses are stored
-  //      in the corresponding cell. TODO Update description
+  //    * rsv_cnt_d, rsv_cnt_q, rsv_cnt: Count the elements reserved but not acquired yet in a given
+  //      RAM address. The counters are set at reservation time and decreased when responses are
+  //      stored in the corresponding cell. To have a real feedback from the output status, rsv_cnt
+  //      differs from rsv_cnt_q as it takes the current output into account (it is equal to
+  //      rsv_cnt_q when there is an output handshake implying this address. In the latter case, it
+  //      is equal to rsv_cnt_q-1).
   //    * rsp_cnt_d, rsp_cnt_q: Count the elements contained in a given RAM address. The counters
   //      are increased when responses are acquired and decreased when data is released.
+  //    * burst_len_d, burst_len_q: Stores the burst length for a given reservation. It is necessary
+  //      to provide support for burst data output before all the data of the burst has arrived.
   //
   //  Counters are updated using three masks:
   //    * cnt_rsv_mask: contains at most one bit to one, where a new reservation is performed.
   //    * cnt_in_mask: contains at most one bit to one, where a response is accepted. This mask is
   //      collaboratively built by all linkedlists using the signals cnt_in_mask_id_addr.
-  //    * cnt_out_mask: contains at most one bit to one, where a response is released.
+  //    * cnt_out_mask: contains at most one bit to one, where a response is released. Additionally,
+  //      the cnt_in_mask_id signal tracks, for each linked list the cnt_in_mask value under the
+  //      response heads. This helps reducing the latency between response acquisition and release,
+  //      and most importantly helps determine the response part of the queue after output.
   //
   //  Per-linked list counters: Each linked list has its own counters to track how many responses
   //  are in certain cells. These are not new physical counters. Instead, they base on rsv_cnt and
   //  rsp_cnt counters. Each linked list has the following logical counters:
-  //    * rsv_cnt_id: Tracks the number of responses reserved but not acquired yet in the RAM cell
-  //      pointed by the response head pointer. This is useful to track when to update the rsp_head
-  //      pointer.
-  //    * rsp_cnt_id: Tracks the number of responses contained under the response head pointer. This
-  //      is useful to set the input mask of the payload RAM.
-  //    * pre_tail_rsp_cnt_id: Tracks the number of responses contained under the pre_tail pointer. This
-  //      is useful to set the output mask of the payload RAM. // TODO Update comment
-  //    * tail_rsp_cnt_id: Tracks the number of responses contained under the tail pointer. This is
-  //      useful to set the output mask of the payload RAM. // TODO Update comment
+  //    * rsv_cnt_id: Tracks the number of responses reserved but not acquired yet in the extended
+  //      RAM cell pointed by the response head pointer. This is useful to track when to update the
+  //      rsp_head pointer.
+  //    * rsp_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the
+  //      response head pointer. This is useful to update the response head.
+  //    * pre_tail_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under
+  //      the pre_tail pointer. This is useful to calculate the output offset of the payload RAM.
+  //    * tail_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the
+  //      tail pointer. This is useful to calculate the output offset of the payload RAM, to update
+  //      the tails on output and to determine the next identifier to release.
+  //    * pre_tail_rsp_cnt_id: Tracks the number of not-filled-yet reserved slots contained under
+  //      the pre_tail pointer. This is useful to calculate the output offset of the payload RAM and
+  //      to determine whether an identifier awaits data.
+  //    * tail_rsp_cnt_id: Tracks the number of responses contained under the pre_tail pointer. This
+  //      is useful to calculate the output offset, to update the tail pointers, to determine the
+  //      length of the response part of the queue after output and to determine the next identifier
+  //      to release.
+  //    * pre_tail_burst_len_id: Tracks the burst length for the burst stored in the extended cell
+  //      under the pre-tail pointer. This is useful to calculate the output offset of the payload
+  //      RAM.
+  //    * tail_burst_len_id: Tracks the burst length for the burst stored in the extended cell under
+  //      the tail pointer. This is useful to calculate the output offset of the payload RAM.
+
+  // TODO Document awaits_data
 
   logic [XBurstLenWidth-1:0] rsv_cnt_d[TotCapa];
   logic [XBurstLenWidth-1:0] rsv_cnt_q[TotCapa];
-  logic [XBurstLenWidth-1:0] burst_len_d[TotCapa];  // TODO Document
-  logic [XBurstLenWidth-1:0] burst_len_q[TotCapa];  // TODO Document
+  logic [XBurstLenWidth-1:0] burst_len_d[TotCapa];
+  logic [XBurstLenWidth-1:0] burst_len_q[TotCapa];
   logic [XBurstLenWidth-1:0] rsp_cnt_d[TotCapa];
   logic [XBurstLenWidth-1:0] rsp_cnt_q[TotCapa];
-  logic [XBurstLenWidth-1:0] rsp_cnt[TotCapa];  // After output masking
+  logic [XBurstLenWidth-1:0] rsp_cnt[TotCapa];
 
   logic [TotCapa-1:0] cnt_rsv_mask;
   logic [TotCapa-1:0][NumIds-1:0] cnt_in_mask_id_addr;
   logic cnt_in_mask[TotCapa];
-  logic cnt_in_mask_id[NumIds];  // Maps to rsp head TODO Document
+  logic cnt_in_mask_id[NumIds];
   logic [TotCapa-1:0] cnt_out_mask;
 
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : cnt_update
@@ -364,7 +388,6 @@ module simmem_resp_bank #(
           cnt_in_mask_id[i_id] = cnt_in_mask[i_addr];
         end
       end
-      // TODO Document
     end : gen_cnt_in_mask
     // Using the previous information, aggregated among all linked lists, we set the corresponding
     // bit to one if there is actually an incoming response.
@@ -392,7 +415,6 @@ module simmem_resp_bank #(
 
   // Intermediate signals to calculate counts
   logic [TotCapa-1:0][XBurstLenWidth-1:0] rsv_cnt_addr[NumIds];
-  logic [TotCapa-1:0][XBurstLenWidth-1:0] rsp_cnt_addr[NumIds];
   logic [TotCapa-1:0][XBurstLenWidth-1:0] rsp_rsv_cnt_addr[NumIds];
   logic [TotCapa-1:0][XBurstLenWidth-1:0] rsp_burst_len_addr[NumIds];
   logic [TotCapa-1:0][XBurstLenWidth-1:0] pre_tail_rsv_cnt_addr[NumIds];
@@ -403,7 +425,6 @@ module simmem_resp_bank #(
   logic [TotCapa-1:0][XBurstLenWidth-1:0] tail_burst_len_addr[NumIds];
   // Intermediate aggregation signals
   logic [XBurstLenWidth-1:0][TotCapa-1:0] rsv_cnt_addr_rot90[NumIds];
-  logic [XBurstLenWidth-1:0][TotCapa-1:0] rsp_cnt_addr_rot90[NumIds];
   logic [XBurstLenWidth-1:0][TotCapa-1:0] rsp_rsv_cnt_addr_rot90[NumIds];
   logic [XBurstLenWidth-1:0][TotCapa-1:0] rsp_burst_len_addr_rot90[NumIds];
   logic [XBurstLenWidth-1:0][TotCapa-1:0] pre_tail_rsv_cnt_addr_rot90[NumIds];
@@ -414,7 +435,6 @@ module simmem_resp_bank #(
   logic [XBurstLenWidth-1:0][TotCapa-1:0] tail_burst_len_addr_rot90[NumIds];
   // Actual counts per linked list
   logic [XBurstLenWidth-1:0] rsv_cnt_id[NumIds];
-  logic [XBurstLenWidth-1:0] rsp_cnt_id[NumIds];
   logic [XBurstLenWidth-1:0] rsp_rsv_cnt_id[NumIds];  // TODO Document
   logic [XBurstLenWidth-1:0] rsp_burst_len_id[NumIds];  // TODO Document
   logic [XBurstLenWidth-1:0] pre_tail_rsv_cnt_id[NumIds];
@@ -429,8 +449,6 @@ module simmem_resp_bank #(
     for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_cnt_addr
       assign rsv_cnt_addr[i_id][i_addr] =
           rsv_cnt_q[i_addr] & {XBurstLenWidth{rsp_heads[i_id] == i_addr && |rsv_len_q[i_id]}};
-      assign rsp_cnt_addr[i_id][i_addr] = rsp_cnt[i_addr] & {
-          XBurstLenWidth{rsp_heads[i_id] == i_addr && (|rsv_len_q[i_id] || |rsp_len_q[i_id])}};
       assign rsp_rsv_cnt_addr[i_id][i_addr] = rsv_cnt_q[i_addr] & {
           XBurstLenWidth{rsp_heads[i_id] == i_addr && (|rsv_len_q[i_id] || |rsp_len_q[i_id])}};
       assign rsp_burst_len_addr[i_id][i_addr] = burst_len_q[i_addr] & {
@@ -450,7 +468,6 @@ module simmem_resp_bank #(
 
       for (genvar i_bit = 0; i_bit < XBurstLenWidth; i_bit = i_bit + 1) begin : gen_cnt_addr_rot
         assign rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = rsv_cnt_addr[i_id][i_addr][i_bit];
-        assign rsp_cnt_addr_rot90[i_id][i_bit][i_addr] = rsp_cnt_addr[i_id][i_addr][i_bit];
         assign rsp_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = rsp_rsv_cnt_addr[i_id][i_addr][i_bit];
         assign
             rsp_burst_len_addr_rot90[i_id][i_bit][i_addr] = rsp_burst_len_addr[i_id][i_addr][i_bit];
@@ -471,7 +488,6 @@ module simmem_resp_bank #(
 
     for (genvar i_bit = 0; i_bit < XBurstLenWidth; i_bit = i_bit + 1) begin : gen_cnt_after_rot
       assign rsv_cnt_id[i_id][i_bit] = |rsv_cnt_addr_rot90[i_id][i_bit];
-      assign rsp_cnt_id[i_id][i_bit] = |rsp_cnt_addr_rot90[i_id][i_bit];
       assign rsp_rsv_cnt_id[i_id][i_bit] = |rsp_rsv_cnt_addr_rot90[i_id][i_bit];
       assign rsp_burst_len_id[i_id][i_bit] = |rsp_burst_len_addr_rot90[i_id][i_bit];
       assign pre_tail_rsv_cnt_id[i_id][i_bit] = |pre_tail_rsv_cnt_addr_rot90[i_id][i_bit];
@@ -482,6 +498,19 @@ module simmem_resp_bank #(
       assign tail_burst_len_id[i_id][i_bit] = |tail_burst_len_addr_rot90[i_id][i_bit];
     end : gen_cnt_after_rot
   end : gen_cnt
+
+  // Calculate the length of each AXI identifier queue after the potential output
+  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
+    assign
+    // The response length is decreased after output if there is an output for this identifier
+    rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] &&
+    // And the burst data will be completely empty in the extended payload RAM cell under the tail pointer.
+    tail_rsv_cnt_id[i_id] == 0 && tail_rsp_cnt_id[i_id] == 0 && !cnt_in_mask_id[i_id] ?
+        rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
+
+    // A linked list is said to await data when both its tail and pre_tail response bursts are empty. In the opposite case, the linked list could provide data.
+    assign awaits_data[i_id] = tail_rsp_cnt_id[i_id] == 0 && pre_tail_rsp_cnt_id[i_id] == 0;
+  end : gen_len_after_output
 
 
   ///////////////
@@ -550,11 +579,11 @@ module simmem_resp_bank #(
   //
   //  Some signals are set globally, and others are aggregated from all linked lists. The latter
   //  are:
-  //    * pyld_ram_in_addr_id,     as the address should be the response head pointer value.
-  //    * pyld_ram_out_addr_id,    as the address should be the pre_tail or tail pointer value.
+  //    * pyld_ram_in_addr_id,        as the address should be the response head pointer value.
+  //    * pyld_ram_out_addr_id,       as the address should be the pre_tail or tail pointer value.
   //    * meta_ram_in_addr_id,        as the address may be the reservation head pointer value.
   //    * meta_ram_out_addr_tail_id,  as the address should be the tail pointer value.
-  //    * meta_ram_out_addr_head_id,   as the address should be the response head pointer value.
+  //    * meta_ram_out_addr_head_id,  as the address should be the response head pointer value.
   //
   //  Rotated signals are used to aggregate the signals, where the dimensions have to be transposed.
   //
@@ -714,8 +743,8 @@ module simmem_resp_bank #(
   //      input from delay bank and from the response length after output.
   //    * nxt_addr_onehot_id:  Next address to release, onehot and by AXI identifier.
   //    * nxt_id_mhot: Next address to release, multihot.
-  //    * nxt_id_to_release_onehot: Result signal, indicating in a one-hot fashion, which AXI identifier to
-  //      release next. Can be full zero.
+  //    * nxt_id_to_release_onehot: Result signal, indicating in a one-hot fashion, which AXI
+  //      identifier to release next. Can be full zero.
   //    * nxt_addr_onehot_rot: Next address to release, one-hot, rotated and filtered by next id to
   //      release. Useful for output calculation below.
 
@@ -734,13 +763,10 @@ module simmem_resp_bank #(
         // Fundamentally, the next address to release needs to belong to a non-empty AXI identifier
         // and must be enabled for release
         nxt_addr_mhot_id[i_id][i_addr] = |(rsp_len_after_out[i_id]) && !awaits_data[i_id] &&
-            release_en_i[i_addr];  // TODO After out
+            release_en_i[i_addr]; 
 
         // The address must additionally be, depending on the situation, the pre_tail or the tail of
-        // the corresponding queue
-        // TODO
-        // if (out_rsp_ready_i && out_rsp_valid_o && cur_out_id_onehot[i_id] &&
-        //     tail_rsp_cnt_id[i_id] == 1) begin
+        // the corresponding queue. It is the pre_tail iff the work with the tail is complete (both reserved and response burst data are empty).
         if (tail_rsv_cnt_id[i_id] == 0 && tail_rsp_cnt_id[i_id] == 0) begin
           nxt_addr_mhot_id[i_id][i_addr] &= pre_tails[i_id] == i_addr;
         end else begin
@@ -827,25 +853,6 @@ module simmem_resp_bank #(
     end
   end
 
-  // Calculate the length of each AXI identifier queue after the potential output
-  // TODO Document
-  // TODO Modify the current output valid condition
-  for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign
-        rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] &&
-        tail_rsp_cnt_id[i_id] == 0 && !cnt_in_mask_id[i_id] ? rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
-
-    // always_comb begin
-    //   if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
-    //     assign awaits_data[i_id] = pre_tail_rsp_cnt_id[i_id] == 0;  // TODO Document
-    //   end else begin
-    //     assign awaits_data[i_id] = tail_rsp_cnt_id[i_id] == 0;
-    //   end
-    // end TODO
-
-    assign awaits_data[i_id] = tail_rsp_cnt_id[i_id] == 0 && pre_tail_rsp_cnt_id[i_id] == 0;
-  end : gen_len_after_output
-
   // Recall if the current output is valid
   assign cur_out_valid_d = |nxt_id_to_release_onehot;
 
@@ -914,12 +921,10 @@ module simmem_resp_bank #(
         if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
           if (tail_rsp_cnt_id[i_id] == 0) begin
             pyld_ram_out_addr_id[i_id] = pre_tails[i_id];
-            // Set the corresponding payload RAM output offset. // TODO Document
+            // Set the corresponding payload RAM output offset. This offset is determined by num_data_already_released, which can be expressed as follows.
             pyld_ram_out_offset_id[i_id] =
                 BurstLenWidth'(pre_tail_burst_len_id[i_id] - pre_tail_rsv_cnt_id[i_id] -
                                pre_tail_rsp_cnt_id[i_id]);
-            // TODO: Remove pyld_ram_out_wmask_id[i_id][i_bur] = pre_tail_rsp_cnt_id[i_id] ==
-            //     MaxBurstLen[XBurstLenWidth - 1:0] - i_bur[XBurstLenWidth - 1:0];
           end else begin
 
             pyld_ram_out_addr_id[i_id] = tails[i_id];
@@ -934,7 +939,8 @@ module simmem_resp_bank #(
               '(tail_burst_len_id[i_id] - tail_rsv_cnt_id[i_id] - tail_rsp_cnt_id[i_id]);
 
           // TODO: Remove for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
-          //   pyld_ram_out_wmask_id[i_id][i_bur] = tail_rsp_cnt_id[i_id] == MaxBurstLen[XBurstLenWidth
+          //   pyld_ram_out_wmask_id[i_id][i_bur] = tail_rsp_cnt_id[i_id] ==
+          //   MaxBurstLen[XBurstLenWidth
           //   - 1:0] - i_bur[XBurstLenWidth - 1:0]; end
         end
       end
@@ -946,9 +952,9 @@ module simmem_resp_bank #(
         if (rsp_burst_len_id[i_id] == rsp_rsv_cnt_id[i_id]) begin
           rsp_len_d[i_id] = rsp_len_d[i_id] + 1;
         end
-        // If this is the last data of the burst, then update the pointers.
-        // rsp_burst_len_id[i_id] - rsp_rsv_cnt_id[i_id] corresponds to the remaining burst data to
-        // receive. TODO Correct comment
+        // If this is the last data of the burst, then update the pointers. rsp_burst_len_id[i_id] -
+        // rsp_rsv_cnt_id[i_id] corresponds to the remaining burst data to receive. TODO Correct
+        // comment
         if (rsv_cnt_id[i_id] == 1) begin
 
           // As the reservation length refers to the number of reserved cells that are not occupied,
@@ -988,12 +994,8 @@ module simmem_resp_bank #(
         // Update the response head pointer position
         meta_ram_out_addr_head_id[i_id] = rsp_heads[i_id];
 
-        // Input offset is burst_len - rsv, which actually is nb_already_out + rsp.
-        // TODO Change here
+        // Input offset is burst_len - rsv, which actually is nb_already_out + rsp. TODO Change here
         pyld_ram_in_offset_id[i_id] = BurstLenWidth'(rsp_burst_len_id[i_id] - rsv_cnt_id[i_id]);
-        // TODO: Remove. Set the payload RAM input wmask for (int unsigned i_bur = 0; i_bur <
-        // MaxBurstLen; i_bur = i_bur + 1) begin pyld_ram_in_wmask_id[i_id][i_bur] =
-        // rsp_cnt_id[i_id] == i_bur[XBurstLenWidth - 1:0]; end
       end
 
       // Reservation handshake
