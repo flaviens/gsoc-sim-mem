@@ -67,41 +67,40 @@
 //    pointer ordering.
 //
 //  Burst data storage: To make burst data storage transparent, we introduce the notion of extended
-//    RAM cell, only applicable and useful for the payload RAM. An extended payload RAM cell is a
-//    succession of MaxBurstLen cell, aligned to a MaxBurstLen "full" address. We define the full
-//    address as the address pointing to a given burst data, while a ("plain") address refers to the
-//    index of the extended cell. This makes addresses in metadata RAMs match with "plain" addresses
-//    of the payload RAM.
+//    RAM cell (as opposed to plain "elementary" RAM cells), only applicable and useful for the
+//    payload RAM. An extended payload RAM cell is a succession of MaxBurstLen elementary RAM cells,
+//    aligned to a MaxBurstLen "full" address. We define the full address as the address pointing to
+//    a given elementary cell, while a ("plain") address refers to the index of the extended cell.
+//    This makes addresses in metadata RAMs match with "plain" addresses of the payload RAM.
 //
 //  Example of addresses and full addresses for MaxBurstLen=4:
 //
-//    +---------Pyld RAM---------+ | Burst id 0, data 0.      |  Addr: 0, full addr: 0.
-//    +--------------------------+
-//    | Burst id 0, data 1.      |  Addr: 0, full addr: 1.
-//    +--------------------------+
-//    | Burst id 0, data 2.      |  Addr: 0, full addr: 2.
-//    +--------------------------+
-//    | Burst id 0, data 3.      |  Addr: 0, full addr: 3.
-//    +--------------------------+
-//    | Burst id 1, data 0.      |  Addr: 1, full addr: 4.
-//    +--------------------------+
-//    | Burst id 1, data 1.      |  Addr: 1, full addr: 5.
-//    +--------------------------+
-//    | Burst id 1, data 2.      |  Addr: 1, full addr: 6.
-//    +--------------------------+
-//    | Burst id 1, data 3.      |  Addr: 1, full addr: 7.
-//    +--------------------------+
-//    | Burst id 2, data 0.      |  Addr: 2, full addr: 8.
-//    +--------------------------+
-//    | Burst id 2, data 1.      |  Addr: 2, full addr: 9.
-//    +--------------------------+
-//    | Burst id 2, data 2.      |  Addr: 2, full addr: 10.
-//    +--------------------------+
-//    | Burst id 2, data 3.      |  Addr: 2, full addr: 11.
-//    +--------------------------+
+//  *  +---------Pyld RAM---------+ 
+//  *  | Burst id 0, data 0.      |  Addr: 0, full addr: 0.
+//  *  +--------------------------+
+//  *  | Burst id 0, data 1.      |  Addr: 0, full addr: 1.
+//  *  +--------------------------+
+//  *  | Burst id 0, data 2.      |  Addr: 0, full addr: 2.
+//  *  +--------------------------+
+//  *  | Burst id 0, data 3.      |  Addr: 0, full addr: 3.
+//  *  +--------------------------+
+//  *  | Burst id 1, data 0.      |  Addr: 1, full addr: 4.
+//  *  +--------------------------+
+//  *  | Burst id 1, data 1.      |  Addr: 1, full addr: 5.
+//  *  +--------------------------+
+//  *  | Burst id 1, data 2.      |  Addr: 1, full addr: 6.
+//  *  +--------------------------+
+//  *  | Burst id 1, data 3.      |  Addr: 1, full addr: 7.
+//  *  +--------------------------+
+//  *  | Burst id 2, data 0.      |  Addr: 2, full addr: 8.
+//  *  +--------------------------+
+//  *  | Burst id 2, data 1.      |  Addr: 2, full addr: 9.
+//  *  +--------------------------+
+//  *  | Burst id 2, data 2.      |  Addr: 2, full addr: 10.
+//  *  +--------------------------+
+//  *  | Burst id 2, data 3.      |  Addr: 2, full addr: 11.
+//  *  +--------------------------+
 //
-
-// TODO Test for maxburstlen=1
 
 module simmem_resp_bank #(
     parameter int unsigned TotCapa = simmem_pkg::ReadDataBankCapacity,
@@ -114,7 +113,7 @@ module simmem_resp_bank #(
     // any RAM cell can contain or reserve 0, 1, ... or MaxBurstLen burst data.
 
     localparam int unsigned XBurstLenWidth = $clog2 (MaxBurstLen + 1),  // derived parameter
-    localparam int unsigned BurstLenWidth = $clog2 (MaxBurstLen),  // derived parameter
+    localparam int unsigned BurstLenWidth = MaxBurstLen == 1 ? 1 : $clog2 (MaxBurstLen),  // derived parameter
     localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
     localparam int unsigned DataWidth = $bits (DataType)  // derived parameter
 ) (
@@ -193,17 +192,18 @@ module simmem_resp_bank #(
   //  lined list pointers are close to each other in the linked list:
   //    * rsv_len_d, rsv_len_q: The number of entries reserved in the linked list, that are not
   //      occupied by responses yet.
-  //    * rsp_len_d, rsp_len_q: The number of RAM cells in the linked list that contain responses.
-  //    * rsp_len_after_out: The number of RAM cells in the linked list that contain responses,
-  //      minus one if one of the cells is currently being output.
+  //    * rsp_len_d, rsp_len_q: The number of (extended) RAM cells in the linked list that contain
+  //      responses.
+  //    * rsp_len_after_out: The number of (extended) RAM cells in the linked list that contain
+  //      responses, minus one if one of the cells is currently being output.
   //
   //  Miscellaneous signals: Some additional signals are required to smoothly treat corner cases.
   //    * queue_initiated: The linked list is called initiated if the reservation is made for this
   //      identifier, and if there is at least one reserved cell in the queue or there will be at
   //      least one actual stored element in the queue after the possible output.
   //    * is_rsp_head_emptybox_d, is_rsp_head_emptybox_q: The response head pointer is said to point
-  //      to an empty box if it has the same value as the reservation head, but the targeted RAM
-  //      cell does not contain any response yet.
+  //      to an empty box if it has the same value as the reservation head, but the targeted
+  //      (extended) RAM cell does not contain any response yet.
 
   // Head, tail and length signals
 
@@ -259,7 +259,8 @@ module simmem_resp_bank #(
 
   // Length after the potential output.
   logic [BankAddrWidth-1:0] rsp_len_after_out[NumIds];
-  // Signals whether the tail (or pre_tail) awaits the next burst data to release
+  // Determines whether the tail (or pre_tail) awaits the next burst data to release and can
+  // therefore not send data, even if rsp_len_id is non-zero for the given AXI identifier.
   logic awaits_data[NumIds];
 
   // Update heads, rsp_heads and pre_tails according to the piggyback and update signals.
@@ -301,7 +302,7 @@ module simmem_resp_bank #(
   // Burst count in cell //
   /////////////////////////
 
-  //  This part is dedicated to counting the burst elements in a RAM cell.
+  //  This part is dedicated to counting the burst elements in an extended RAM cell.
   //
   //  Counters:
   //    * rsv_cnt_d, rsv_cnt_q, rsv_cnt: Count the elements reserved but not acquired yet in a given
@@ -349,8 +350,6 @@ module simmem_resp_bank #(
   //      RAM.
   //    * tail_burst_len_id: Tracks the burst length for the burst stored in the extended cell under
   //      the tail pointer. This is useful to calculate the output offset of the payload RAM.
-
-  // TODO Document awaits_data
 
   logic [XBurstLenWidth-1:0] rsv_cnt_d[TotCapa];
   logic [XBurstLenWidth-1:0] rsv_cnt_q[TotCapa];
@@ -435,8 +434,8 @@ module simmem_resp_bank #(
   logic [XBurstLenWidth-1:0][TotCapa-1:0] tail_burst_len_addr_rot90[NumIds];
   // Actual counts per linked list
   logic [XBurstLenWidth-1:0] rsv_cnt_id[NumIds];
-  logic [XBurstLenWidth-1:0] rsp_rsv_cnt_id[NumIds];  // TODO Document
-  logic [XBurstLenWidth-1:0] rsp_burst_len_id[NumIds];  // TODO Document
+  logic [XBurstLenWidth-1:0] rsp_rsv_cnt_id[NumIds];
+  logic [XBurstLenWidth-1:0] rsp_burst_len_id[NumIds];
   logic [XBurstLenWidth-1:0] pre_tail_rsv_cnt_id[NumIds];
   logic [XBurstLenWidth-1:0] tail_rsv_cnt_id[NumIds];
   logic [XBurstLenWidth-1:0] pre_tail_rsp_cnt_id[NumIds];
@@ -504,11 +503,13 @@ module simmem_resp_bank #(
     assign
     // The response length is decreased after output if there is an output for this identifier
     rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] &&
-    // And the burst data will be completely empty in the extended payload RAM cell under the tail pointer.
+    // And the burst data will be completely empty in the extended payload RAM cell under the tail
+    // pointer.
     tail_rsv_cnt_id[i_id] == 0 && tail_rsp_cnt_id[i_id] == 0 && !cnt_in_mask_id[i_id] ?
         rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
 
-    // A linked list is said to await data when both its tail and pre_tail response bursts are empty. In the opposite case, the linked list could provide data.
+    // A linked list is said to await data when both its tail and pre_tail response bursts are
+    // empty. In the opposite case, the linked list could provide data.
     assign awaits_data[i_id] = tail_rsp_cnt_id[i_id] == 0 && pre_tail_rsp_cnt_id[i_id] == 0;
   end : gen_len_after_output
 
@@ -524,7 +525,7 @@ module simmem_resp_bank #(
   logic [TotCapa-1:0] ram_v;
 
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : ram_v_update
-    assign ram_v[i_addr] = |rsp_cnt_q[i_addr] || |rsv_cnt_q[i_addr];  // TODO or rsp_cnt maybe
+    assign ram_v[i_addr] = |rsp_cnt_q[i_addr] || |rsv_cnt_q[i_addr];
   end : ram_v_update
 
 
@@ -587,8 +588,8 @@ module simmem_resp_bank #(
   //
   //  Rotated signals are used to aggregate the signals, where the dimensions have to be transposed.
   //
-  //  Address offsets: The payload RAM has MaxBurstLen successive cells to host all of the data of a
-  //  given burst in successive cells.
+  //  Address offsets: Each extended payload RAM cell has MaxBurstLen successive elementary RAM
+  //  cells to host all of the data of a given burst in successive cells.
 
   logic pyld_ram_in_req, pyld_ram_out_req;
   logic meta_ram_in_req, meta_ram_out_req;
@@ -673,8 +674,8 @@ module simmem_resp_bank #(
   // Assign the queue_initiated signal, to compute whether the metadata RAM should be requested
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : req_meta_in_id_assignment
     // The queue is called initiated if the reservation is made for this identifier, and the length
-    // condition is satisfied, namely if there is at least one reserved cell in the queue or there
-    // will be at least one actual stored element in the queue after the possible output.
+    // condition is satisfied, namely if there is at least one reserved (extended) cell in the queue
+    // or there will be at least one actual stored element in the queue after the possible output.
     assign queue_initiated[i_id] =
         rsv_req_id_onehot_i[i_id] && (|rsv_len_q[i_id] || |rsp_len_after_out[i_id]);
   end : req_meta_in_id_assignment
@@ -704,8 +705,8 @@ module simmem_resp_bank #(
 
   // Until this step, payload data is managed as if there had been one payload RAM address per full
   // response burst. To store multiple data of the same burst, however, the module uses consecutive
-  // cells. In this part, the payload RAM access addresses are generated as follows: realAddress =
-  // (iid << MaxBurstLen) + offset.
+  // elementary RAM cells. In this part, the payload RAM access addresses are generated as follows:
+  // realAddress = (iid << MaxBurstLen) + offset.
 
   logic [BurstLenWidth-1:0] pyld_ram_in_offset_id[NumIds];
   logic [BurstLenWidth-1:0] pyld_ram_out_offset_id[NumIds];
@@ -728,9 +729,14 @@ module simmem_resp_bank #(
     assign pyld_ram_out_offset[i_bit] = |pyld_ram_out_offset_rot90[i_bit];
   end : aggregate_ram_offset
 
-  assign pyld_ram_in_full_addr = {pyld_ram_in_addr, pyld_ram_in_offset};
-  assign pyld_ram_out_full_addr = {pyld_ram_out_addr, pyld_ram_out_offset};
-
+  if (MaxBurstLen > 1) begin
+    assign pyld_ram_in_full_addr = {pyld_ram_in_addr, pyld_ram_in_offset};
+    assign pyld_ram_out_full_addr = {pyld_ram_out_addr, pyld_ram_out_offset};
+  end else begin
+    // For a MaxBurstLen of 1, full address and address match.
+    assign pyld_ram_in_full_addr = pyld_ram_in_addr;
+    assign pyld_ram_out_full_addr = pyld_ram_out_addr;
+  end
 
   ////////////////////////////////////
   // Next AXI identifier to release //
@@ -766,7 +772,8 @@ module simmem_resp_bank #(
             release_en_i[i_addr]; 
 
         // The address must additionally be, depending on the situation, the pre_tail or the tail of
-        // the corresponding queue. It is the pre_tail iff the work with the tail is complete (both reserved and response burst data are empty).
+        // the corresponding queue. It is the pre_tail iff the work with the tail is complete (both
+        // reserved and response burst data are empty).
         if (tail_rsv_cnt_id[i_id] == 0 && tail_rsp_cnt_id[i_id] == 0) begin
           nxt_addr_mhot_id[i_id][i_addr] &= pre_tails[i_id] == i_addr;
         end else begin
@@ -921,44 +928,40 @@ module simmem_resp_bank #(
         if (out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id]) begin
           if (tail_rsp_cnt_id[i_id] == 0) begin
             pyld_ram_out_addr_id[i_id] = pre_tails[i_id];
-            // Set the corresponding payload RAM output offset. This offset is determined by num_data_already_released, which can be expressed as follows.
+            // Set the corresponding payload RAM output offset. This offset is determined by the
+            // number of burst data already released, which can be expressed as follows.
             pyld_ram_out_offset_id[i_id] =
                 BurstLenWidth'(pre_tail_burst_len_id[i_id] - pre_tail_rsv_cnt_id[i_id] -
                                pre_tail_rsp_cnt_id[i_id]);
           end else begin
-
             pyld_ram_out_addr_id[i_id] = tails[i_id];
-            // Set the corresponding payload RAM output offset. // TODO Offset here
             pyld_ram_out_offset_id[i_id] = BurstLenWidth
                 '(tail_burst_len_id[i_id] - tail_rsv_cnt_id[i_id] - tail_rsp_cnt_id[i_id]);
           end
         end else begin
           pyld_ram_out_addr_id[i_id] = tails[i_id];
-          // Set the corresponding payload RAM output offset. // TODO Offset here
           pyld_ram_out_offset_id[i_id] = BurstLenWidth
               '(tail_burst_len_id[i_id] - tail_rsv_cnt_id[i_id] - tail_rsp_cnt_id[i_id]);
-
-          // TODO: Remove for (int unsigned i_bur = 0; i_bur < MaxBurstLen; i_bur = i_bur + 1) begin
-          //   pyld_ram_out_wmask_id[i_id][i_bur] = tail_rsp_cnt_id[i_id] ==
-          //   MaxBurstLen[XBurstLenWidth
-          //   - 1:0] - i_bur[XBurstLenWidth - 1:0]; end
         end
       end
 
       // Input handshake
       if (in_rsp_ready_o && in_rsp_valid_i && rsp_i.merged_payload.id == i_id) begin
 
-        // TODO Document
+        // If this is the first data to accept in the burst, then update the response length, as the
+        // response length translates how many extended cells in the linked list contain at least
+        // one data to release, or has contained data of a burst whose data has not all been
+        // released (and possibly not received) yet.
         if (rsp_burst_len_id[i_id] == rsp_rsv_cnt_id[i_id]) begin
           rsp_len_d[i_id] = rsp_len_d[i_id] + 1;
         end
-        // If this is the last data of the burst, then update the pointers. rsp_burst_len_id[i_id] -
-        // rsp_rsv_cnt_id[i_id] corresponds to the remaining burst data to receive. TODO Correct
-        // comment
+        // If this is the last data to accept in the burst, then update the head pointers.
+        // rsp_burst_len_id[i_id] - rsp_rsv_cnt_id[i_id] corresponds to the remaining burst data to
+        // receive. comment
         if (rsv_cnt_id[i_id] == 1) begin
 
-          // As the reservation length refers to the number of reserved cells that are not occupied,
-          // it must be decremented on response input.
+          // As the reservation length refers to the number of reserved extended cells that are not
+          // occupied, it must be decremented on response input.
           rsv_len_d[i_id] = rsv_len_d[i_id] - 1;
 
           if (rsp_heads[i_id] != rsv_heads_q[i_id]) begin
@@ -968,13 +971,13 @@ module simmem_resp_bank #(
           end else begin
             // Else, rsp_head needs to be updated by piggybacking with rsv_head, as this is the only
             // way to satisfy the placement condition for the response head: (a) the response head
-            // must be either on the next reserved cell ready to take a response, or (b) if there is
-            // no such cell, then it should be equal to the rsp_head. Therefore, here, if the
-            // reservation head gets updated in the current clock cycle, then the response head
-            // follows it and (a) is respected. Else, both pointers keep their (equal) position and
-            // (b) is respected. Note that in the latter case, the linked list for this AXI
-            // identifier is now full and will not take any new response before a new reservation
-            // has been performed.
+            // must be either on the next reserved extended cell ready to take a response, or (b) if
+            // there is no such extended cell, then it should be equal to the rsp_head. Therefore,
+            // here, if the reservation head gets updated in the current clock cycle, then the
+            // response head follows it and (a) is respected. Else, both pointers keep their (equal)
+            // position and (b) is respected. Note that in the latter case, the linked list for this
+            // AXI identifier is now full and will not take any new response before a new
+            // reservation has been performed.
             pgbk_rsp_with_rsv[i_id] = 1'b1;
           end
 
@@ -991,10 +994,10 @@ module simmem_resp_bank #(
         // Store the data
         pyld_ram_in_addr_id[i_id] = rsp_heads[i_id];
 
-        // Update the response head pointer position
+        // Update the response head pointer position.
         meta_ram_out_addr_head_id[i_id] = rsp_heads[i_id];
 
-        // Input offset is burst_len - rsv, which actually is nb_already_out + rsp. TODO Change here
+        // The input offset is determined by the reservation count.
         pyld_ram_in_offset_id[i_id] = BurstLenWidth'(rsp_burst_len_id[i_id] - rsv_cnt_id[i_id]);
       end
 
