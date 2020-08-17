@@ -19,8 +19,8 @@ const bool kPairsVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kRspWidth = 10;  // Whole response width
-const int kIdWidth = 4;
+const int kRspWidth = 11;  // Whole response width
+const int kIdWidth = 2;
 
 typedef enum {
   SEQUENTIAL_TEST,
@@ -31,7 +31,7 @@ typedef enum {
 typedef Vsimmem_resp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
-const int kTestStrategy = MULTIPLE_ID_TEST;
+const int kTestStrategy = SINGLE_ID_TEST;
 
 // This class implements elementary operations for the testbench
 class WriteRespBankTestbench {
@@ -116,7 +116,7 @@ class WriteRespBankTestbench {
   void simmem_reservation_start(uint32_t axi_id) {
     module_->rsv_valid_i = 1;
     module_->rsv_req_id_onehot_i = 1 << axi_id;
-    module_->rsv_burst_len_i = 4;
+    module_->rsv_burst_len_i = 3;
   }
 
   /**
@@ -251,32 +251,29 @@ void sequential_test(WriteRespBankTestbench *tb) {
 
   // Apply reservation requests for 4 ticks
   tb->simmem_reservation_start(
-      4);  // Start issuing reservation requests for AXI ID 4
+      1);  // Start issuing reservation requests for AXI ID 1
   tb->simmem_tick(4);
   tb->simmem_reservation_stop();  // Stop issuing reservation requests
 
   tb->simmem_tick(4);
 
   // Apply inputs for 6 ticks
-  tb->simmem_input_data_apply(4, 3);
-  tb->simmem_tick(6);
+  tb->simmem_input_data_apply(1, 3);
+  tb->simmem_tick(10);
   tb->simmem_input_data_stop();
 
   tb->simmem_tick(4);
 
-  // Enable data toutput
+  // Enable data output
   tb->simmem_output_data_allow();
   tb->simmem_tick(4);
 
   // Express readiness for output data
   tb->simmem_output_data_request();
-  tb->simmem_tick(10);
+  tb->simmem_tick(16);
   tb->simmem_output_data_stop();
 
-  tb->simmem_requests_complete();
-  while (!tb->simmem_is_done()) {
-    tb->simmem_tick();
-  }
+  tb->simmem_tick(10);
 }
 
 /**
@@ -292,7 +289,7 @@ void sequential_test(WriteRespBankTestbench *tb) {
 size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   srand(seed);
 
-  uint32_t current_input_id = 4;
+  uint32_t current_input_id = 1;
   size_t nb_iterations = 1000;
 
   // Generate inputs
@@ -341,6 +338,12 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     if (request_output_data) {
       if (tb->simmem_output_data_fetch(current_output)) {
         output_queue.push(current_output);
+        if (kTransactionsVerbose) {
+          std::cout << std::dec
+                    << (uint32_t)(current_output &
+                                  tb->simmem_get_identifier_mask())
+                    << " outputs " << std::hex << current_output << std::endl;
+        }
       }
     }
 
@@ -368,17 +371,20 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
   // Check the input and output queues for mismatches
   size_t nb_mismatches = 0;
   while (!input_queue.empty() && !output_queue.empty()) {
-    current_input = input_queue.front();
-    current_output = output_queue.front();
+    uint32_t cur_in_pyld = input_queue.front() >> kIdWidth;
+    uint32_t cur_out_pyld = output_queue.front() >> kIdWidth;
+
+    cur_in_pyld = cur_in_pyld & ~((1 << 31) >> (31 - kRspWidth + kIdWidth));
+    cur_out_pyld = cur_out_pyld & ~((1 << 31) >> (31 - kRspWidth + kIdWidth));
 
     input_queue.pop();
     output_queue.pop();
 
     if (kPairsVerbose) {
-      std::cout << std::hex << current_input << " - " << current_output
+      std::cout << std::hex << cur_in_pyld << " - " << cur_out_pyld
                 << std::endl;
     }
-    nb_mismatches += (size_t)(current_input != current_output);
+    nb_mismatches += (size_t)(cur_in_pyld != cur_out_pyld);
   }
   if (kPairsVerbose) {
     std::cout << std::endl
@@ -579,7 +585,7 @@ int main(int argc, char **argv, char **env) {
         new WriteRespBankTestbench(100, true, "resp_bank.fst");
 
     // Perform one test for the given seed
-    if (kTestStrategy == SINGLE_ID_TEST) {
+    if (kTestStrategy == SEQUENTIAL_TEST) {
       sequential_test(tb);
       break;
     } else if (kTestStrategy == SINGLE_ID_TEST) {
