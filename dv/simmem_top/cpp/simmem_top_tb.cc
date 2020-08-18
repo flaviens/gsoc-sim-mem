@@ -24,9 +24,7 @@ const bool kTransactionVerbose = true;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
-const int kTrailingTicks = 200;
-
-// TODO Implement reads
+const int kTrailingTicks = 100;
 
 // const size_t kMinDelay = 3;
 // const size_t kMaxDelay = 10;
@@ -52,6 +50,8 @@ typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
     wresp_time_queue_map_t;
 typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadData>>>
     rdata_time_queue_map_t;
+
+// typedef std::map<uint64_t, std::queue<size_t>> pending_wdata_cnt_t;
 
 // This class implements elementary operations for the testbench
 class SimmemTestbench {
@@ -156,6 +156,7 @@ class SimmemTestbench {
    */
   bool simmem_requester_wdata_check() {
     module_->eval();
+
     return (bool)(module_->wdata_in_ready_o);
   }
 
@@ -396,13 +397,16 @@ class SimmemTestbench {
 class RealMemoryController {
  public:
   RealMemoryController(std::vector<uint64_t> ids)
-      : spare_wdata_cnt(0UL), wids_expecting_data() {
+      : spare_wdata_cnt(0), wids_expecting_data() {
     for (size_t i = 0; i < ids.size(); i++) {
       wresp_out_queues.insert(std::pair<uint64_t, std::queue<WriteResponse>>(
           ids[i], std::queue<WriteResponse>()));
-      releasable_wresp_counts.insert(std::pair<uint64_t, uint64_t>(ids[i], 0));
+      releasable_wresp_cnts.insert(std::pair<uint64_t, uint64_t>(ids[i], 0));
       rdata_out_queues.insert(std::pair<uint64_t, std::queue<ReadData>>(
           ids[i], std::queue<ReadData>()));
+      // pending_wdata_cnts.insert(
+      //     std::pair<uint64_t, std::queue<size_t>>(ids[i],
+      //     std::queue<size_t>));
     }
     // TODO: Maybe initialize wids_expecting_data if necessary
   }
@@ -422,7 +426,7 @@ class RealMemoryController {
     wresp_out_queues[waddr.id].push(new_resp);
 
     if (spare_wdata_cnt >= waddr.burst_len) {
-      releasable_wresp_counts[waddr.id]++;
+      releasable_wresp_cnts[waddr.id]++;
       spare_wdata_cnt -= waddr.burst_len;
     } else {
       wids_expecting_data.push(
@@ -451,7 +455,7 @@ class RealMemoryController {
   void accept_wdata(WriteData wdata) {
     spare_wdata_cnt++;
     if (spare_wdata_cnt >= wids_expecting_data.front().second) {
-      releasable_wresp_counts[wids_expecting_data.front().first]++;
+      releasable_wresp_cnts[wids_expecting_data.front().first]++;
       spare_wdata_cnt -= wids_expecting_data.front().second;
       wids_expecting_data.pop();
     }
@@ -549,14 +553,48 @@ class RealMemoryController {
     assert(false);
   }
 
+  // TODO Remove
+  //
+  // ///////////////////////////////////
+  // // Wdata non-overflow management //
+  // ///////////////////////////////////
+
+  // /**
+  //  * Notifies the real memory controller emulator that a wresp of a certain
+  //  AXI
+  //  * identifier has been received. This allows new write data to be supplied.
+  //  *
+  //  * @param identifier the AXI identifier of the received write response.
+  //  */
+  // void notify_wresp_sent(u_int64_t identifier) {  // TODO
+  //   pending_wdata.pending_wdata_cnts[identifier].front();
+  //   pending_wdata_cnts[identifier].pop();
+  // }
+
+  // /**
+  //  * Notifies the real memory controller emulator that a wresp of a certain
+  //  AXI
+  //  * identifier has been received. This allows new write data to be supplied.
+  //  *
+  //  * @param identifier the AXI identifier of the received write response.
+  //  */
+  // void notify_wresp_received(u_int64_t identifier) {  // TODO
+  //   pending_wdata.pending_wdata_cnts[identifier].front();
+  //   pending_wdata_cnts[identifier].pop();
+  // }
+
  private:
-  u_int64_t spare_wdata_cnt;  // Counts received wdata
-  // Not releasable until enabled using releasable_wresp_counts
+  size_t spare_wdata_cnt;  // Counts received wdata
+  // Not releasable until enabled using releasable_wresp_cnts
   wresp_queue_map_t wresp_out_queues;
   wids_cnt_t
-      releasable_wresp_counts;  // Counts how many wresp can be released to far
+      releasable_wresp_cnts;  // Counts how many wresp can be released to far
   wids_cnt_queue_t wids_expecting_data;
   rdata_queue_map_t rdata_out_queues;
+
+  // Variables dedicated to pending wdata management
+  // size_t pending_wdata_cnt = 0UL;
+  // pending_wdata_cnt_t pending_wdata_cnts;
 };
 
 void simple_testbench(SimmemTestbench *tb) {
@@ -601,7 +639,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                           unsigned int seed) {
   srand(seed);
 
-  size_t nb_iterations = 200;
+  size_t nb_iterations = 1000;
 
   std::vector<uint64_t> ids;
 
@@ -613,7 +651,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
   waddr_time_queue_map_t waddr_in_queues;
   waddr_time_queue_map_t waddr_out_queues;
-  // wdata_time_queue_map_t wdata_in_queues;
+  // wdata_time_queue_map_t wdata_in_queues; TODO
   // wdata_time_queue_map_t wdata_out_queues;
   raddr_time_queue_map_t raddr_in_queues;
   raddr_time_queue_map_t raddr_out_queues;
@@ -670,6 +708,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   bool iteration_announced;  // Variable only used for display
 
   // TODO: Provide more control on the read and write addresses
+  // TODO: Provide variations on the burst sizes and lengths
 
   ///////////////////////
   // Requester signals //
@@ -679,7 +718,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   WriteAddress requester_current_waddr;
   requester_current_waddr.from_packed(rand());
   requester_current_waddr.id = ids[rand() % num_identifiers];
-  requester_current_waddr.burst_len = 4;
+  requester_current_waddr.burst_len = 3;
   requester_current_waddr.burst_size = 2;
   // Input waddr from the requester
   ReadAddress requester_current_raddr;
@@ -885,7 +924,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
           std::cout << std::endl
                     << "Step " << std::dec << curr_itern << std::endl;
         }
-        std::cout << "Realmem inputted " << std::hex
+        std::cout << "Realmem inputted wresp " << std::hex
                   << realmem_current_wresp.to_packed() << std::endl;
       }
 
@@ -909,7 +948,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
           std::cout << std::endl
                     << "Step " << std::dec << curr_itern << std::endl;
         }
-        std::cout << "Realmem inputted " << std::hex
+        std::cout << "Realmem inputted rdata " << std::hex
                   << realmem_current_rdata.to_packed() << std::endl;
       }
 
@@ -1104,7 +1143,9 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       wresp_out_queues[curr_id].pop();
       std::cout << "Delay: " << std::dec << out_time - in_time << std::hex
                 << " (waddr: " << in_req.to_packed()
-                << ", wresp: " << out_res.to_packed() << ")." << std::endl;
+                << ", wresp: " << out_res.to_packed()
+                << ", payload: " << (out_res.to_packed() >> IDWidth) << ")."
+                << std::endl;
     }
   }
 }

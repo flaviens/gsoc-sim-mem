@@ -17,7 +17,7 @@ package simmem_pkg;
   localparam int unsigned RowBufferLenWidth = 8;
 
   // TODO: 10, 50, 45
-  localparam int unsigned RowHitCost = 2;  // Cycles (must be at least 3)
+  localparam int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
   localparam int unsigned PrechargeCost = 5;  // Cycles
   localparam int unsigned ActivationCost = 4;  // Cycles
 
@@ -122,8 +122,8 @@ package simmem_pkg;
   // For the write response, the union is only a wrapper helping generic response bank implementation
   typedef union packed {wresp_merged_payload_t merged_payload;} wresp_t;
 
-  localparam int unsigned MaxRBurstLen = AxLenWidth >> 1;
-  localparam int unsigned MaxWBurstLen = AxLenWidth >> 1;
+  localparam int unsigned MaxRBurstLen = 8;
+  localparam int unsigned MaxWBurstLen = 4;
 
   localparam int unsigned MaxRBurstLenWidth = $clog2(MaxRBurstLen);
   localparam int unsigned MaxWBurstLenWidth = $clog2(MaxWBurstLen);
@@ -141,6 +141,13 @@ package simmem_pkg;
   // Internal identifier types
   typedef logic [WriteRespBankAddrWidth-1:0] write_iid_t;
   typedef logic [ReadDataBankAddrWidth-1:0] read_iid_t;
+
+  // Delay calculator slot constants definition
+  localparam NumWSlots = 6;
+  localparam NumWSlotsWidth = $clog2(NumWSlots);
+  localparam NumRSlots = 3;
+  localparam NumRSlotsWidth = $clog2(NumRSlots);
+
 
   localparam int unsigned DelayWidth = 6;
 

@@ -68,7 +68,7 @@ module simmem_delay_calculator #(
 
   // MaxPendingWData is the maximum possible number of distinct values taken by the write data.
   localparam int unsigned MaxPendingWData = MaxWBurstLen * WriteRespBankCapacity;
-  localparam int unsigned MaxPendingWDataWidth = $clog2(MaxPendingWData);
+  localparam int unsigned MaxPendingWDataWidth = $clog2(MaxPendingWData) + 64;  // TODO Remove 64
 
   // Counters for the write data without address yet. If negative, then it means, that the core is
   // still awaiting data write data.

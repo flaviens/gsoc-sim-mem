@@ -825,7 +825,7 @@ module simmem_resp_bank #(
   //  Involved signals are:
   //    * cur_out_id_bin_d, cur_out_id_bin_q, cur_out_id_onehot: Stores which AXI identifier is
   //      currently at the output.
-  //    * cur_out_valid_d, cur_out_valid_q: Expresses whether the output is valid.
+  //    * cur_out_valid_d, cur_out_valid_q, cur_out_valid: Expresses whether the output is valid. cur_out_valid_q takes into account the possible return of release_en_i to zero.
   //    * cur_out_addr_onehot_d, cur_out_addr_onehot_q: Stores which RAM address is currently at the
   //      output.
 
@@ -835,6 +835,7 @@ module simmem_resp_bank #(
   logic [NumIds-1:0] cur_out_id_onehot;
   logic cur_out_valid_d;
   logic cur_out_valid_q;
+  logic cur_out_valid;
 
   logic [TotCapa-1:0] cur_out_addr_onehot_d;
   logic [TotCapa-1:0] cur_out_addr_onehot_q;
@@ -848,6 +849,9 @@ module simmem_resp_bank #(
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_next_addr_out
     assign cur_out_addr_onehot_d[i_addr] = |nxt_addr_onehot_rot[i_addr];
   end : gen_next_addr_out
+
+  // cur_out_valid is one iff cur_out_valid_q is one and the corresponding release enable signal is one.
+  assign cur_out_valid = |({TotCapa{cur_out_valid_q}} & cur_out_addr_onehot_q & release_en_i);
 
   // Transform next id to release to binary representation for more compact storage
   logic [IDWidth-1:0] nxt_id_to_release_bin;
@@ -865,7 +869,7 @@ module simmem_resp_bank #(
   assign cur_out_valid_d = |nxt_id_to_release_onehot;
 
   assign cur_out_id_bin_d = nxt_id_to_release_bin;
-  assign out_rsp_valid_o = |cur_out_valid_q;
+  assign out_rsp_valid_o = cur_out_valid;
   assign rsp_o.merged_payload.id = cur_out_id_bin_q;
 
   ////////////////
