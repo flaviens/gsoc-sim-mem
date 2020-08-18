@@ -754,6 +754,13 @@ module simmem_resp_bank #(
   //      identifier to release next. Can be full zero.
   //    * nxt_addr_onehot_rot: Next address to release, one-hot, rotated and filtered by next id to
   //      release. Useful for output calculation below.
+  //
+  //  The release_en_i signal is used at two distinct places:
+  //    * When determining nxt_addr_mhot_id, which finds candidates for release.
+  //    * When determining cur_out_valid, which cancels the current output if the release enable
+  //      signal drops during the clock edge between RAM request and RAM output. This is useful for
+  //      burst operation, where the release_en_i drop cannot be predicted in the current setting.
+
 
   logic [NumIds-1:0][TotCapa-1:0] nxt_addr_mhot_id;
   logic [TotCapa-1:0][NumIds-1:0] nxt_addr_onehot_rot;
@@ -825,7 +832,8 @@ module simmem_resp_bank #(
   //  Involved signals are:
   //    * cur_out_id_bin_d, cur_out_id_bin_q, cur_out_id_onehot: Stores which AXI identifier is
   //      currently at the output.
-  //    * cur_out_valid_d, cur_out_valid_q, cur_out_valid: Expresses whether the output is valid. cur_out_valid_q takes into account the possible return of release_en_i to zero.
+  //    * cur_out_valid_d, cur_out_valid_q, cur_out_valid: Expresses whether the output is valid.
+  //      cur_out_valid_q takes into account the possible return of release_en_i to zero.
   //    * cur_out_addr_onehot_d, cur_out_addr_onehot_q: Stores which RAM address is currently at the
   //      output.
 
@@ -850,7 +858,8 @@ module simmem_resp_bank #(
     assign cur_out_addr_onehot_d[i_addr] = |nxt_addr_onehot_rot[i_addr];
   end : gen_next_addr_out
 
-  // cur_out_valid is one iff cur_out_valid_q is one and the corresponding release enable signal is one.
+  // cur_out_valid is one iff cur_out_valid_q is one and the corresponding release enable signal is
+  // one.
   assign cur_out_valid = |({TotCapa{cur_out_valid_q}} & cur_out_addr_onehot_q & release_en_i);
 
   // Transform next id to release to binary representation for more compact storage
