@@ -14,7 +14,11 @@ package simmem_pkg;
 
   localparam int unsigned GlobalMemoryCapa = 65536;  // Bytes.
   localparam int unsigned GlobalMemoryCapaWidth = $clog2(GlobalMemoryCapa);
+
+  // The log2 of the width of a row in the banks.
   localparam int unsigned RowBufferLenWidth = 8;
+  // The number of MSBs that uniquely define a bank row in an address.
+  localparam int unsigned RowIdWidth = GlobalMemoryCapaWidth - RowBufferLenWidth;
 
   // TODO: 10, 50, 45
   localparam int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
@@ -143,12 +147,12 @@ package simmem_pkg;
   typedef logic [ReadDataBankAddrWidth-1:0] read_iid_t;
 
   // Delay calculator slot constants definition
-  localparam NumWSlots = 6;
-  localparam NumWSlotsWidth = $clog2(NumWSlots);
-  localparam NumRSlots = 3;
-  localparam NumRSlotsWidth = $clog2(NumRSlots);
-
+  localparam int unsigned NumWSlots = 6;
+  localparam int unsigned NumWSlotsWidth = $clog2(NumWSlots);
+  localparam int unsigned NumRSlots = 3;
+  localparam int unsigned NumRSlotsWidth = $clog2(NumRSlots);
 
   localparam int unsigned DelayWidth = 6;
+
 
 endpackage

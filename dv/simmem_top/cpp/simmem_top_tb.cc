@@ -14,8 +14,8 @@
 #include <vector>
 #include <verilated_fst_c.h>
 
-// WARNING: The module does not enforce ordering between read and write data of
-// same AXI id.
+// WARNING: The simulated memory controller module does not enforce ordering
+// between read and write data of same AXI id.
 
 // TODO: Warning with wdata counter overflow.
 
@@ -29,10 +29,6 @@ const int kTrailingTicks = 100;
 // Constant burst lengths supplied to the DUT
 const int kWBurstLen = 3;
 const int kRBurstLen = 4;
-
-// const size_t kMinDelay = 3;
-// const size_t kMaxDelay = 10;
-// const size_t kNbLocalIdentifiers = 32;
 const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 
 typedef Vsimmem_top Module;
@@ -55,7 +51,8 @@ typedef std::map<uint64_t, std::queue<std::pair<size_t, WriteResponse>>>
 typedef std::map<uint64_t, std::queue<std::pair<size_t, ReadData>>>
     rdata_time_queue_map_t;
 
-// typedef std::map<uint64_t, std::queue<size_t>> pending_wdata_cnt_t;
+// TODO Remove typedef std::map<uint64_t, std::queue<size_t>>
+// pending_wdata_cnt_t;
 
 // This class implements elementary operations for the testbench
 class SimmemTestbench {

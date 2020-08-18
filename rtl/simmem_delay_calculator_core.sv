@@ -64,15 +64,17 @@
 // * Cost of precharge + activation + row hit (RowHitCost + ActivationCost + PrechargeCost): if the
 //   another row was in the row buffer. DRAM refreshing is not simulated.
 //
-// Cost categorization: As the entropy of the cost values is very low (takes only 3 values), they are
-// categorized on 2 bits to ease comparisons.
+// Cost categorization: As the entropy of the cost values is very low (takes only 3 values), they
+// are categorized on 2 bits to ease comparisons.
 //
 
-// TODO: Support interleaving.
-// TODO: Make cost increasing in the burst size.
-// TODO: Multiply row width by number of ranks
+// TODO: Support interleaving. TODO: Make cost increasing in the burst size. TODO: Multiply row
+// width by number of ranks
 
-// TODO Recheck address calculation because frequent row misses have been observed inside bursts of low burst size.
+// TODO Recheck address calculation because frequent row misses have been observed inside bursts of
+// low burst size.
+
+// TODO Manually wrap code.
 
 module simmem_delay_calculator_core #(
     // Must be a power of two, used for address interleaving
@@ -88,8 +90,8 @@ module simmem_delay_calculator_core #(
     // Internal identifier corresponding to the write address request (issued by the write response
     // bank).
     input simmem_pkg::write_iid_t waddr_iid_i,
-    // Number of write data packets that come with the write address (which were buffered buffered by
-    // the wrapper, plus potentially one coming concurrently).
+    // Number of write data packets that come with the write address (which were buffered buffered
+    // by the wrapper, plus potentially one coming concurrently).
     input logic [simmem_pkg::MaxWBurstLenWidth-1:0] wdata_immediate_cnt_i,
 
     // Write address request valid from the requester.
@@ -144,11 +146,15 @@ module simmem_delay_calculator_core #(
     // then it means that the set of candidates for this rank is the empty set.
     COST_NO_CANDIDATE = 3 
   } mem_cost_category_e;
-  // The NumCostCategories constant determines how many disjoint reductions will be needed. Therefore, it does not count the COST_NO_CANDIDATE category.
+  // The NumCostCategories constant determines how many disjoint reductions will be needed.
+  // Therefore, it does not count the COST_NO_CANDIDATE category.
   localparam int NumCostCategories = 3;
   localparam int NumCostCategoriesWidth = $clog2(NumCostCategories);
 
-  localparam logic [GlobalMemoryCapaWidth-1:0] CostCategorizationMask = {
+
+  // RowBufferMappingMask is 1111..11111000..000, of total width GlobalMemoryCapaWidth. Two
+  // addresses map on the same row iff, masked, they are equal.
+  localparam logic [GlobalMemoryCapaWidth-1:0] RowBufferMappingMask = {
     {(GlobalMemoryCapaWidth - RowBufferLenWidth) {1'b1}}, {RowBufferLenWidth{1'b0}}
   };
 
@@ -164,8 +170,8 @@ module simmem_delay_calculator_core #(
   function automatic mem_cost_category_e determine_cost_category(
       logic [GlobalMemoryCapaWidth-1:0] address, logic is_row_open,
       logic [GlobalMemoryCapaWidth-1:0] open_row_start_addr);
-    if (is_row_open && (address & CostCategorizationMask) == (
-        open_row_start_addr & CostCategorizationMask)) begin
+    if (is_row_open && (address & RowBufferMappingMask) == (
+        open_row_start_addr & RowBufferMappingMask)) begin
       return COST_CAS_CAT;
     end else if (!is_row_open) begin
       return COST_ACTIVATION_CAS_CAT;
@@ -228,6 +234,8 @@ module simmem_delay_calculator_core #(
 
   // Maximal number of write data entries: at most MaxWBurstLen per slot.
   localparam MaxNumWEntries = NumWSlots * MaxWBurstLen;
+  // Maximal number of read data entries: at most MaxRBurstLen per slot.
+  localparam MaxNumREntries = NumRSlots * MaxRBurstLen;
 
   // Slot type definition
   typedef struct packed {
@@ -350,8 +358,8 @@ module simmem_delay_calculator_core #(
   // Age matrix constants, declaration and helper functions //
   ////////////////////////////////////////////////////////////
 
-  // An age matrix cell is set at (i=lower, j=higher) iff j is older than i (if both
-  // entries/slots are valid, else the cell value is irrelevant).
+  // An age matrix cell is set at (i=lower, j=higher) iff j is older than i (if both entries/slots
+  // are valid, else the cell value is irrelevant).
   //
   // The age matrices are indexed as the following example, for 3 write slots (W), 5 read slots (R)
   // and a maximal write burst length of 2 write data (D) per write address (the x symbols represent
@@ -384,18 +392,17 @@ module simmem_delay_calculator_core #(
   // Only the area marked by 'x' symbols is actually stored.
   //
   //
-  // Age matrix splitting:
-  //  The main age matrix cannot be split in several disjoint sub-matrices to take advantage of the
-  //  partition to different ranks, because this partition is made dynamically and changes during
-  //  runtime, depending on the LSBs of entries' addresses.   
+  // Age matrix splitting: The main age matrix cannot be split in several disjoint sub-matrices to
+  //  take advantage of the partition to different ranks, because this partition is made dynamically
+  //  and changes during runtime, depending on the LSBs of entries' addresses.   
   //
   // Auxiliary signals:
-  //  * {main|wslt}_new_entry: Indicates whether an entry of the matrix has just been added as a candidate for a
-  //    memory request. // TODO: Remove
-  //  * {main|wslt}_candidate_entry: Indicates whether an entry of the matrix corresponds to a current candidate for
-  //    memory request. // TODO: Remove
-  //  * {main|wslt}_release_entry: Indicates whether an entry of the matrix corresponds to an entry that has
-  //    been selected to run a memory request.
+  //  * {main|wslt}_new_entry: Indicates whether an entry of the matrix has just been added as a
+  //    candidate for a memory request. // TODO: Remove
+  //  * {main|wslt}_candidate_entry: Indicates whether an entry of the matrix corresponds to a
+  //    current candidate for memory request. // TODO: Remove
+  //  * {main|wslt}_release_entry: Indicates whether an entry of the matrix corresponds to an entry
+  //    that has been selected to run a memory request.
 
   // Main age matrix
   localparam MainAgeMatrixRSlotStartIndex = MaxNumWEntries;
@@ -504,8 +511,7 @@ module simmem_delay_calculator_core #(
     end : cond_check_cat
   end : cond_check_rnk
 
-  // The reduction is done per rank
-  // One-hot signal
+  // The reduction is done per rank One-hot signal
   logic [MainAgeMatrixSide-1:0] oldest_entry_of_category[NumRanks][NumCostCategories];
   logic [MainAgeMatrixSide-1:0] opti_entry_onehot[NumRanks];
   mem_cost_category_e opti_cost_cat[NumRanks];
@@ -514,14 +520,12 @@ module simmem_delay_calculator_core #(
   for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : reduce_rnk
     for (genvar i_cat = 0; i_cat < NumCostCategories; i_cat = i_cat + 1) begin : reduce_cat
       for (genvar i = 0; i < MainAgeMatrixSide; i = i + 1) begin : reduce_age_per_category
-        assign oldest_entry_of_category[i_rk][i_cat][i] = matches_cond[i_rk][i_cat][i] & ~|(main_age_matrix[i] & matches_cond[i_rk][i_cat]);
+        assign oldest_entry_of_category[i_rk][i_cat][i] = matches_cond[i_rk][i_cat][i] &
+        ~|(main_age_matrix[i] & matches_cond[i_rk][i_cat]);
       end
     end
     
-    // Which is better, if/else_if sequence or masked (linear) "reduction"?
-
-    // if/else_if sequence
-    // Reduce among categories: take the lowest cost category
+    // if/else_if sequence Reduce among categories: take the lowest cost category
     always_comb begin
       if (|oldest_entry_of_category[i_rk][COST_CAS_CAT]) begin
         opti_cost_cat[i_rk] = COST_CAS_CAT;
@@ -534,18 +538,62 @@ module simmem_delay_calculator_core #(
       end
     end
     
-    // masked (linear) "reduction"
-    // assign opti_cost_cat[i_rk] = ({NumCostCategoriesWidth{|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} & COST_CAS_CAT) |
-    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] & |oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}} & COST_ACTIVATION_CAS_CAT) |
-    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] & |oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} & COST_PRECHARGE_ACTIVATION_CAS_CAT) |
-    //     ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] & ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] & ~|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} & COST_NO_CANDIDATE);
+    // Equivalently to the always_comb statement above: assign opti_cost_cat[i_rk] =
+    // ({NumCostCategoriesWidth{|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} & COST_CAS_CAT) |
+    // ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
+    // |oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}} & COST_ACTIVATION_CAS_CAT) |
+    // ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
+    // ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] &
+    // |oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} &
+    // COST_PRECHARGE_ACTIVATION_CAS_CAT) |
+    // ({NumCostCategoriesWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
+    // ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] &
+    // ~|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} & COST_NO_CANDIDATE);
+
 
     // Using masks, find the optimal entry and its cost category
     assign opti_entry_onehot[i_rk] = oldest_entry_of_category[i_rk][COST_CAS_CAT] |
-        (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS_CAT]}}) |
-        (oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT] & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} & {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}});
+        (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] &
+        {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS_CAT]}}) |
+        (oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT] &
+        {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} &
+        {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}});
   end
 
+  // Find the row buffer index (the RowIdWidth MSBs) of the optimal entry.
+  // The LSBs below this are not regarded, as they map to addresses inside the row.
+  logic [RowIdWidth-1:0][MaxNumWEntries+MaxNumREntries-1:0] opti_row_buffer_interm[NumRanks];
+  logic [RowIdWidth-1:0] opti_row_buffer[NumRanks];
+
+  for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : opti_row_buffer_outer
+  //   TODO Remove for (genvar i_bit = 0; i_bit < MainAgeMatrixRSlotStartIndex; i_bit = i_bit + 1) begin : opti_row_buffer_w
+  //     assign opti_row_buffer[i_rk][i_bit] = 
+  //   end : opti_row_buffer_w
+  //   for (genvar i_bit = MainAgeMatrixRSlotStartIndex; i_bit < MainAgeMatrixSide; i_bit = i_bit + 1) begin : opti_row_buffer_r
+      
+  //   end : opti_row_buffer_r
+
+    for (genvar i_adb = RowBufferLenWidth; i_adb < GlobalMemoryCapaWidth; i_adb = i_adb + 1) begin : opti_row_buffer_addr_bit
+      // For write entries
+      for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : opti_row_buffer_wslt
+        for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : opti_row_buffer_wd
+          // Take the address of a write data entry if it is the optimal entry.
+          assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][i_slt*MaxWBurstLen + i_bit] = opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit] & w_addrs_per_slot[i_slt][i_bit][i_adb];
+        end : opti_row_buffer_wd
+      end : opti_row_buffer_wslt
+      // For read entries
+      for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : opti_row_buffer_rslt
+        for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : opti_row_buffer_rslt_bit
+          // Take the address of a read data entry if its slot is the optimal entry according to the main age matrix, and if the current entry is the optimal in the slot.
+          assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][MainAgeMatrixRSlotStartIndex + i_slt*MaxRBurstLen + i_bit] = opti_entry_onehot[i_rk][MainAgeMatrixRSlotStartIndex + i_slt] & nxt_rdata_per_slt_onehot[i_rk][i_slt][i_bit] & r_addrs_per_slot[i_slt][i_bit][i_adb];
+        end : opti_row_buffer_rslt_bit
+      end : opti_row_buffer_rslt
+
+      assign opti_row_buffer[i_rk][i_adb-RowBufferLenWidth] = |opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth];
+    end : opti_row_buffer_addr_bit
+  end : opti_row_buffer_outer
+
+  // TODO Continuer ici
 
   //////////////////////////////////////////
   // Find next slot where write data fits //
@@ -588,27 +636,30 @@ module simmem_delay_calculator_core #(
   //////////////////////////////////
 
   // In this part, the address corresponding to each entry in each write slot and read slot is
-  // calculated from the slot burst base address and burst size.
-  // As bursts are aligned, only few bits change between bits of the same burst.
+  // calculated from the slot burst base address and burst size. As bursts are aligned, only few
+  // bits change between bits of the same burst.
 
   localparam int unsigned BurstAddrLSBs = 12;
 
   // Addresses of slot entries.
-  logic [GlobalMemoryCapaWidth-1:0] w_addrs_per_slot[NumWSlots-1:0][MaxWBurstLen-1:0];
-  logic [GlobalMemoryCapaWidth-1:0] r_addrs_per_slot[NumRSlots-1:0][MaxRBurstLen-1:0];
+  logic [GlobalMemoryCapaWidth-1:0] w_addrs_per_slot[NumWSlots][MaxWBurstLen];
+  logic [GlobalMemoryCapaWidth-1:0] r_addrs_per_slot[NumRSlots][MaxRBurstLen];
 
   // Least significant bits of the addresses.
-  logic [BurstAddrLSBs-1:0] w_addrs_lsb_per_slot[NumWSlots-1:0][MaxWBurstLen-1:0];
-  logic [BurstAddrLSBs-1:0] r_addrs_lsb_per_slot[NumRSlots-1:0][MaxRBurstLen-1:0];
+  logic [BurstAddrLSBs-1:0] w_addrs_lsb_per_slot[NumWSlots][MaxWBurstLen];
+  logic [BurstAddrLSBs-1:0] r_addrs_lsb_per_slot[NumRSlots][MaxRBurstLen];
 
   // Write data entries address.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_w_addrs_per_slt
-    assign w_addrs_lsb_per_slot[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
-    for (genvar i_bit = 1; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_w_addrs
-      assign w_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(w_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(wslt_q[i_slt].burst_size));
-      // UNOPTFLAT-proof: assign w_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(wslt_q[i_slt].addr[BurstAddrLSBs-1:0] + BurstAddrLSBs'(i_bit * wslt_q[i_slt].burst_size));
+    for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_w_addrs
+      if (i_bit == 0) begin
+        assign w_addrs_lsb_per_slot[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+      end else begin
+        assign w_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(w_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(wslt_q[i_slt].burst_size));
+      end
 
-      // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole entries' addresses.
+      // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
+      // entries' addresses.
       assign w_addrs_per_slot[i_slt][i_bit] = {
           wslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
           w_addrs_lsb_per_slot[i_slt][i_bit]
@@ -618,12 +669,15 @@ module simmem_delay_calculator_core #(
 
   // Read data entries address.
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_r_addrs_per_slt
-    assign r_addrs_lsb_per_slot[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
-    for (genvar i_bit = 1; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : gen_r_addrs
-      assign r_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(r_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(rslt_q[i_slt].burst_size));
-      // UNOPTFLAT-proof: assign r_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(rslt_q[i_slt].addr[BurstAddrLSBs-1:0] + BurstAddrLSBs'(i_bit * rslt_q[i_slt].burst_size));
+    for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : gen_r_addrs
+      if (i_bit == 0) begin
+        assign r_addrs_lsb_per_slot[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+      end else begin
+        assign r_addrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(r_addrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(rslt_q[i_slt].burst_size));
+      end
 
-      // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole entries' addresses.
+      // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
+      // entries' addresses.
       assign r_addrs_per_slot[i_slt][i_bit] = {
         rslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
         r_addrs_lsb_per_slot[i_slt][i_bit]
@@ -828,6 +882,7 @@ module simmem_delay_calculator_core #(
 
         // A row is now opening or open in the corresponding rank. 
         is_row_open_d[i_rk] = 1'b1;
+        open_row_start_addr_d[i_rk] = {opti_row_buffer[i_rk], {RowBufferLenWidth{1'b0}}};
       end
     end
 
@@ -866,8 +921,8 @@ module simmem_delay_calculator_core #(
     // Input signals from message banks about released signals
     wresp_release_en_onehot_d ^= wresp_released_addr_onehot_i;
 
-    // Decrement the rdata_release_en_cnts_d if data has been released for this address (aka.
-    // iid). If a counter is decremented, it was originally not zero, because a message bank is not
+    // Decrement the rdata_release_en_cnts_d if data has been released for this address (aka. iid).
+    // If a counter is decremented, it was originally not zero, because a message bank is not
     // allowed to release read responses of the corresponding rdata_release_en_mhot_o bit is zero,
     // which happens iff the corresponding counter is zero.
     for (int unsigned i_iid = 0; i_iid < ReadDataBankCapacity; i_iid = i_iid + 1) begin
@@ -899,7 +954,8 @@ module simmem_delay_calculator_core #(
 
       rslt_d[i_slt].v &= !&rslt_q[i_slt].mem_done;
       for (int unsigned i_iid = 0; i_iid < ReadDataBankCapacity; i_iid = i_iid + 1) begin
-        // For each individual read data, enable its release as soon as it has been marked for release. 
+        // For each individual read data, enable its release as soon as it has been marked for
+        // release. 
         for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
           if (rslt_q[i_slt].v && (rslt_q[i_slt].mem_pending[i_bit] && rslt_d[i_slt].mem_done[i_bit] && 
               rslt_q[i_slt].iid == i_iid[ReadDataBankAddrWidth - 1:0])) begin
