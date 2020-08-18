@@ -594,24 +594,24 @@ void simple_testbench(SimmemTestbench *tb) {
 
   tb->simmem_tick(5);
 
-  WriteAddress w_addr_req;
-  w_addr_req.id = 0;
-  w_addr_req.addr = 7;
-  w_addr_req.burst_len = 2;
-  w_addr_req.burst_size = 8;
-  w_addr_req.burst_type = 0;
-  w_addr_req.lock_type = 0;
-  w_addr_req.mem_type = 0;
-  w_addr_req.prot = 0;
-  w_addr_req.qos = 0;
+  WriteAddress waddr_req;
+  waddr_req.id = 0;
+  waddr_req.addr = 7;
+  waddr_req.burst_len = 2;
+  waddr_req.burst_size = 8;
+  waddr_req.burst_type = 0;
+  waddr_req.lock_type = 0;
+  waddr_req.mem_type = 0;
+  waddr_req.prot = 0;
+  waddr_req.qos = 0;
 
-  tb->simmem_requester_waddr_apply(w_addr_req);
+  tb->simmem_requester_waddr_apply(waddr_req);
 
   tb->simmem_tick();
 
-  w_addr_req.id = 1;
-  w_addr_req.addr = 3;
-  w_addr_req.burst_len = 4;
+  waddr_req.id = 1;
+  waddr_req.addr = 3;
+  waddr_req.burst_len = 4;
 
   tb->simmem_realmem_waddr_request();
   tb->simmem_tick(4);

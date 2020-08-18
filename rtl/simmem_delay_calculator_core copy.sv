@@ -5,8 +5,8 @@
 // the enable signals for the message banks. Wrapped in the delay calculator module, it can assume
 // that no write data request arrives before the corresponding write address request.
 //
-// Overview: The pendin requests are stored in arrays of slots (one array of wslt_t for write
-// requests and one array of rslt_t for read requests). For burst support, each slot supports
+// Overview: The pendin requests are stored in arrays of slots (one array of w_slot_t for write
+// requests and one array of r_slot_t for read requests). For burst support, each slot supports
 // status information for each of the single corresponding requests:
 //  * data_v: 1'b0 iff the corresponding request has not arrived yet.
 //  * mem_pending: 1'b1 if the request has been submitted to the corresponding rank, which has not
@@ -67,31 +67,28 @@
 // Cost categorization: As the entropy of the cost values is very low (takes only 3 values), they
 // are categorized on 2 bits to ease comparisons.
 //
-// Interleaving is not supported yet, but the basic structure to integrate interleaving is present:
-// candidate requests are split per rank. Additionally, relevant blocks are surrounded by `for
-// (genvar i_rk...` loops.
+// Interleaving is not supported yet, but the basic structure to integrate interleaving is present: candidate requests are split per rank. Additionally, relevant blocks are surrounded by `for (genvar i_rk...` loops.
 //
 
 // TODO Manually wrap code.
 
 module simmem_delay_calculator_core #(
     // NumRanks must be a power of two, used for address interleaving.
-    parameter int unsigned NumRanks = 1,  // Interleaving is not supported yet.
+    parameter int unsigned NumRanks = 1, // Interleaving is not supported yet.
 
-    localparam
-        int unsigned NumRanksWidth = NumRanks == 1 ? 1 : $clog2 (NumRanks)  // derived parameter
+    localparam int unsigned NumRanksWidth = NumRanks == 1 ? 1 : $clog2(NumRanks) // derived parameter
 ) (
     input logic clk_i,
     input logic rst_ni,
 
     // Write address request from the requester.
-    input simmem_pkg::waddr_t                                         waddr_i,
+    input simmem_pkg::waddr_t waddr_i,
     // Internal identifier corresponding to the write address request (issued by the write response
     // bank).
-    input simmem_pkg::write_iid_t                                     waddr_iid_i,
+    input simmem_pkg::write_iid_t waddr_iid_i,
     // Number of write data packets that come with the write address (which were buffered buffered
     // by the wrapper, plus potentially one coming concurrently).
-    input logic                   [simmem_pkg::MaxWBurstLenWidth-1:0] wdata_immediate_cnt_i,
+    input logic [simmem_pkg::MaxWBurstLenWidth-1:0] wdata_immediate_cnt_i,
 
     // Write address request valid from the requester.
     input  logic waddr_valid_i,
@@ -102,10 +99,10 @@ module simmem_delay_calculator_core #(
     input logic wdata_valid_i,
 
     // Write address request from the requester.
-    input simmem_pkg::raddr_t    raddr_i,
+    input simmem_pkg::raddr_t raddr_i,
     // Internal identifier corresponding to the read address request (issued by the read response
     // bank).
-    input simmem_pkg::read_iid_t raddr_iid_i,
+    input simmem_pkg::read_iid_t  raddr_iid_i,
 
     // Read address request valid from the requester.
     input  logic raddr_valid_i,
@@ -141,13 +138,12 @@ module simmem_delay_calculator_core #(
     COST_CAS_CAT = 0,
     COST_ACTIVATION_CAS_CAT = 1,
     COST_PRECHARGE_ACTIVATION_CAS_CAT = 2,
-    COST_NO_CANDIDATE = 3
-  // COST_NO_CANDIDATE is a special state: if the optimal cost for all the candidates for a rank is
-  // COST_NO_CANDIDATE, then it means that the set of candidates for this rank is the empty set.
+    COST_NO_CANDIDATE = 3 
+    // COST_NO_CANDIDATE is a special state: if the optimal cost for all the candidates for a rank is COST_NO_CANDIDATE,
+    // then it means that the set of candidates for this rank is the empty set.
   } mem_cost_category_e;
-  // The NumCostCats constant determines how many disjoint reductions will be needed: for each
-  // (rank, category) pair, an optimal entry is calculated. Therefore, it does not count the
-  // COST_NO_CANDIDATE category.
+  // The NumCostCats constant determines how many disjoint reductions will be needed: for each (rank, category) pair, an optimal entry is calculated.
+  // Therefore, it does not count the COST_NO_CANDIDATE category.
   localparam int NumCostCats = 3;
   localparam int NumCostCatsWidth = $clog2(NumCostCats);
 
@@ -166,7 +162,7 @@ module simmem_delay_calculator_core #(
   * @param open_row_start_addr the start address of the open row, if applicable.
   * @return the cost of the access, in clock cycles.
   */
-  function automatic mem_cost_category_e det_cost_cat(
+  function automatic mem_cost_category_e determine_cost_category(
       logic [GlobalMemoryCapaWidth-1:0] address, logic is_row_open,
       logic [GlobalMemoryCapaWidth-1:0] open_row_start_addr);
     if (is_row_open && (address & RowBufferMappingMask) == (
@@ -177,7 +173,7 @@ module simmem_delay_calculator_core #(
     end else begin
       return COST_PRECHARGE_ACTIVATION_CAS_CAT;
     end
-  endfunction : det_cost_cat
+  endfunction : determine_cost_category
 
   /**
   * Decategorizes a request cost to retrieve the actual value from its category.
@@ -197,10 +193,8 @@ module simmem_delay_calculator_core #(
       COST_PRECHARGE_ACTIVATION_CAS_CAT: begin
         return DelayWidth'(RowHitCost + ActivationCost + PrechargeCost);
       end
-      default: begin  // COST_NO_CANDIDATE
-        // If there is no candidate request for a given rank, then the corresponding counter remains
-        // 0.
-        return 0;
+      default: begin // COST_NO_CANDIDATE
+        return 0; // If there is no candidate request for a given rank, then the corresponding counter remains 0.
       end
     endcase
   endfunction : decategorize_mem_cost
@@ -217,13 +211,13 @@ module simmem_delay_calculator_core #(
   * @param address the input address.
   * @return the rank index to which the address is assigned.
   */
-  function automatic logic [NumRanksWidth-1:0] get_assigned_rk_id(
-      logic [GlobalMemoryCapaWidth-1:0] address);
+  function automatic logic [NumRanksWidth-1:0] get_assigned_rank_id(
+    logic[GlobalMemoryCapaWidth-1:0] address);
     if (NumRanks == 1) begin
       return 0;
     end
-    return address[NumRanksWidth - 1:0];
-  endfunction : get_assigned_rk_id
+    return address[NumRanksWidth-1:0];
+  endfunction : get_assigned_rank_id
 
 
   ///////////////////////////////////////////
@@ -247,7 +241,7 @@ module simmem_delay_calculator_core #(
     logic [AxAddrWidth-1:0] addr;
     write_iid_t iid;  // Internal identifier (address in the response bank's RAM)
     logic v;  // Valid bit
-  } wslt_t;
+  } w_slot_t;
 
   typedef struct packed {
     logic [MaxRBurstLen-1:0] mem_done;
@@ -256,45 +250,28 @@ module simmem_delay_calculator_core #(
     logic [AxAddrWidth-1:0] addr;
     read_iid_t iid;  // Internal identifier (address in the response bank's RAM)
     logic v;  // Valid bit
-  } rslt_t;
+  } r_slot_t;
 
   // Slot declarations
-  wslt_t wslt_d[NumWSlots];
-  wslt_t wslt_q[NumWSlots];
-  rslt_t rslt_d[NumRSlots];
-  rslt_t rslt_q[NumRSlots];
+  w_slot_t wslt_d[NumWSlots];
+  w_slot_t wslt_q[NumWSlots];
+  r_slot_t rslt_d[NumRSlots];
+  r_slot_t rslt_q[NumRSlots];
 
   // Candidate signals calculation
-  // Is a write data request candidate for a given (rank, category) pair.
-  logic [MaxWBurstLen-1:0] is_wd_cand_cat_mhot[NumRanks][NumCostCats][NumWSlots];
-  // Is a read data request candidate for a given (rank, category) pair.
-  logic [MaxRBurstLen-1:0] is_rdata_cand_cat_mhot[NumRanks][NumCostCats][NumRSlots];
+  logic [MaxWBurstLen-1:0] is_wdata_candidate_cat_mhot[NumRanks][NumCostCats][NumWSlots];
+  logic [MaxRBurstLen-1:0] is_rdata_candidate_cat_mhot[NumRanks][NumCostCats][NumRSlots];
 
   for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : candidates_outer
     for (genvar i_cat = 0; i_cat < NumCostCats; i_cat = i_cat + 1) begin : candidates_cat
       for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : candidates_w_inner
         for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : candidates_w_bit
-          // A wslot entry is candidate for a (rank, cat) pair if it the slot is valid
-          assign is_wd_cand_cat_mhot[i_rk][i_cat][i_slt][i_bit] = wslt_q[i_slt].v
-              // And the entry is valid and has no memory operation pending
-              & wslt_q[i_slt].data_v[i_bit] & ~wslt_q[i_slt].mem_pending[i_bit] &
-              // And the memory operation has not been performed yet
-              ~wslt_q[i_slt].mem_done[i_bit] &
-              // And the address corresponds to the right rank
-              NumRanksWidth'(i_rk) == get_assigned_rk_id(slot_waddrs[i_slt][i_bit]) &
-              // And the address yields the right cost.
-              det_cost_cat(slot_waddrs[i_slt][i_bit], is_row_open_q[i_rk], row_start_addr_q[i_rk])
-              == NumCostCatsWidth'(i_cat);
+          assign is_wdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = wslt_q[i_slt].v & wslt_q[i_slt].data_v[i_bit] & ~wslt_q[i_slt].mem_pending[i_bit] & ~wslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit]) & determine_cost_category(waddrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_addr_q[i_rk]) == NumCostCatsWidth'(i_cat);
         end : candidates_w_bit
       end : candidates_w_inner
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : candidates_r_inner
         for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : candidates_r_bit
-          // Identical to wslot entries, with the exception that data_v signals are absent in read slots and simply replaced by the slot .v signal.
-          assign is_rdata_cand_cat_mhot[i_rk][i_cat][i_slt][i_bit] = rslt_q[i_slt].v &
-          ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] &
-          NumRanksWidth'(i_rk) == get_assigned_rk_id(slot_raddrs[i_slt][i_bit]) &
-          det_cost_cat(slot_raddrs[i_slt][i_bit], is_row_open_q[i_rk], row_start_addr_q[i_rk]) ==
-          NumCostCatsWidth'(i_cat);
+          assign is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = rslt_q[i_slt].v & ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit]) & determine_cost_category(raddrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_addr_q[i_rk]) == NumCostCatsWidth'(i_cat);
         end : candidates_r_bit
       end : candidates_r_inner
     end : candidates_cat
@@ -307,9 +284,9 @@ module simmem_delay_calculator_core #(
   for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : find_rdata_outer
     for (genvar i_cat = 0; i_cat < NumCostCats; i_cat = i_cat + 1) begin : find_rdata_cat
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : find_rdata
-        assign nxt_rdata_per_slt_cat_onehot[i_rk][i_cat][i_slt][0] = is_rdata_cand_cat_mhot[i_rk][i_cat][i_slt][0];
+        assign nxt_rdata_per_slt_cat_onehot[i_rk][i_cat][i_slt][0] = is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][0];
         for (genvar i_bit = 1; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : find_rdata_inner
-          assign nxt_rdata_per_slt_cat_onehot[i_rk][i_cat][i_slt][i_bit] = is_rdata_cand_cat_mhot[i_rk][i_cat][i_slt][i_bit] & ~|is_rdata_cand_cat_mhot[i_rk][i_cat][i_slt][i_bit-1:0];
+          assign nxt_rdata_per_slt_cat_onehot[i_rk][i_cat][i_slt][i_bit] = is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] & ~|is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit-1:0];
         end : find_rdata_inner
       end : find_rdata
     end : find_rdata_cat
@@ -512,13 +489,13 @@ module simmem_delay_calculator_core #(
       // Check conditions for write data entries
       for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : cond_check_wslt
         for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : cond_check_wd
-          assign matches_cond[i_rk][i_cat][i_slt*MaxWBurstLen + i_bit] = is_wd_cand_cat_mhot[i_rk][i_cat][i_slt][i_bit];
+          assign matches_cond[i_rk][i_cat][i_slt*MaxWBurstLen + i_bit] = is_wdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit];
         end : cond_check_wd
       end : cond_check_wslt
       // Check conditions for read data entries
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : cond_check_rslt
         for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : cond_check_rslt_bit
-          assign r_matches_cond_per_slt[i_rk][i_cat][i_slt][i_bit] = is_rdata_cand_cat_mhot[i_rk][i_cat][i_slt][i_bit];
+          assign r_matches_cond_per_slt[i_rk][i_cat][i_slt][i_bit] = is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit];
         end : cond_check_rslt_bit
         assign matches_cond[i_rk][i_cat][MainAgeMatrixRSlotStartIndex + i_slt] = |r_matches_cond_per_slt[i_rk][i_cat][i_slt];
       end : cond_check_rslt
@@ -573,8 +550,8 @@ module simmem_delay_calculator_core #(
         {MainAgeMatrixSide{~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}});
   end
 
-  // Find the row buffer index (the RowIdWidth MSBs) of the optimal entry. The LSBs below this are
-  // not regarded, as they map to addresses inside the row.
+  // Find the row buffer index (the RowIdWidth MSBs) of the optimal entry.
+  // The LSBs below this are not regarded, as they map to addresses inside the row.
   logic [RowIdWidth-1:0][MaxNumWEntries+MaxNumREntries-1:0] opti_row_buffer_interm[NumRanks];
   logic [RowIdWidth-1:0] opti_row_buffer[NumRanks];
 
@@ -585,15 +562,14 @@ module simmem_delay_calculator_core #(
       for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : opti_row_buffer_wslt
         for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : opti_row_buffer_wd
           // Take the address bit of a write data entry if it is the optimal entry.
-          assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][i_slt*MaxWBurstLen + i_bit] = opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit] & slot_waddrs[i_slt][i_bit][i_adb];
+          assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][i_slt*MaxWBurstLen + i_bit] = opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit] & waddrs_per_slot[i_slt][i_bit][i_adb];
         end : opti_row_buffer_wd
       end : opti_row_buffer_wslt
       // For read entries
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : opti_row_buffer_rslt
         for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : opti_row_buffer_rslt_bit
-          // Take the address bit of a read data entry if its slot is the optimal entry according to
-          // the main age matrix, and if the current entry is the optimal in the slot.
-          assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][MainAgeMatrixRSlotStartIndex + i_slt*MaxRBurstLen + i_bit] = opti_entry_onehot[i_rk][MainAgeMatrixRSlotStartIndex + i_slt] & nxt_rdata_per_slt_onehot[i_rk][i_slt][i_bit] & slot_raddrs[i_slt][i_bit][i_adb];
+          // Take the address bit of a read data entry if its slot is the optimal entry according to the main age matrix, and if the current entry is the optimal in the slot.
+          assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][MainAgeMatrixRSlotStartIndex + i_slt*MaxRBurstLen + i_bit] = opti_entry_onehot[i_rk][MainAgeMatrixRSlotStartIndex + i_slt] & nxt_rdata_per_slt_onehot[i_rk][i_slt][i_bit] & raddrs_per_slot[i_slt][i_bit][i_adb];
         end : opti_row_buffer_rslt_bit
       end : opti_row_buffer_rslt
 
@@ -649,27 +625,27 @@ module simmem_delay_calculator_core #(
   localparam int unsigned BurstAddrLSBs = 12;
 
   // Addresses of slot entries.
-  logic [GlobalMemoryCapaWidth-1:0] slot_waddrs[NumWSlots][MaxWBurstLen];
-  logic [GlobalMemoryCapaWidth-1:0] slot_raddrs[NumRSlots][MaxRBurstLen];
+  logic [GlobalMemoryCapaWidth-1:0] waddrs_per_slot[NumWSlots][MaxWBurstLen];
+  logic [GlobalMemoryCapaWidth-1:0] raddrs_per_slot[NumRSlots][MaxRBurstLen];
 
   // Least significant bits of the addresses.
-  logic [BurstAddrLSBs-1:0] slot_waddr_lsbs[NumWSlots][MaxWBurstLen];
-  logic [BurstAddrLSBs-1:0] slot_raddr_lsbs[NumRSlots][MaxRBurstLen];
+  logic [BurstAddrLSBs-1:0] waddrs_lsb_per_slot[NumWSlots][MaxWBurstLen];
+  logic [BurstAddrLSBs-1:0] raddrs_lsb_per_slot[NumRSlots][MaxRBurstLen];
 
   // Write data entries address.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_waddrs_per_slt
     for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_waddrs
       if (i_bit == 0) begin
-        assign slot_waddr_lsbs[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+        assign waddrs_lsb_per_slot[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
       end else begin
-        assign slot_waddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slot_waddr_lsbs[i_slt][i_bit - 1] + BurstAddrLSBs'(wslt_q[i_slt].burst_size));
+        assign waddrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(waddrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(wslt_q[i_slt].burst_size));
       end
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
       // entries' addresses.
-      assign slot_waddrs[i_slt][i_bit] = {
+      assign waddrs_per_slot[i_slt][i_bit] = {
           wslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
-          slot_waddr_lsbs[i_slt][i_bit]
+          waddrs_lsb_per_slot[i_slt][i_bit]
         };
       end : gen_waddrs
   end : gen_waddrs_per_slt
@@ -678,16 +654,16 @@ module simmem_delay_calculator_core #(
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_raddrs_per_slt
     for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : gen_raddrs
       if (i_bit == 0) begin
-        assign slot_raddr_lsbs[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+        assign raddrs_lsb_per_slot[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
       end else begin
-        assign slot_raddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slot_raddr_lsbs[i_slt][i_bit - 1] + BurstAddrLSBs'(rslt_q[i_slt].burst_size));
+        assign raddrs_lsb_per_slot[i_slt][i_bit] = BurstAddrLSBs'(raddrs_lsb_per_slot[i_slt][i_bit - 1] + BurstAddrLSBs'(rslt_q[i_slt].burst_size));
       end
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
       // entries' addresses.
-      assign slot_raddrs[i_slt][i_bit] = {
+      assign raddrs_per_slot[i_slt][i_bit] = {
         rslt_q[i_slt].addr[GlobalMemoryCapaWidth - 1:BurstAddrLSBs],
-        slot_raddr_lsbs[i_slt][i_bit]
+        raddrs_lsb_per_slot[i_slt][i_bit]
       };
     end : gen_raddrs
   end : gen_raddrs_per_slt
@@ -708,7 +684,7 @@ module simmem_delay_calculator_core #(
   // Determines the start address of the open row. This is useful for request cost calculation. If
   // no row is open in the rank, then this value is irrelevant.
   logic [GlobalMemoryCapaWidth-1:0] open_row_start_addr_d[NumRanks];
-  logic [GlobalMemoryCapaWidth-1:0] row_start_addr_q[NumRanks];
+  logic [GlobalMemoryCapaWidth-1:0] open_row_start_addr_q[NumRanks];
 
   // Decreasing counter that determines the number of cycles in which the rank will be able to take
   // a new request.
@@ -745,7 +721,7 @@ module simmem_delay_calculator_core #(
     // Default assignments
     for (int unsigned i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin
       is_row_open_d[i_rk] = is_row_open_q[i_rk];
-      open_row_start_addr_d[i_rk] = row_start_addr_q[i_rk];
+      open_row_start_addr_d[i_rk] = open_row_start_addr_q[i_rk];
     end
 
     wresp_release_en_mhot_d = wresp_release_en_mhot_o;
@@ -912,15 +888,15 @@ module simmem_delay_calculator_core #(
         for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
           for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
             // Mark memory operation as done if already done, or was pending.
-            wslt_d[i_slt].mem_done[i_bit] = wslt_q[i_slt].mem_done[i_bit] | (wslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rk_id(slot_waddrs[i_slt][i_bit])==NumRanksWidth'(i_rk)));
-            wslt_d[i_slt].mem_pending[i_bit] = wslt_d[i_slt].mem_pending[i_bit] & get_assigned_rk_id(slot_waddrs[i_slt][i_bit])!=NumRanksWidth'(i_rk);
+            wslt_d[i_slt].mem_done[i_bit] = wslt_q[i_slt].mem_done[i_bit] | (wslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit])==NumRanksWidth'(i_rk)));
+            wslt_d[i_slt].mem_pending[i_bit] = wslt_d[i_slt].mem_pending[i_bit] & get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit])!=NumRanksWidth'(i_rk);
           end
         end
         for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
           for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
             // Mark memory operation as done if already done, or was pending.
-            rslt_d[i_slt].mem_done[i_bit] = rslt_q[i_slt].mem_done[i_bit] | (rslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rk_id(slot_raddrs[i_slt][i_bit])==NumRanksWidth'(i_rk)));
-            rslt_d[i_slt].mem_pending[i_bit] = rslt_d[i_slt].mem_pending[i_bit] & get_assigned_rk_id(slot_raddrs[i_slt][i_bit])!=NumRanksWidth'(i_rk);
+            rslt_d[i_slt].mem_done[i_bit] = rslt_q[i_slt].mem_done[i_bit] | (rslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit])==NumRanksWidth'(i_rk)));
+            rslt_d[i_slt].mem_pending[i_bit] = rslt_d[i_slt].mem_pending[i_bit] & get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit])!=NumRanksWidth'(i_rk);
           end
         end
       end
@@ -987,7 +963,7 @@ module simmem_delay_calculator_core #(
       wslt_q <= '{default: '0};
       rslt_q <= '{default: '0};
       is_row_open_q <= '{default: '0};
-      row_start_addr_q <= '{default: '0};
+      open_row_start_addr_q <= '{default: '0};
       rank_delay_cnt_q <= '{default: '0};
       wresp_release_en_mhot_o <= '0;
       rdata_release_en_cnts_q <= '0;
@@ -995,7 +971,7 @@ module simmem_delay_calculator_core #(
       wslt_q <= wslt_d;
       rslt_q <= rslt_d;
       is_row_open_q <= is_row_open_d;
-      row_start_addr_q <= open_row_start_addr_d;
+      open_row_start_addr_q <= open_row_start_addr_d;
       rank_delay_cnt_q <= rank_delay_cnt_d;
       wresp_release_en_mhot_o <= wresp_release_en_mhot_d;
       rdata_release_en_cnts_q <= rdata_release_en_cnts_d;

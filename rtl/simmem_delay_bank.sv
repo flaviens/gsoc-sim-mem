@@ -9,16 +9,16 @@
 // It contains one counter per response identifier (corresponding to RAM addresses).
 
 module simmem_delay_bank (
-  input logic clk_i,
-  input logic rst_ni,
-  
-  input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] local_identifier_i,
-  input logic [simmem_pkg::DelayWidth-1:0] delay_i,
-  input logic in_valid_i,
-  
-  // Signals at output
-  input  logic [simmem_pkg::WriteRespBankCapacity-1:0] address_released_onehot_i,
-  output logic [simmem_pkg::WriteRespBankCapacity-1:0] release_en_o
+    input logic clk_i,
+    input logic rst_ni,
+
+    input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] local_identifier_i,
+    input logic [            simmem_pkg::DelayWidth-1:0] delay_i,
+    input logic                                          in_valid_i,
+
+    // Signals at output
+    input  logic [simmem_pkg::WriteRespBankCapacity-1:0] address_released_onehot_i,
+    output logic [simmem_pkg::WriteRespBankCapacity-1:0] release_en_o
 );
 
   import simmem_pkg::*;
@@ -27,7 +27,7 @@ module simmem_delay_bank (
   // Local identifiers to add to the releasable list //
   /////////////////////////////////////////////////////
 
-  logic [WriteRespBankCapacity-1:0] new_addresses_to_release_multihot;
+  logic [WriteRespBankCapacity-1:0] newaddresses_to_release_multihot;
 
 
   ///////////////////
@@ -42,7 +42,7 @@ module simmem_delay_bank (
       genvar curr_entry = 0; curr_entry < WriteRespBankCapacity; curr_entry = curr_entry + 1
   ) begin : counter_update
     always_comb begin : counter_update_comb
-      new_addresses_to_release_multihot[curr_entry] = 1'b0;
+      newaddresses_to_release_multihot[curr_entry] = 1'b0;
 
       // Update the counter value if it is not zero
       if (|counters_q[curr_entry]) begin
@@ -53,10 +53,10 @@ module simmem_delay_bank (
 
       // The input cannot be simultaneous with the release due to a counter hitting zero
       if (counters_q[curr_entry] == 1 && counters_d[curr_entry] == 0) begin
-        new_addresses_to_release_multihot[curr_entry] = 1'b1;
+        newaddresses_to_release_multihot[curr_entry] = 1'b1;
       end else if (in_valid_i && local_identifier_i == curr_entry) begin
         if (delay_i == 2 || delay_i == 1 || delay_i == 0) begin
-          new_addresses_to_release_multihot[curr_entry] = 1'b1;
+          newaddresses_to_release_multihot[curr_entry] = 1'b1;
         end else begin
           // Minus 2 because the input handshake of this module takes 1 cycle and the output
           // latency of the memory bank is at least 1 cycle.
@@ -79,7 +79,7 @@ module simmem_delay_bank (
 
     // Clear the released values
     release_en_d &= ~address_released_onehot_i;
-    release_en_d |= new_addresses_to_release_multihot;
+    release_en_d |= newaddresses_to_release_multihot;
   end : update_release_en_signals
 
 
