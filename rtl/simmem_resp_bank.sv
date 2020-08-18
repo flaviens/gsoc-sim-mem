@@ -250,14 +250,14 @@ module simmem_resp_bank #(
   logic is_rsp_head_emptybox_q[NumIds];
 
   // Lengths of reservation and response queues.
-  logic [BankAddrWidth-1:0] rsv_len_d[NumIds];
-  logic [BankAddrWidth-1:0] rsv_len_q[NumIds];
+  logic [BankAddrWidth:0] rsv_len_d[NumIds];
+  logic [BankAddrWidth:0] rsv_len_q[NumIds];
 
-  logic [BankAddrWidth-1:0] rsp_len_d[NumIds];
-  logic [BankAddrWidth-1:0] rsp_len_q[NumIds];
+  logic [BankAddrWidth:0] rsp_len_d[NumIds];
+  logic [BankAddrWidth:0] rsp_len_q[NumIds];
 
   // Length after the potential output.
-  logic [BankAddrWidth-1:0] rsp_len_after_out[NumIds];
+  logic [BankAddrWidth:0] rsp_len_after_out[NumIds];
   // Determines whether the tail (or pre_tail) awaits the next burst data to release and can
   // therefore not send data, even if rsp_len_id is non-zero for the given AXI identifier.
   logic awaits_data[NumIds];
@@ -319,7 +319,7 @@ module simmem_resp_bank #(
   //    * cnt_rsv_mask: contains at most one bit to one, where a new reservation is performed.
   //    * cnt_in_mask: contains at most one bit to one, where a response is accepted. This mask is
   //      collaboratively built by all linkedlists using the signals cnt_in_mask_id_addr.
-  //    * cnt_out_mask: contains at most one bit to one, where a response is released. Additionally,
+  //    * released_addr_onehot_o: contains at most one bit to one, where a response is released. Additionally,
   //      the cnt_in_mask_id signal tracks, for each linked list the cnt_in_mask value under the
   //      response heads. This helps reducing the latency between response acquisition and release,
   //      and most importantly helps determine the response part of the queue after output.
@@ -362,7 +362,6 @@ module simmem_resp_bank #(
   logic [TotCapa-1:0][NumIds-1:0] cnt_in_mask_id_addr;
   logic cnt_in_mask[TotCapa];
   logic cnt_in_mask_id[NumIds];
-  logic [TotCapa-1:0] cnt_out_mask;
 
   for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : cnt_update
 
@@ -373,7 +372,7 @@ module simmem_resp_bank #(
     // An output mask bit is set to one if there is a successful output handshake and this bit
     // corresponds to address of the data at the output.
     assign
-        cnt_out_mask[i_addr] = cur_out_addr_onehot_q[i_addr] && out_rsp_valid_o && out_rsp_ready_i;
+        released_addr_onehot_o[i_addr] = cur_out_addr_onehot_q[i_addr] && out_rsp_valid_o && out_rsp_ready_i;
 
     for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_cnt_in_mask
       // Here is looked at which address the incoming response would land, if there were an incoming
@@ -408,10 +407,8 @@ module simmem_resp_bank #(
     end
 
     // Update immediately the rsp_cnt on related output.
-    assign rsp_cnt[i_addr] = cnt_out_mask[i_addr] ? rsp_cnt_q[i_addr] - 1 : rsp_cnt_q[i_addr];
+    assign rsp_cnt[i_addr] = released_addr_onehot_o[i_addr] ? rsp_cnt_q[i_addr] - 1 : rsp_cnt_q[i_addr];
   end : cnt_update
-
-  assign released_addr_onehot_o = cnt_out_mask;
 
   // Intermediate signals to calculate counts
   logic [TotCapa-1:0][XBurstLenWidth-1:0] rsv_cnt_addr[NumIds];

@@ -376,16 +376,7 @@ class SimmemTestbench {
    * Informs the testbench that all the requests have been performed and
    * therefore that the trailing cycles phase should start.
    */
-  void simmem_requests_complete(void) { tick_count_ = 0; }
-
-  /**
-   * Checks whether the testbench completed the trailing cycles phase.
-   */
-  bool simmem_is_done(void) {
-    return (
-        Verilated::gotFinish() ||
-        (trailing_clock_cycles_ && (tick_count_ >= trailing_clock_cycles_)));
-  }
+  void simmem_trailing_requests(void) { this->simmem_tick(kTrailingTicks); }
 
  private:
   vluint32_t tick_count_;
@@ -640,7 +631,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                           unsigned int seed) {
   srand(seed);
 
-  size_t nb_iterations = 1500;
+  size_t nb_iterations = 1000;
 
   std::vector<uint64_t> ids;
 
@@ -721,12 +712,14 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   requester_current_waddr.id = ids[rand() % num_identifiers];
   requester_current_waddr.burst_len = kWBurstLen;
   requester_current_waddr.burst_size = 2;
+  // requester_current_waddr.addr = 0;  // TODO Remove
   // Input waddr from the requester
   ReadAddress requester_current_raddr;
   requester_current_raddr.from_packed(rand());
   requester_current_raddr.id = ids[rand() % num_identifiers];
   requester_current_raddr.burst_len = kRBurstLen;
   requester_current_raddr.burst_size = 2;
+  // requester_current_waddr.addr = 0;  // TODO Remove
 
   // Input wdata from the requester
   WriteData requester_current_wdata;
@@ -765,7 +758,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
     // Randomize the boolean signals deciding which interactions will take
     // place in this cycle
-    requester_apply_waddr_input = (bool)(rand() & 1);
+    requester_apply_waddr_input = false;  // TODO (bool)(rand() & 1);
     requester_apply_raddr_input = (bool)(rand() & 1);
     requester_apply_wdata_input = (bool)(rand() & 1);
     // The requester is supposedly always ready to get data, for more accurate
@@ -865,6 +858,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       requester_current_waddr.id = ids[rand() % num_identifiers];
       requester_current_waddr.burst_len = kWBurstLen;
       requester_current_waddr.burst_size = 2;
+      // requester_current_waddr.addr = 0;  // TODO Remove
     }
     // raddr handshake
     if (requester_apply_raddr_input && tb->simmem_requester_raddr_check()) {
@@ -888,6 +882,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       requester_current_raddr.id = ids[rand() % num_identifiers];
       requester_current_raddr.burst_len = kRBurstLen;
       requester_current_raddr.burst_size = 2;
+      // requester_current_raddr.addr = 0;  // TODO Remove
     }
     // wdata handshake
     if (requester_apply_wdata_input && tb->simmem_requester_wdata_check()) {
@@ -1112,10 +1107,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   // Trailing ticks after the last requests //
   ////////////////////////////////////////////
 
-  tb->simmem_requests_complete();
-  while (!tb->simmem_is_done()) {
-    tb->simmem_tick();
-  }
+  tb->simmem_trailing_requests();
 
   //////////////////////////////
   // Response time assessment //
@@ -1159,7 +1151,7 @@ int main(int argc, char **argv, char **env) {
 
   // Choose testbench type
   // simple_testbench(tb);
-  randomized_testbench(tb, 1, 0);
+  randomized_testbench(tb, 1, 2);
 
   delete tb;
 

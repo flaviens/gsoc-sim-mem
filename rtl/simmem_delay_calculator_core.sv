@@ -296,7 +296,7 @@ module simmem_delay_calculator_core #(
       end : find_rdata
     end : find_rdata_cat
 
-    // Find the lowest cost entry per rank and per slot
+    // Find the lowest cost read entry per rank and per slot
     for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : find_rdata_reduce
       always_comb begin
         if (|nxt_rdata_per_slt_cat_onehot[i_rk][COST_CAS_CAT][i_slt]) begin
@@ -718,7 +718,7 @@ module simmem_delay_calculator_core #(
   // flip-flops is sufficient for the wresp_release_en signal. Counters are useful, however, for
   // read data, which are subject to burst responses.
 
-  logic [WriteRespBankCapacity-1:0] wresp_release_en_onehot_d;
+  logic [WriteRespBankCapacity-1:0] wresp_release_en_mhot_d;
   logic [ReadDataBankCapacity-1:0][MaxRBurstLenWidth-1:0] rdata_release_en_cnts_d;
   logic [ReadDataBankCapacity-1:0][MaxRBurstLenWidth-1:0] rdata_release_en_cnts_q;
 
@@ -741,7 +741,7 @@ module simmem_delay_calculator_core #(
       open_row_start_addr_d[i_rk] = open_row_start_addr_q[i_rk];
     end
 
-    wresp_release_en_onehot_d = wresp_release_en_mhot_o;
+    wresp_release_en_mhot_d = wresp_release_en_mhot_o;
     rdata_release_en_cnts_d = rdata_release_en_cnts_q;
 
     main_new_entry = '{default: '0};
@@ -861,27 +861,29 @@ module simmem_delay_calculator_core #(
     // Rank counter update //
     /////////////////////////
 
-    // This part is dedicated to updating the rank counters.
+    // This part is dedicated to updating the rank counters and row state signals.
 
-    // If the rank counter is zero, then simply decrement it.
+    // If the rank counter is not zero, then simply decrement it.
     for (int unsigned i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin
       if (rank_delay_cnt_q[i_rk] != 0) begin
+        // A row is now open in the corresponding rank. 
+        is_row_open_d[i_rk] = 1'b1;
+
         rank_delay_cnt_d[i_rk] = rank_delay_cnt_q[i_rk] - 1;
       end else begin
         // The case where rank_delay_cnt_q has to remain zero is treated through COST_NO_CANDIDATE.
         rank_delay_cnt_d[i_rk] = decategorize_mem_cost(opti_cost_cat[i_rk]);
 
-        // Set the memory pending bit in the case of a write data entry
+        // Set the memory pending bit in the case of a write data entry.
         for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
           wslt_d[i_slt].mem_pending |= opti_entry_onehot[i_rk][i_slt*MaxWBurstLen +: MaxWBurstLen];
         end
-        // Set the memory pending bit in the case of a read data entry
+        // Set the memory pending bit in the case of a read data entry.
         for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
           rslt_d[i_slt].mem_pending |= {MaxRBurstLen{opti_entry_onehot[i_rk][MainAgeMatrixRSlotStartIndex+i_slt]}} & nxt_rdata_per_slt_onehot[i_rk][i_slt];
         end
 
-        // A row is now opening or open in the corresponding rank. 
-        is_row_open_d[i_rk] = 1'b1;
+        // Update the row start address.
         open_row_start_addr_d[i_rk] = {opti_row_buffer[i_rk], {RowBufferLenWidth{1'b0}}};
       end
     end
@@ -919,7 +921,7 @@ module simmem_delay_calculator_core #(
     end
 
     // Input signals from message banks about released signals
-    wresp_release_en_onehot_d ^= wresp_released_addr_onehot_i;
+    wresp_release_en_mhot_d ^= wresp_released_addr_onehot_i;
 
     // Decrement the rdata_release_en_cnts_d if data has been released for this address (aka. iid).
     // If a counter is decremented, it was originally not zero, because a message bank is not
@@ -944,8 +946,11 @@ module simmem_delay_calculator_core #(
       wslt_d[i_slt].v &= !&wslt_q[i_slt].mem_done;
       for (int unsigned i_iid = 0; i_iid < WriteRespBankCapacity; i_iid = i_iid + 1) begin
         // If all the memory requests of a burst have been satisfied, then notify the output. 
-        wresp_release_en_onehot_d[i_iid] |= wslt_q[i_slt].v && &wslt_q[i_slt].mem_done &&
-            wslt_q[i_slt].iid == i_iid[WriteRespBankAddrWidth - 1:0];
+        if (wslt_q[i_slt].v && &wslt_q[i_slt].mem_done) begin
+          wresp_release_en_mhot_d[i_iid] |= wslt_q[i_slt].iid == WriteRespBankAddrWidth'(i_iid);
+          // Set mem_done to zero when all requests in the burst have complete.
+          wslt_d[i_slt].mem_done = '0;
+        end
       end
     end
     // Read slots
@@ -958,9 +963,13 @@ module simmem_delay_calculator_core #(
         // release. 
         for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
           if (rslt_q[i_slt].v && (rslt_q[i_slt].mem_pending[i_bit] && rslt_d[i_slt].mem_done[i_bit] && 
-              rslt_q[i_slt].iid == i_iid[ReadDataBankAddrWidth - 1:0])) begin
+              rslt_q[i_slt].iid == ReadDataBankAddrWidth'(i_iid))) begin
             rdata_release_en_cnts_d[i_iid] += 1;
           end
+        end
+        // Set mem_done to zero when all requests in the burst has complete.
+        if (rslt_q[i_slt].v && &rslt_q[i_slt].mem_done) begin
+          rslt_d[i_slt].mem_done = '0;
         end
 
       end
@@ -982,7 +991,7 @@ module simmem_delay_calculator_core #(
       is_row_open_q <= is_row_open_d;
       open_row_start_addr_q <= open_row_start_addr_d;
       rank_delay_cnt_q <= rank_delay_cnt_d;
-      wresp_release_en_mhot_o <= wresp_release_en_onehot_d;
+      wresp_release_en_mhot_o <= wresp_release_en_mhot_d;
       rdata_release_en_cnts_q <= rdata_release_en_cnts_d;
     end
   end
