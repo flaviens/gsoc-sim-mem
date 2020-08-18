@@ -67,17 +67,13 @@
 // Cost categorization: As the entropy of the cost values is very low (takes only 3 values), they
 // are categorized on 2 bits to ease comparisons.
 //
-
-// TODO: Support interleaving. TODO: Make cost increasing in the burst size. TODO: Multiply row
-// width by number of ranks
-
-// TODO Recheck address calculation because frequent row misses have been observed inside bursts of
-// low burst size.
+// Interleaving is not supported yet, but the basic structure to integrate interleaving is present: candidate requests are split per rank. Additionally, relevant blocks are surrounded by `for (genvar i_rk...` loops.
+//
 
 // TODO Manually wrap code.
 
 module simmem_delay_calculator_core #(
-    // Must be a power of two, used for address interleaving
+    // NumRanks must be a power of two, used for address interleaving.
     parameter int unsigned NumRanks = 1, // Interleaving is not supported yet.
 
     localparam int unsigned NumRanksWidth = NumRanks == 1 ? 1 : $clog2(NumRanks) // derived parameter
@@ -136,21 +132,20 @@ module simmem_delay_calculator_core #(
   // Request cost categorization //
   /////////////////////////////////
 
-  // Compresses the actual cost to have comparisons on fewer bits. Therefore, the ordering of the
+  // Categorizes the actual cost to have comparisons on fewer bits. Therefore, the ordering of the
   // values in the enumeration is important.
   typedef enum logic [1:0] {
     COST_CAS_CAT = 0,
     COST_ACTIVATION_CAS_CAT = 1,
     COST_PRECHARGE_ACTIVATION_CAS_CAT = 2,
-    // Special state: if the optimal cost for all the candidates for a rank is COST_NO_CANDIDATE,
-    // then it means that the set of candidates for this rank is the empty set.
     COST_NO_CANDIDATE = 3 
+    // COST_NO_CANDIDATE is a special state: if the optimal cost for all the candidates for a rank is COST_NO_CANDIDATE,
+    // then it means that the set of candidates for this rank is the empty set.
   } mem_cost_category_e;
-  // The NumCostCategories constant determines how many disjoint reductions will be needed.
+  // The NumCostCategories constant determines how many disjoint reductions will be needed: for each (rank, category) pair, an optimal entry is calculated.
   // Therefore, it does not count the COST_NO_CANDIDATE category.
   localparam int NumCostCategories = 3;
   localparam int NumCostCategoriesWidth = $clog2(NumCostCategories);
-
 
   // RowBufferMappingMask is 1111..11111000..000, of total width GlobalMemoryCapaWidth. Two
   // addresses map on the same row iff, masked, they are equal.
@@ -230,7 +225,7 @@ module simmem_delay_calculator_core #(
   ///////////////////////////////////////////
 
   // As their shape and treatment is different, slots for read and write bursts are disjoint: there
-  // is one array of slots for read bursts, and one array for write slots.
+  // is one array of slots for read bursts, and one array for write bursts.
 
   // Maximal number of write data entries: at most MaxWBurstLen per slot.
   localparam MaxNumWEntries = NumWSlots * MaxWBurstLen;
@@ -396,13 +391,9 @@ module simmem_delay_calculator_core #(
   //  take advantage of the partition to different ranks, because this partition is made dynamically
   //  and changes during runtime, depending on the LSBs of entries' addresses.   
   //
-  // Auxiliary signals:
+  // Auxiliary signal:
   //  * {main|wslt}_new_entry: Indicates whether an entry of the matrix has just been added as a
-  //    candidate for a memory request. // TODO: Remove
-  //  * {main|wslt}_candidate_entry: Indicates whether an entry of the matrix corresponds to a
-  //    current candidate for memory request. // TODO: Remove
-  //  * {main|wslt}_release_entry: Indicates whether an entry of the matrix corresponds to an entry
-  //    that has been selected to run a memory request.
+  //    candidate for a memory request.
 
   // Main age matrix
   localparam MainAgeMatrixRSlotStartIndex = MaxNumWEntries;
@@ -550,7 +541,6 @@ module simmem_delay_calculator_core #(
     // ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] &
     // ~|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} & COST_NO_CANDIDATE);
 
-
     // Using masks, find the optimal entry and its cost category
     assign opti_entry_onehot[i_rk] = oldest_entry_of_category[i_rk][COST_CAS_CAT] |
         (oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] &
@@ -566,34 +556,27 @@ module simmem_delay_calculator_core #(
   logic [RowIdWidth-1:0] opti_row_buffer[NumRanks];
 
   for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : opti_row_buffer_outer
-  //   TODO Remove for (genvar i_bit = 0; i_bit < MainAgeMatrixRSlotStartIndex; i_bit = i_bit + 1) begin : opti_row_buffer_w
-  //     assign opti_row_buffer[i_rk][i_bit] = 
-  //   end : opti_row_buffer_w
-  //   for (genvar i_bit = MainAgeMatrixRSlotStartIndex; i_bit < MainAgeMatrixSide; i_bit = i_bit + 1) begin : opti_row_buffer_r
-      
-  //   end : opti_row_buffer_r
-
+    // The row buffer identifier is obtained bit by bit. 
     for (genvar i_adb = RowBufferLenWidth; i_adb < GlobalMemoryCapaWidth; i_adb = i_adb + 1) begin : opti_row_buffer_addr_bit
       // For write entries
       for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : opti_row_buffer_wslt
         for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : opti_row_buffer_wd
-          // Take the address of a write data entry if it is the optimal entry.
+          // Take the address bit of a write data entry if it is the optimal entry.
           assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][i_slt*MaxWBurstLen + i_bit] = opti_entry_onehot[i_rk][i_slt*MaxWBurstLen + i_bit] & w_addrs_per_slot[i_slt][i_bit][i_adb];
         end : opti_row_buffer_wd
       end : opti_row_buffer_wslt
       // For read entries
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : opti_row_buffer_rslt
         for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : opti_row_buffer_rslt_bit
-          // Take the address of a read data entry if its slot is the optimal entry according to the main age matrix, and if the current entry is the optimal in the slot.
+          // Take the address bit of a read data entry if its slot is the optimal entry according to the main age matrix, and if the current entry is the optimal in the slot.
           assign opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth][MainAgeMatrixRSlotStartIndex + i_slt*MaxRBurstLen + i_bit] = opti_entry_onehot[i_rk][MainAgeMatrixRSlotStartIndex + i_slt] & nxt_rdata_per_slt_onehot[i_rk][i_slt][i_bit] & r_addrs_per_slot[i_slt][i_bit][i_adb];
         end : opti_row_buffer_rslt_bit
       end : opti_row_buffer_rslt
 
+      // Aggregate the bit for all the entries.
       assign opti_row_buffer[i_rk][i_adb-RowBufferLenWidth] = |opti_row_buffer_interm[i_rk][i_adb-RowBufferLenWidth];
     end : opti_row_buffer_addr_bit
   end : opti_row_buffer_outer
-
-  // TODO Continuer ici
 
   //////////////////////////////////////////
   // Find next slot where write data fits //
@@ -690,7 +673,7 @@ module simmem_delay_calculator_core #(
   // Rank signals //
   //////////////////
 
-  // The ranks are simulated by mere counters. These counters are set to a given request cost and
+  // The ranks are simulated by counters. These counters are set to a given request cost and
   // constantly decremented to zero.
 
   // Determines if there is a row open in the rank. So far, this is always true after the first
@@ -746,8 +729,7 @@ module simmem_delay_calculator_core #(
 
     main_new_entry = '{default: '0};
     wslt_new_entry = '{default: '0};
-    // main_candidate_entry = '{default: '0}; // TODO: double-check: is the signal useful?
-    // main_release_entry = '{default: '0};
+
 
     ////////////////////////////
     // Address requests input //
