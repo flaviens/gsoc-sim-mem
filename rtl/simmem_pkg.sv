@@ -18,8 +18,8 @@ package simmem_pkg;
 
   // TODO: 10, 50, 45
   localparam int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
-  localparam int unsigned PrechargeCost = 5;  // Cycles
-  localparam int unsigned ActivationCost = 4;  // Cycles
+  localparam int unsigned PrechargeCost = 2;  // Cycles
+  localparam int unsigned ActivationCost = 1;  // Cycles
 
 
   /////////////////

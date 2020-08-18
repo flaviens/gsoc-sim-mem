@@ -26,6 +26,10 @@ const int kResetLength = 5;
 const int kTraceLevel = 6;
 const int kTrailingTicks = 100;
 
+// Constant burst lengths supplied to the DUT
+const int kWBurstLen = 3;
+const int kRBurstLen = 4;
+
 // const size_t kMinDelay = 3;
 // const size_t kMaxDelay = 10;
 // const size_t kNbLocalIdentifiers = 32;
@@ -639,7 +643,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                           unsigned int seed) {
   srand(seed);
 
-  size_t nb_iterations = 1000;
+  size_t nb_iterations = 1500;
 
   std::vector<uint64_t> ids;
 
@@ -718,13 +722,13 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   WriteAddress requester_current_waddr;
   requester_current_waddr.from_packed(rand());
   requester_current_waddr.id = ids[rand() % num_identifiers];
-  requester_current_waddr.burst_len = 3;
+  requester_current_waddr.burst_len = kWBurstLen;
   requester_current_waddr.burst_size = 2;
   // Input waddr from the requester
   ReadAddress requester_current_raddr;
   requester_current_raddr.from_packed(rand());
   requester_current_raddr.id = ids[rand() % num_identifiers];
-  requester_current_raddr.burst_len = 4;
+  requester_current_raddr.burst_len = kRBurstLen;
   requester_current_raddr.burst_size = 2;
 
   // Input wdata from the requester
@@ -862,7 +866,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       // Renew the input data if the input handshake has been successful
       requester_current_waddr.from_packed(rand());
       requester_current_waddr.id = ids[rand() % num_identifiers];
-      requester_current_waddr.burst_len = 4;
+      requester_current_waddr.burst_len = kWBurstLen;
       requester_current_waddr.burst_size = 2;
     }
     // raddr handshake
@@ -885,7 +889,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       // Renew the input data if the input handshake has been successful
       requester_current_raddr.from_packed(rand());
       requester_current_raddr.id = ids[rand() % num_identifiers];
-      requester_current_raddr.burst_len = 4;
+      requester_current_raddr.burst_len = kRBurstLen;
       requester_current_raddr.burst_size = 2;
     }
     // wdata handshake
