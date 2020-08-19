@@ -210,8 +210,8 @@
 // //   void tick();
 
 // //  private:
-// //   bool releasableWrites[WriteRespBankCapacity];
-// //   bool releasableReads[ReadDataBankCapacity];
+// //   bool releasableWrites[WRspBankCapa];
+// //   bool releasableReads[RDataBankCapa];
 // // }
 
 // // /**

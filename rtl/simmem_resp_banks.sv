@@ -8,28 +8,28 @@ module simmem_resp_banks (
     input logic rst_ni,
 
     // Reservation interface AXI identifier for which the reseration request is being done.
-    input  logic [    simmem_pkg::NumIds-1:0] wrsv_req_id_onehot_i,
-    input  logic [    simmem_pkg::NumIds-1:0] rrsv_req_id_onehot_i,
+    input  logic [simmem_pkg::NumIds-1:0] wrsv_req_id_onehot_i,
+    input  logic [simmem_pkg::NumIds-1:0] rrsv_req_id_onehot_i,
     // Information about currently reserved address. Will be stored by other modules as an internal
     // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [WriteRespBankAddrWidth-1:0] wrsv_iid_o,
-    output logic [ ReadDataBankAddrWidth-1:0] rrsv_iid_o,
+    output logic [      WRspBankCapa-1:0] wrsv_iid_o,
+    output logic [    RDataBankAddrW-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [       MaxRBurstLenWidth:0] rrsv_burst_len_i,
+    input  logic [   MaxRBurstLenWidth:0] rrsv_burst_len_i,
     // Reservation handshake signals
-    input  logic                              wrsv_valid_i,
-    output logic                              wrsv_ready_o,
-    input  logic                              rrsv_valid_i,
-    output logic                              rrsv_ready_o,
+    input  logic                          wrsv_valid_i,
+    output logic                          wrsv_ready_o,
+    input  logic                          rrsv_valid_i,
+    output logic                          rrsv_ready_o,
 
     // Interface with the releaser Multi-hot signal that enables the release for given internal
     // addresses (i.e., RAM addresses).
-    input  logic [WriteRespBankCapacity-1:0] w_release_en_i,
-    input  logic [ ReadDataBankCapacity-1:0] r_release_en_i,
+    input  logic [ WRspBankCapa-1:0] w_release_en_i,
+    input  logic [RDataBankCapa-1:0] r_release_en_i,
     // Signals which address has been released, if any. One-hot signal. Is set to one for each
     // released response in a burst.
-    output logic [WriteRespBankCapacity-1:0] w_released_addr_onehot_o,
-    output logic [ ReadDataBankCapacity-1:0] r_released_addr_onehot_o,
+    output logic [ WRspBankCapa-1:0] w_released_addr_onehot_o,
+    output logic [RDataBankCapa-1:0] r_released_addr_onehot_o,
 
     // Interface with the real memory controller AXI response excluding handshake
     input  simmem_pkg::wresp_t wresp_i,
@@ -60,7 +60,7 @@ module simmem_resp_banks (
   import simmem_pkg::*;
 
   simmem_resp_bank #(
-      .TotCapa(WriteRespBankCapacity),
+      .TotCapa(WRspBankCapa),
       .MaxBurstLen(1),  // There is no burst in the write responses
       .DataType(wresp_t)
   ) i_simmem_wresp_bank (
@@ -84,7 +84,7 @@ module simmem_resp_banks (
   );
 
   simmem_resp_bank #(
-      .TotCapa(ReadDataBankCapacity),
+      .TotCapa(RDataBankCapa),
       .MaxBurstLen(MaxRBurstLen),
       .DataType(rdata_t)
   ) i_simmem_rdata_bank (

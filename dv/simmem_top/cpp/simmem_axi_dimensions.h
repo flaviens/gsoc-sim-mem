@@ -10,13 +10,13 @@
 // TODO: Change the const names to fit with the C++ coding style
 // Values must match those in simmem_pkg.sv
 
-const uint64_t GlobalMemoryCapaWidth = 16;
+const uint64_t GlobalMemCapaW = 16;
 
 const uint64_t IDWidth = 2;
 const uint64_t NumIds = 1 << IDWidth;
 
 // Address field widths
-const uint64_t AxAddrWidth = GlobalMemoryCapaWidth;
+const uint64_t AxAddrWidth = GlobalMemCapaW;
 const uint64_t AxLenWidth = 8;
 const uint64_t AxSizeWidth = 3;
 const uint64_t AxBurstWidth = 2;
@@ -47,14 +47,14 @@ const unsigned int MaxWBurstLen = 4;
 // Dimensions for modules //
 ////////////////////////////
 
-const uint64_t WriteRespBankCapacity = 32;
-const uint64_t ReadDataBankCapacity = 16;
+const uint64_t WRspBankCapa = 32;
+const uint64_t RDataBankCapa = 16;
 
 ///////////////////////
 // Auxiliary signals //
 ///////////////////////
 
 const unsigned int PackedW = 64;
-const unsigned int MaxPendingWData = WriteRespBankCapacity * MaxWBurstLen / 2;
+const unsigned int MaxPendingWData = WRspBankCapa * MaxWBurstLen / 2;
 
 #endif  // SIMMEM_DV_AXI_DIMENSIONS

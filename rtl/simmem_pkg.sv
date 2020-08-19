@@ -12,13 +12,13 @@ package simmem_pkg;
   // System parameters //
   ///////////////////////
 
-  localparam int unsigned GlobalMemoryCapa = 65536;  // Bytes.
-  localparam int unsigned GlobalMemoryCapaWidth = $clog2(GlobalMemoryCapa);
+  localparam int unsigned GlobalMemCapa = 65536;  // Bytes.
+  localparam int unsigned GlobalMemCapaW = $clog2(GlobalMemCapa);
 
   // The log2 of the width of a row in the banks.
-  localparam int unsigned RowBufferLenWidth = 8;
+  localparam int unsigned RowBufLenW = 8;
   // The number of MSBs that uniquely define a bank row in an address.
-  localparam int unsigned RowIdWidth = GlobalMemoryCapaWidth - RowBufferLenWidth;
+  localparam int unsigned RowIdWidth = GlobalMemCapaW - RowBufLenW;
 
   // TODO: 10, 50, 45
   localparam int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
@@ -34,7 +34,7 @@ package simmem_pkg;
   localparam int unsigned NumIds = 2 ** IDWidth;
 
   // Address field widths
-  localparam int unsigned AxAddrWidth = GlobalMemoryCapaWidth;
+  localparam int unsigned AxAddrWidth = GlobalMemCapaW;
   localparam int unsigned AxLenWidth = 8;
   localparam int unsigned AxSizeWidth = 3;
   localparam int unsigned AxBurstWidth = 2;
@@ -136,23 +136,22 @@ package simmem_pkg;
   // Dimensions for modules //
   ////////////////////////////
 
-  localparam int unsigned WriteRespBankCapacity = 32;
-  localparam int unsigned ReadDataBankCapacity = 16;
+  localparam int unsigned WRspBankCapa = 32;
+  localparam int unsigned RDataBankCapa = 16;
 
-  localparam int unsigned WriteRespBankAddrWidth = $clog2(WriteRespBankCapacity);
-  localparam int unsigned ReadDataBankAddrWidth = $clog2(ReadDataBankCapacity);
+  localparam int unsigned WRespBankAddrW = $clog2(WRspBankCapa);
+  localparam int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
 
   // Internal identifier types
-  typedef logic [WriteRespBankAddrWidth-1:0] write_iid_t;
-  typedef logic [ReadDataBankAddrWidth-1:0] read_iid_t;
+  typedef logic [WRespBankAddrW-1:0] write_iid_t;
+  typedef logic [RDataBankAddrW-1:0] read_iid_t;
 
-  // Delay calculator slot constants definition
+  // Delay calculator slot constants definition.
   localparam int unsigned NumWSlots = 6;
-  localparam int unsigned NumWSlotsWidth = $clog2(NumWSlots);
   localparam int unsigned NumRSlots = 3;
-  localparam int unsigned NumRSlotsWidth = $clog2(NumRSlots);
 
-  localparam int unsigned DelayWidth = 6;
+  // Maximal width on which to encode a delay.
+  localparam int unsigned DelayWidth = 6;  // bits
 
 
 endpackage

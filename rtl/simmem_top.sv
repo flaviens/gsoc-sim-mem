@@ -58,8 +58,8 @@ module simmem_top (
   end : rsv_req_id_to_onehot
 
   // Reserved IID (RAM address)
-  logic [WriteRespBankAddrWidth-1:0] wrsv_iid;
-  logic [ReadDataBankAddrWidth-1:0] rrsv_iid;
+  logic [WRspBankCapa-1:0] wrsv_iid;
+  logic [RDataBankAddrW-1:0] rrsv_iid;
 
   // Reservation handshakes on the response banks
   logic wrsv_valid_in;
@@ -86,12 +86,12 @@ module simmem_top (
   assign wdata_valid_in_delay_calc = wdata_out_ready_i & wdata_in_valid_i;
 
   // Release enable signals
-  logic [WriteRespBankCapacity-1:0] wresp_release_en_mhot;
-  logic [ReadDataBankCapacity-1:0] rdata_release_en_mhot;
+  logic [WRspBankCapa-1:0] wresp_release_en_mhot;
+  logic [RDataBankCapa-1:0] rdata_release_en_mhot;
 
   // Released addresses feedback
-  logic [WriteRespBankCapacity-1:0] wresp_released_onehot;
-  logic [ReadDataBankCapacity-1:0] rdata_released_onehot;
+  logic [WRspBankCapa-1:0] wresp_released_onehot;
+  logic [RDataBankCapa-1:0] rdata_released_onehot;
 
   // Mutual ready signals (directions are given in the point of view of the response banks
   logic w_delay_calc_ready_in;  // From the delay calculator
@@ -164,10 +164,10 @@ module simmem_top (
       .rdata_release_en_mhot_o     (rdata_release_en_mhot),
       .wresp_released_addr_onehot_i(wresp_released_onehot),
       .rdata_released_addr_onehot_i(rdata_released_onehot),
-      .w_resp_bank_ready_o         (w_delay_calc_ready_in),
-      .r_resp_bank_ready_o         (r_delay_calc_ready_in),
-      .w_resp_bank_ready_i         (w_delay_calc_ready_out),
-      .r_resp_bank_ready_i         (r_delay_calc_ready_out)
+      .wrsp_bank_ready_o           (w_delay_calc_ready_in),
+      .rrsp_bank_ready_o           (r_delay_calc_ready_in),
+      .wrsp_bank_ready_i           (w_delay_calc_ready_out),
+      .rrsp_bank_ready_i           (r_delay_calc_ready_out)
 
   );
 

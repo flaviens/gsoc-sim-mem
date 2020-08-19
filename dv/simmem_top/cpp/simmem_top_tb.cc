@@ -408,14 +408,14 @@ class RealMemoryController {
    * are received, it can be released.
    */
   void accept_waddr(WriteAddress waddr) {
-    WriteResponse new_resp;
-    new_resp.id = waddr.id;
-    new_resp.rsp =  // Copy the low order rsp of the incoming waddr in
-                    // the corresponding wresp
+    WriteResponse newrsp;
+    newrsp.id = waddr.id;
+    newrsp.rsp =  // Copy the low order rsp of the incoming waddr in
+                  // the corresponding wresp
         (waddr.to_packed() >> WriteAddress::id_w) &
         ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::rsp_w));
 
-    wresp_out_queues[waddr.id].push(new_resp);
+    wresp_out_queues[waddr.id].push(newrsp);
 
     if (spare_wdata_cnt >= waddr.burst_len) {
       releasable_wresp_cnts[waddr.id]++;

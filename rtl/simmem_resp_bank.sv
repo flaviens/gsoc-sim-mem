@@ -103,7 +103,7 @@
 //
 
 module simmem_resp_bank #(
-    parameter int unsigned TotCapa = simmem_pkg::ReadDataBankCapacity,
+    parameter int unsigned TotCapa = simmem_pkg::RDataBankCapa,
     parameter int unsigned MaxBurstLen = simmem_pkg::MaxRBurstLen,
     parameter type DataType = simmem_pkg::rdata_t,
 

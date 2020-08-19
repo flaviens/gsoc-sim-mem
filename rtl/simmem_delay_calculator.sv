@@ -48,38 +48,40 @@ module simmem_delay_calculator #(
     output logic raddr_ready_o,
 
     // Release enable output signals and released address feedback.
-    output logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_release_en_mhot_o,
-    output logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_release_en_mhot_o,
+    output logic [ simmem_pkg::WRspBankCapa-1:0] wresp_release_en_mhot_o,
+    output logic [simmem_pkg::RDataBankCapa-1:0] rdata_release_en_mhot_o,
 
     // Release confirmations sent by the message banks
-    input logic [simmem_pkg::WriteRespBankCapacity-1:0] wresp_released_addr_onehot_i,
-    input logic [ simmem_pkg::ReadDataBankCapacity-1:0] rdata_released_addr_onehot_i,
+    input logic [ simmem_pkg::WRspBankCapa-1:0] wresp_released_addr_onehot_i,
+    input logic [simmem_pkg::RDataBankCapa-1:0] rdata_released_addr_onehot_i,
 
     // Ready signals from the response banks
-    input logic w_resp_bank_ready_i,
-    input logic r_resp_bank_ready_i,
+    input logic wrsp_bank_ready_i,
+    input logic rrsp_bank_ready_i,
 
     // Ready signals for the response banks
-    output logic w_resp_bank_ready_o,
-    output logic r_resp_bank_ready_o
+    output logic wrsp_bank_ready_o,
+    output logic rrsp_bank_ready_o
 );
 
   import simmem_pkg::*;
 
   // MaxPendingWData is the maximum possible number of distinct values taken by the write data.
-  localparam int unsigned MaxPendingWData = MaxWBurstLen * WriteRespBankCapacity;
-  localparam int unsigned MaxPendingWDataWidth = $clog2(MaxPendingWData) + 64;  // TODO Remove 64
+  localparam int unsigned MaxPendingWData = MaxWBurstLen * WRspBankCapa;
+
+  // Additional 32 bits are added to avoid overflow in tests.
+  localparam int unsigned MaxPendingWDataW = $clog2(MaxPendingWData) + 32;
 
   // Counters for the write data without address yet. If negative, then it means, that the core is
   // still awaiting data write data.
-  logic signed [MaxPendingWDataWidth:0] wdata_cnt_d;
-  logic signed [MaxPendingWDataWidth:0] wdata_cnt_q;
+  logic signed [MaxPendingWDataW:0] wdata_cnt_d;
+  logic signed [MaxPendingWDataW:0] wdata_cnt_q;
 
   // Delay calculator core I/O signals for the write data.
   logic core_wdata_valid_input;
   // Determines whether the core is ready to receive new data.
   logic core_wdata_ready;
-  assign core_wdata_ready = wdata_cnt_q[MaxPendingWDataWidth];
+  assign core_wdata_ready = wdata_cnt_q[MaxPendingWDataW];
 
   // Counts how many data requests have been received before or with the write address request.
   logic [MaxWBurstLenWidth-1:0] wdata_immediate_cnt;
@@ -102,7 +104,7 @@ module simmem_delay_calculator #(
       // data coming in during the same cycle as the address. Safety of this operation is granted by
       // the order in which wdata_cnt_d is updated in the combinatorial block.
       wdata_immediate_cnt = 0;
-      if (!wdata_cnt_d[MaxPendingWDataWidth]) begin
+      if (!wdata_cnt_d[MaxPendingWDataW]) begin
         // If wdata_cnt_d is nonnegative, then consider sending immediate data
         if (AxLenWidth'(wdata_cnt_d) >= waddr_i.burst_len) begin
           // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
@@ -116,7 +118,7 @@ module simmem_delay_calculator #(
       end
 
       // Update the write data count to take the new core demand into account.
-      wdata_cnt_d = wdata_cnt_d - MaxPendingWDataWidth'(waddr_i.burst_len);
+      wdata_cnt_d = wdata_cnt_d - MaxPendingWDataW'(waddr_i.burst_len);
     end
   end
 
@@ -157,10 +159,10 @@ module simmem_delay_calculator #(
       .wresp_released_addr_onehot_i(wresp_released_addr_onehot_i),
       .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i),
 
-      .w_resp_bank_ready_i(w_resp_bank_ready_i),
-      .r_resp_bank_ready_i(r_resp_bank_ready_i),
-      .w_resp_bank_ready_o(w_resp_bank_ready_o),
-      .r_resp_bank_ready_o(r_resp_bank_ready_o)
+      .wrsp_bank_ready_i(wrsp_bank_ready_i),
+      .rrsp_bank_ready_i(rrsp_bank_ready_i),
+      .wrsp_bank_ready_o(wrsp_bank_ready_o),
+      .rrsp_bank_ready_o(rrsp_bank_ready_o)
   );
 
 endmodule

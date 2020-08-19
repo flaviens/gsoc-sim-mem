@@ -12,13 +12,13 @@ module simmem_delay_bank (
     input logic clk_i,
     input logic rst_ni,
 
-    input logic [simmem_pkg::WriteRespBankAddrWidth-1:0] local_identifier_i,
-    input logic [            simmem_pkg::DelayWidth-1:0] delay_i,
-    input logic                                          in_valid_i,
+    input logic [simmem_pkg::WRspBankCapa-1:0] local_identifier_i,
+    input logic [  simmem_pkg::DelayWidth-1:0] delay_i,
+    input logic                                in_valid_i,
 
     // Signals at output
-    input  logic [simmem_pkg::WriteRespBankCapacity-1:0] address_released_onehot_i,
-    output logic [simmem_pkg::WriteRespBankCapacity-1:0] release_en_o
+    input  logic [simmem_pkg::WRspBankCapa-1:0] address_released_onehot_i,
+    output logic [simmem_pkg::WRspBankCapa-1:0] release_en_o
 );
 
   import simmem_pkg::*;
@@ -27,19 +27,19 @@ module simmem_delay_bank (
   // Local identifiers to add to the releasable list //
   /////////////////////////////////////////////////////
 
-  logic [WriteRespBankCapacity-1:0] newaddresses_to_release_multihot;
+  logic [WRspBankCapa-1:0] newaddresses_to_release_multihot;
 
 
   ///////////////////
   // Entry signals //
   ///////////////////
 
-  logic [DelayWidth-1:0] counters_d[WriteRespBankCapacity];
-  logic [DelayWidth-1:0] counters_q[WriteRespBankCapacity];
+  logic [DelayWidth-1:0] counters_d[WRspBankCapa];
+  logic [DelayWidth-1:0] counters_q[WRspBankCapa];
 
   // Entry signal management
   for (
-      genvar curr_entry = 0; curr_entry < WriteRespBankCapacity; curr_entry = curr_entry + 1
+      genvar curr_entry = 0; curr_entry < WRspBankCapa; curr_entry = curr_entry + 1
   ) begin : counter_update
     always_comb begin : counter_update_comb
       newaddresses_to_release_multihot[curr_entry] = 1'b0;
@@ -72,7 +72,7 @@ module simmem_delay_bank (
   // Update the release_en_i signals //
   /////////////////////////////////////
 
-  logic [WriteRespBankCapacity-1:0] release_en_d;
+  logic [WRspBankCapa-1:0] release_en_d;
 
   always_comb begin : update_release_en_signals
     release_en_d = release_en_o;
@@ -88,7 +88,7 @@ module simmem_delay_bank (
   //////////////////////////////////
 
   for (
-      genvar curr_entry = 0; curr_entry < WriteRespBankCapacity; curr_entry = curr_entry + 1
+      genvar curr_entry = 0; curr_entry < WRspBankCapa; curr_entry = curr_entry + 1
   ) begin : sequential_signal_update
     always_ff @(posedge clk_i or negedge rst_ni) begin
       if (!rst_ni) begin
