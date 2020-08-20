@@ -76,7 +76,7 @@ module simmem_delay_calculator_core #(
     // NumRanks must be a power of two, used for address interleaving.
     parameter int unsigned NumRanks = 1, // Interleaving is not supported yet.
 
-    localparam int unsigned NumRanksWidth = NumRanks == 1 ? 1 : $clog2(NumRanks) // derived parameter
+    localparam int unsigned NumRksW = NumRanks == 1 ? 1 : $clog2(NumRanks) // derived parameter
 ) (
     input logic clk_i,
     input logic rst_ni,
@@ -88,7 +88,7 @@ module simmem_delay_calculator_core #(
     input simmem_pkg::write_iid_t waddr_iid_i,
     // Number of write data packets that come with the write address (which were buffered buffered
     // by the wrapper, plus potentially one coming concurrently).
-    input logic [simmem_pkg::MaxWBurstLenWidth-1:0] wdata_immediate_cnt_i,
+    input logic [simmem_pkg::MaxWBurstLenW-1:0] wdata_immediate_cnt_i,
 
     // Write address request valid from the requester.
     input  logic waddr_valid_i,
@@ -110,11 +110,11 @@ module simmem_delay_calculator_core #(
     output logic raddr_ready_o,
 
     // Release enable output signals and released address feedback.
-    output logic [simmem_pkg::WRspBankCapa-1:0] wresp_release_en_mhot_o,
+    output logic [simmem_pkg::WRspBankCapa-1:0] wrsp_release_en_mhot_o,
     output logic [ simmem_pkg::RDataBankCapa-1:0] rdata_release_en_mhot_o,
 
     // Release confirmations sent by the message banks
-    input logic [simmem_pkg::WRspBankCapa-1:0] wresp_released_addr_onehot_i,
+    input logic [simmem_pkg::WRspBankCapa-1:0] wrsp_released_addr_onehot_i,
     input logic [ simmem_pkg::RDataBankCapa-1:0] rdata_released_addr_onehot_i,
 
     // Ready signals from the response banks
@@ -145,7 +145,7 @@ module simmem_delay_calculator_core #(
   // The NumCostCats constant determines how many disjoint reductions will be needed: for each (rank, category) pair, an optimal entry is calculated.
   // Therefore, it does not count the COST_NO_CANDIDATE category.
   localparam int NumCostCats = 3;
-  localparam int NumCostCatsWidth = $clog2(NumCostCats);
+  localparam int NumCostCatsW = $clog2(NumCostCats);
 
   // RowBufferMappingMask is 1111..11111000..000, of total width GlobalMemCapaW. Two
   // addresses map on the same row iff, masked, they are equal.
@@ -181,17 +181,17 @@ module simmem_delay_calculator_core #(
   * @param cost_category the categorized cost.
   * @return the actual cost corresponding to this categorized cost.
   */
-  function automatic logic [DelayWidth-1:0] decategorize_mem_cost(
+  function automatic logic [DelayW-1:0] decategorize_mem_cost(
       mem_cost_category_e cost_category);
     case (cost_category)
       COST_CAS_CAT: begin
-        return DelayWidth'(RowHitCost);
+        return DelayW'(RowHitCost);
       end
       COST_ACTIVATION_CAS_CAT: begin
-        return DelayWidth'(RowHitCost + ActivationCost);
+        return DelayW'(RowHitCost + ActivationCost);
       end
       COST_PRECHARGE_ACTIVATION_CAS_CAT: begin
-        return DelayWidth'(RowHitCost + ActivationCost + PrechargeCost);
+        return DelayW'(RowHitCost + ActivationCost + PrechargeCost);
       end
       default: begin // COST_NO_CANDIDATE
         return 0; // If there is no candidate request for a given rank, then the corresponding counter remains 0.
@@ -211,12 +211,12 @@ module simmem_delay_calculator_core #(
   * @param address the input address.
   * @return the rank index to which the address is assigned.
   */
-  function automatic logic [NumRanksWidth-1:0] get_assigned_rank_id(
+  function automatic logic [NumRksW-1:0] get_assigned_rank_id(
     logic[GlobalMemCapaW-1:0] address);
     if (NumRanks == 1) begin
       return 0;
     end
-    return address[NumRanksWidth-1:0];
+    return address[NumRksW-1:0];
   endfunction : get_assigned_rank_id
 
 
@@ -266,12 +266,12 @@ module simmem_delay_calculator_core #(
     for (genvar i_cat = 0; i_cat < NumCostCats; i_cat = i_cat + 1) begin : candidates_cat
       for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : candidates_w_inner
         for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : candidates_w_bit
-          assign is_wdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = wslt_q[i_slt].v & wslt_q[i_slt].data_v[i_bit] & ~wslt_q[i_slt].mem_pending[i_bit] & ~wslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit]) & determine_cost_category(waddrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_addr_q[i_rk]) == NumCostCatsWidth'(i_cat);
+          assign is_wdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = wslt_q[i_slt].v & wslt_q[i_slt].data_v[i_bit] & ~wslt_q[i_slt].mem_pending[i_bit] & ~wslt_q[i_slt].mem_done[i_bit] & NumRksW'(i_rk) == get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit]) & determine_cost_category(waddrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_addr_q[i_rk]) == NumCostCatsW'(i_cat);
         end : candidates_w_bit
       end : candidates_w_inner
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : candidates_r_inner
         for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : candidates_r_bit
-          assign is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = rslt_q[i_slt].v & ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] & NumRanksWidth'(i_rk) == get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit]) & determine_cost_category(raddrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_addr_q[i_rk]) == NumCostCatsWidth'(i_cat);
+          assign is_rdata_candidate_cat_mhot[i_rk][i_cat][i_slt][i_bit] = rslt_q[i_slt].v & ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] & NumRksW'(i_rk) == get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit]) & determine_cost_category(raddrs_per_slot[i_slt][i_bit], is_row_open_q[i_rk], open_row_start_addr_q[i_rk]) == NumCostCatsW'(i_cat);
         end : candidates_r_bit
       end : candidates_r_inner
     end : candidates_cat
@@ -530,14 +530,14 @@ module simmem_delay_calculator_core #(
     end
     
     // Equivalently to the always_comb statement above: assign opti_cost_cat[i_rk] =
-    // ({NumCostCatsWidth{|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} & COST_CAS_CAT) |
-    // ({NumCostCatsWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
+    // ({NumCostCatsW{|oldest_entry_of_category[i_rk][COST_CAS_CAT]}} & COST_CAS_CAT) |
+    // ({NumCostCatsW{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
     // |oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT]}} & COST_ACTIVATION_CAS_CAT) |
-    // ({NumCostCatsWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
+    // ({NumCostCatsW{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
     // ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] &
     // |oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} &
     // COST_PRECHARGE_ACTIVATION_CAS_CAT) |
-    // ({NumCostCatsWidth{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
+    // ({NumCostCatsW{~|oldest_entry_of_category[i_rk][COST_CAS_CAT] &
     // ~|oldest_entry_of_category[i_rk][COST_ACTIVATION_CAS_CAT] &
     // ~|oldest_entry_of_category[i_rk][COST_PRECHARGE_ACTIVATION_CAS_CAT]}} & COST_NO_CANDIDATE);
 
@@ -688,8 +688,8 @@ module simmem_delay_calculator_core #(
 
   // Decreasing counter that determines the number of cycles in which the rank will be able to take
   // a new request.
-  logic [DelayWidth-1:0] rank_delay_cnt_d[NumRanks];
-  logic [DelayWidth-1:0] rank_delay_cnt_q[NumRanks];
+  logic [DelayW-1:0] rank_delay_cnt_d[NumRanks];
+  logic [DelayW-1:0] rank_delay_cnt_q[NumRanks];
 
 
   /////////////
@@ -698,12 +698,12 @@ module simmem_delay_calculator_core #(
 
   // The output x_release_en_onehot_o signals enable the release of some addresses (aka. iids) by
   // the response banks. As there is only one output fired per write burst, a single one-hot row of
-  // flip-flops is sufficient for the wresp_release_en signal. Counters are useful, however, for
+  // flip-flops is sufficient for the wrsp_release_en signal. Counters are useful, however, for
   // read data, which are subject to burst responses.
 
-  logic [WRspBankCapa-1:0] wresp_release_en_mhot_d;
-  logic [RDataBankCapa-1:0][MaxRBurstLenWidth-1:0] rdata_release_en_cnts_d;
-  logic [RDataBankCapa-1:0][MaxRBurstLenWidth-1:0] rdata_release_en_cnts_q;
+  logic [WRspBankCapa-1:0] wrsp_release_en_mhot_d;
+  logic [RDataBankCapa-1:0][MaxRBurstLenW-1:0] rdata_release_en_cnts_d;
+  logic [RDataBankCapa-1:0][MaxRBurstLenW-1:0] rdata_release_en_cnts_q;
 
   // Set the read data release_en outputs to one, where the corresponding counter is not zero.
   for (genvar i_iid = 0; i_iid < RDataBankCapa; i_iid = i_iid + 1) begin : en_rdata_release
@@ -724,7 +724,7 @@ module simmem_delay_calculator_core #(
       open_row_start_addr_d[i_rk] = open_row_start_addr_q[i_rk];
     end
 
-    wresp_release_en_mhot_d = wresp_release_en_mhot_o;
+    wrsp_release_en_mhot_d = wrsp_release_en_mhot_o;
     rdata_release_en_cnts_d = rdata_release_en_cnts_q;
 
     main_new_entry = '{default: '0};
@@ -888,22 +888,22 @@ module simmem_delay_calculator_core #(
         for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
           for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
             // Mark memory operation as done if already done, or was pending.
-            wslt_d[i_slt].mem_done[i_bit] = wslt_q[i_slt].mem_done[i_bit] | (wslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit])==NumRanksWidth'(i_rk)));
-            wslt_d[i_slt].mem_pending[i_bit] = wslt_d[i_slt].mem_pending[i_bit] & get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit])!=NumRanksWidth'(i_rk);
+            wslt_d[i_slt].mem_done[i_bit] = wslt_q[i_slt].mem_done[i_bit] | (wslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit])==NumRksW'(i_rk)));
+            wslt_d[i_slt].mem_pending[i_bit] = wslt_d[i_slt].mem_pending[i_bit] & get_assigned_rank_id(waddrs_per_slot[i_slt][i_bit])!=NumRksW'(i_rk);
           end
         end
         for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
           for (int unsigned i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin
             // Mark memory operation as done if already done, or was pending.
-            rslt_d[i_slt].mem_done[i_bit] = rslt_q[i_slt].mem_done[i_bit] | (rslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit])==NumRanksWidth'(i_rk)));
-            rslt_d[i_slt].mem_pending[i_bit] = rslt_d[i_slt].mem_pending[i_bit] & get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit])!=NumRanksWidth'(i_rk);
+            rslt_d[i_slt].mem_done[i_bit] = rslt_q[i_slt].mem_done[i_bit] | (rslt_q[i_slt].mem_pending[i_bit] & (get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit])==NumRksW'(i_rk)));
+            rslt_d[i_slt].mem_pending[i_bit] = rslt_d[i_slt].mem_pending[i_bit] & get_assigned_rank_id(raddrs_per_slot[i_slt][i_bit])!=NumRksW'(i_rk);
           end
         end
       end
     end
 
     // Input signals from message banks about released signals
-    wresp_release_en_mhot_d ^= wresp_released_addr_onehot_i;
+    wrsp_release_en_mhot_d ^= wrsp_released_addr_onehot_i;
 
     // Decrement the rdata_release_en_cnts_d if data has been released for this address (aka. iid).
     // If a counter is decremented, it was originally not zero, because a message bank is not
@@ -929,7 +929,7 @@ module simmem_delay_calculator_core #(
       for (int unsigned i_iid = 0; i_iid < WRspBankCapa; i_iid = i_iid + 1) begin
         // If all the memory requests of a burst have been satisfied, then notify the output. 
         if (wslt_q[i_slt].v && &wslt_q[i_slt].mem_done) begin
-          wresp_release_en_mhot_d[i_iid] |= wslt_q[i_slt].iid == WRspBankCapa'(i_iid);
+          wrsp_release_en_mhot_d[i_iid] |= wslt_q[i_slt].iid == WRspBankCapa'(i_iid);
           // Set mem_done to zero when all requests in the burst have complete.
           wslt_d[i_slt].mem_done = '0;
         end
@@ -965,7 +965,7 @@ module simmem_delay_calculator_core #(
       is_row_open_q <= '{default: '0};
       open_row_start_addr_q <= '{default: '0};
       rank_delay_cnt_q <= '{default: '0};
-      wresp_release_en_mhot_o <= '0;
+      wrsp_release_en_mhot_o <= '0;
       rdata_release_en_cnts_q <= '0;
     end else begin
       wslt_q <= wslt_d;
@@ -973,7 +973,7 @@ module simmem_delay_calculator_core #(
       is_row_open_q <= is_row_open_d;
       open_row_start_addr_q <= open_row_start_addr_d;
       rank_delay_cnt_q <= rank_delay_cnt_d;
-      wresp_release_en_mhot_o <= wresp_release_en_mhot_d;
+      wrsp_release_en_mhot_o <= wrsp_release_en_mhot_d;
       rdata_release_en_cnts_q <= rdata_release_en_cnts_d;
     end
   end

@@ -13,7 +13,7 @@ module simmem_delay_bank (
     input logic rst_ni,
 
     input logic [simmem_pkg::WRspBankCapa-1:0] local_identifier_i,
-    input logic [  simmem_pkg::DelayWidth-1:0] delay_i,
+    input logic [      simmem_pkg::DelayW-1:0] delay_i,
     input logic                                in_valid_i,
 
     // Signals at output
@@ -34,8 +34,8 @@ module simmem_delay_bank (
   // Entry signals //
   ///////////////////
 
-  logic [DelayWidth-1:0] counters_d[WRspBankCapa];
-  logic [DelayWidth-1:0] counters_q[WRspBankCapa];
+  logic [DelayW-1:0] counters_d[WRspBankCapa];
+  logic [DelayW-1:0] counters_q[WRspBankCapa];
 
   // Entry signal management
   for (

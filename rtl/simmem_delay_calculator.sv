@@ -48,11 +48,11 @@ module simmem_delay_calculator #(
     output logic raddr_ready_o,
 
     // Release enable output signals and released address feedback.
-    output logic [ simmem_pkg::WRspBankCapa-1:0] wresp_release_en_mhot_o,
+    output logic [ simmem_pkg::WRspBankCapa-1:0] wrsp_release_en_mhot_o,
     output logic [simmem_pkg::RDataBankCapa-1:0] rdata_release_en_mhot_o,
 
     // Release confirmations sent by the message banks
-    input logic [ simmem_pkg::WRspBankCapa-1:0] wresp_released_addr_onehot_i,
+    input logic [ simmem_pkg::WRspBankCapa-1:0] wrsp_released_addr_onehot_i,
     input logic [simmem_pkg::RDataBankCapa-1:0] rdata_released_addr_onehot_i,
 
     // Ready signals from the response banks
@@ -84,7 +84,7 @@ module simmem_delay_calculator #(
   assign core_wdata_ready = wdata_cnt_q[MaxPendingWDataW];
 
   // Counts how many data requests have been received before or with the write address request.
-  logic [MaxWBurstLenWidth-1:0] wdata_immediate_cnt;
+  logic [MaxWBurstLenW-1:0] wdata_immediate_cnt;
 
   always_comb begin
     wdata_cnt_d = wdata_cnt_q;
@@ -109,11 +109,11 @@ module simmem_delay_calculator #(
         if (AxLenWidth'(wdata_cnt_d) >= waddr_i.burst_len) begin
           // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
           // transmit all this data with the address request to the delay calculator core.
-          wdata_immediate_cnt = waddr_i.burst_len[MaxWBurstLenWidth - 1:0];
+          wdata_immediate_cnt = waddr_i.burst_len[MaxWBurstLenW - 1:0];
         end else begin
           // Else, transmit only the already and currently received write data, and set the counter to
           // zero, as it has been emptied.
-          wdata_immediate_cnt = wdata_cnt_d[MaxWBurstLenWidth - 1:0];
+          wdata_immediate_cnt = wdata_cnt_d[MaxWBurstLenW - 1:0];
         end
       end
 
@@ -153,10 +153,10 @@ module simmem_delay_calculator #(
       .raddr_valid_i(raddr_valid_i),
       .raddr_ready_o(raddr_ready_o),
 
-      .wresp_release_en_mhot_o(wresp_release_en_mhot_o),
+      .wrsp_release_en_mhot_o (wrsp_release_en_mhot_o),
       .rdata_release_en_mhot_o(rdata_release_en_mhot_o),
 
-      .wresp_released_addr_onehot_i(wresp_released_addr_onehot_i),
+      .wrsp_released_addr_onehot_i (wrsp_released_addr_onehot_i),
       .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i),
 
       .wrsp_bank_ready_i(wrsp_bank_ready_i),

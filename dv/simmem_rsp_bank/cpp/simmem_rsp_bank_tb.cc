@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "Vsimmem_resp_bank.h"
+#include "Vsimmem_rsp_bank.h"
 #include "verilated.h"
 #include <cassert>
 #include <iostream>
@@ -28,7 +28,7 @@ typedef enum {
   MULTIPLE_ID_TEST
 } test_strategy_e;
 
-typedef Vsimmem_resp_bank Module;
+typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
 const int kTestStrategy = MULTIPLE_ID_TEST;
@@ -608,7 +608,7 @@ int main(int argc, char **argv, char **env) {
 
     // Instantiate the DUT instance
     WriteRespBankTestbench *tb =
-        new WriteRespBankTestbench(100, true, "resp_bank.fst");
+        new WriteRespBankTestbench(100, true, "rsp_bank.fst");
 
     // Perform one test for the given seed
     if (kTestStrategy == SEQUENTIAL_TEST) {

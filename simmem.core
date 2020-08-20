@@ -6,17 +6,17 @@ name: "::simmem:0.1"
 description: "Simulated memory controller"
 
 filesets:
-  files_rtl_write_resp_bank:
+  files_rtl_write_rsp_bank:
     depend:
       - lowrisc:prim_generic:ram_2p
     files:
       - rtl/simmem_pkg.sv
-      - rtl/simmem_resp_bank.sv
+      - rtl/simmem_rsp_bank.sv
     file_type: systemVerilogSource
 
-  files_dv_write_resp_bank:
+  files_dv_write_rsp_bank:
     files:
-      - dv/simmem_resp_bank/cpp/simmem_resp_bank_tb.cc
+      - dv/simmem_rsp_bank/cpp/simmem_rsp_bank_tb.cc
     file_type: cppSource
 
   files_rtl_read_data_bank:
@@ -82,7 +82,7 @@ filesets:
       - rtl/simmem_pkg.sv
       - rtl/simmem_delay_bank.sv
       - rtl/simmem_delay_calculator.sv
-      - rtl/simmem_resp_bank.sv
+      - rtl/simmem_rsp_bank.sv
       - rtl/simmem_message_banks.sv
       - rtl/simmem_write_only_nocontent.sv
     file_type: systemVerilogSource
@@ -102,8 +102,8 @@ filesets:
       - rtl/simmem_pkg.sv
       - rtl/simmem_delay_calculator_core.sv
       - rtl/simmem_delay_calculator.sv
-      - rtl/simmem_resp_bank.sv
-      - rtl/simmem_resp_banks.sv
+      - rtl/simmem_rsp_bank.sv
+      - rtl/simmem_rsp_banks.sv
       - rtl/simmem_top.sv
     file_type: systemVerilogSource
 
@@ -120,12 +120,12 @@ filesets:
       - lint/simmem_top_waiver.vlt: {file_type: vlt}
 
 targets:
-  sim_resp_bank:
+  sim_rsp_bank:
     default_tool: verilator
     filesets:
-      - files_rtl_write_resp_bank
-      - files_dv_write_resp_bank
-    toplevel: simmem_resp_bank
+      - files_rtl_write_rsp_bank
+      - files_dv_write_rsp_bank
+    toplevel: simmem_rsp_bank
     tools:
       verilator:
         mode: cc
@@ -135,7 +135,7 @@ targets:
           - '--trace-structs'
           - '--trace-params'
           - '--trace-max-array 1024'
-          - '-CFLAGS "-std=c++11 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=simmem_resp_bank_tb -g -O0"'
+          - '-CFLAGS "-std=c++11 -Wall -DVM_TRACE_FMT_FST -DTOPLEVEL_NAME=simmem_rsp_bank_tb -g -O0"'
           - '-LDFLAGS "-pthread -lutil"'
           - "-Wall"
           - "-Wno-PINCONNECTEMPTY"

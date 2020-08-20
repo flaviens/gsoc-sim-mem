@@ -121,16 +121,16 @@ package simmem_pkg;
     // logic [BUserWidth-1:0] user_signal;
     logic [XRespWidth-1:0] payload;
     logic [IDWidth-1:0] id;
-  } wresp_merged_payload_t;
+  } wrsp_merged_payload_t;
 
   // For the write response, the union is only a wrapper helping generic response bank implementation
-  typedef union packed {wresp_merged_payload_t merged_payload;} wresp_t;
+  typedef union packed {wrsp_merged_payload_t merged_payload;} wrsp_t;
 
   localparam int unsigned MaxRBurstLen = 8;
   localparam int unsigned MaxWBurstLen = 4;
 
-  localparam int unsigned MaxRBurstLenWidth = $clog2(MaxRBurstLen);
-  localparam int unsigned MaxWBurstLenWidth = $clog2(MaxWBurstLen);
+  localparam int unsigned MaxRBurstLenW = $clog2(MaxRBurstLen);
+  localparam int unsigned MaxWBurstLenW = $clog2(MaxWBurstLen);
 
   ////////////////////////////
   // Dimensions for modules //
@@ -139,11 +139,11 @@ package simmem_pkg;
   localparam int unsigned WRspBankCapa = 32;
   localparam int unsigned RDataBankCapa = 16;
 
-  localparam int unsigned WRespBankAddrW = $clog2(WRspBankCapa);
+  localparam int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
   localparam int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
 
   // Internal identifier types
-  typedef logic [WRespBankAddrW-1:0] write_iid_t;
+  typedef logic [WRspBankAddrW-1:0] write_iid_t;
   typedef logic [RDataBankAddrW-1:0] read_iid_t;
 
   // Delay calculator slot constants definition.
@@ -151,7 +151,7 @@ package simmem_pkg;
   localparam int unsigned NumRSlots = 3;
 
   // Maximal width on which to encode a delay.
-  localparam int unsigned DelayWidth = 6;  // bits
+  localparam int unsigned DelayW = 6;  // bits
 
 
 endpackage

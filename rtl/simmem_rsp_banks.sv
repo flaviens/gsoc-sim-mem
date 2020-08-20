@@ -3,7 +3,7 @@
 //
 // Wrapper for the write response and read data response banks
 
-module simmem_resp_banks (
+module simmem_rsp_banks (
     input logic clk_i,
     input logic rst_ni,
 
@@ -15,7 +15,7 @@ module simmem_resp_banks (
     output logic [      WRspBankCapa-1:0] wrsv_iid_o,
     output logic [    RDataBankAddrW-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [   MaxRBurstLenWidth:0] rrsv_burst_len_i,
+    input  logic [       MaxRBurstLenW:0] rrsv_burst_len_i,
     // Reservation handshake signals
     input  logic                          wrsv_valid_i,
     output logic                          wrsv_ready_o,
@@ -32,8 +32,8 @@ module simmem_resp_banks (
     output logic [RDataBankCapa-1:0] r_released_addr_onehot_o,
 
     // Interface with the real memory controller AXI response excluding handshake
-    input  simmem_pkg::wresp_t wresp_i,
-    output simmem_pkg::wresp_t wresp_o,
+    input  simmem_pkg::wrsp_t  wrsp_i,
+    output simmem_pkg::wrsp_t  wrsp_o,
     input  simmem_pkg::rdata_t rdata_i,
     output simmem_pkg::rdata_t rdata_o,
     // Response acquisition handshake signal
@@ -59,11 +59,11 @@ module simmem_resp_banks (
 
   import simmem_pkg::*;
 
-  simmem_resp_bank #(
+  simmem_rsp_bank #(
       .TotCapa(WRspBankCapa),
       .MaxBurstLen(1),  // There is no burst in the write responses
-      .DataType(wresp_t)
-  ) i_simmem_wresp_bank (
+      .DataType(wrsp_t)
+  ) i_simmem_wrsp_bank (
       .clk_i                 (clk_i),
       .rst_ni                (rst_ni),
       .rsv_req_id_onehot_i   (wrsv_req_id_onehot_i),
@@ -73,8 +73,8 @@ module simmem_resp_banks (
       .rsv_ready_o           (wrsv_ready_o),
       .release_en_i          (w_release_en_i),
       .released_addr_onehot_o(w_released_addr_onehot_o),
-      .rsp_i                 (wresp_i),
-      .rsp_o                 (wresp_o),
+      .rsp_i                 (wrsp_i),
+      .rsp_o                 (wrsp_o),
       .in_rsp_valid_i        (w_in_rsp_valid_i),
       .in_rsp_ready_o        (w_in_rsp_ready_o),
       .out_rsp_ready_i       (w_out_rsp_ready_i),
@@ -83,7 +83,7 @@ module simmem_resp_banks (
       .delay_calc_ready_o    (w_delay_calc_ready_o)
   );
 
-  simmem_resp_bank #(
+  simmem_rsp_bank #(
       .TotCapa(RDataBankCapa),
       .MaxBurstLen(MaxRBurstLen),
       .DataType(rdata_t)
