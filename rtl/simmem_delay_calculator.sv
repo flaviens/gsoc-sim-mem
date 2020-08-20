@@ -134,7 +134,7 @@ module simmem_delay_calculator #(
   end
 
   simmem_delay_calculator_core #(
-      .NumRanks
+      .NumRanks(NumRanks)
   ) i_simmem_delay_calculator_core (
       .clk_i (clk_i),
       .rst_ni(rst_ni),
