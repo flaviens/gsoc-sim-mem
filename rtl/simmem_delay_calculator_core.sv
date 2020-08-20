@@ -971,7 +971,7 @@ module simmem_delay_calculator_core #(
     // Write slots
     for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
       // If all the memory requests of a burst have been satisfied, then free the slot.
-      wslt_d[i_slt].v &= !&wslt_q[i_slt].mem_done;
+      wslt_d[i_slt].v &= ~&wslt_q[i_slt].mem_done;
       for (int unsigned i_iid = 0; i_iid < WRspBankCapa; i_iid = i_iid + 1) begin
         // If all the memory requests of a burst have been satisfied, then notify the output. 
         if (wslt_q[i_slt].v && &wslt_q[i_slt].mem_done) begin
@@ -985,7 +985,7 @@ module simmem_delay_calculator_core #(
     for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
       // If all the memory requests of a burst have been satisfied, then free the slot.
 
-      rslt_d[i_slt].v &= !&rslt_q[i_slt].mem_done;
+      rslt_d[i_slt].v &= ~&rslt_q[i_slt].mem_done;
       for (int unsigned i_iid = 0; i_iid < RDataBankCapa; i_iid = i_iid + 1) begin
         // For each individual read data, enable its release as soon as it has been marked for
         // release. 
