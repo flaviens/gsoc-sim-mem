@@ -758,7 +758,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
     // Randomize the boolean signals deciding which interactions will take
     // place in this cycle
-    requester_apply_waddr_input = false;  // TODO (bool)(rand() & 1);
+    requester_apply_waddr_input = (bool)(rand() & 1);
     requester_apply_raddr_input = (bool)(rand() & 1);
     requester_apply_wdata_input = (bool)(rand() & 1);
     // The requester is supposedly always ready to get data, for more accurate

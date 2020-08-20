@@ -44,9 +44,15 @@ module simmem_top (
     output simmem_pkg::wdata_t wdata_o,
     output simmem_pkg::rdata_t rdata_o,
     output simmem_pkg::wrsp_t  wrsp_o
+
+    // FPGA test signals, to enable acceptance of new requests
+    input logic fpga_simmem_en_i;
+    output logic fpga_simmem_en_o;
 );
 
   import simmem_pkg::*;
+
+  assign fpga_simmem_en_o = fpga_simmem_en_i;
 
   // Reservation identifier
   logic [NumIds-1:0] wrsv_req_id_onehot;
@@ -76,14 +82,14 @@ module simmem_top (
   logic waddr_ready_out_delay_calc;  // Must be equal to wrsv_ready_out
   logic raddr_ready_out_delay_calc;  // Must be equal to rrsv_ready_out
 
-  assign waddr_valid_in_delay_calc = waddr_out_ready_i & waddr_in_valid_i;
-  assign raddr_valid_in_delay_calc = raddr_out_ready_i & raddr_in_valid_i;
+  assign waddr_valid_in_delay_calc = waddr_out_ready_i & waddr_in_valid_i & fpga_simmem_en_i;
+  assign raddr_valid_in_delay_calc = raddr_out_ready_i & raddr_in_valid_i & fpga_simmem_en_i;
 
   // Valid and ready signals for write data on the delay calculator
   logic wdata_valid_in_delay_calc;
   logic wdata_ready_out_delay_calc;
 
-  assign wdata_valid_in_delay_calc = wdata_out_ready_i & wdata_in_valid_i;
+  assign wdata_valid_in_delay_calc = wdata_out_ready_i & wdata_in_valid_i & fpga_simmem_en_i;
 
   // Release enable signals
   logic [WRspBankCapa-1:0] wrsp_release_en_mhot;
@@ -100,11 +106,11 @@ module simmem_top (
   logic r_delay_calc_ready_out;  // From the response banks
 
   // Output hanshake signals for upstream signals (from the requester to the real memory controller).
-  assign waddr_in_ready_o = waddr_out_ready_i & wrsv_ready_out;
-  assign raddr_in_ready_o = raddr_out_ready_i & rrsv_ready_out;
+  assign waddr_in_ready_o = waddr_out_ready_i & wrsv_ready_out & fpga_simmem_en_i;
+  assign raddr_in_ready_o = raddr_out_ready_i & rrsv_ready_out & fpga_simmem_en_i;
   assign waddr_out_valid_o = waddr_in_valid_i & wrsv_ready_out;
   assign raddr_out_valid_o = raddr_in_valid_i & rrsv_ready_out;
-  assign wdata_in_ready_o = wdata_out_ready_i & wdata_ready_out_delay_calc;
+  assign wdata_in_ready_o = wdata_out_ready_i & wdata_ready_out_delay_calc & fpga_simmem_en_i;
   assign wdata_out_valid_o = wdata_in_valid_i & wdata_ready_out_delay_calc;
 
   // Output upstream signals
@@ -133,9 +139,9 @@ module simmem_top (
       .wrsp_o                  (wrsp_o),
       .rdata_i                 (rdata_i),
       .rdata_o                 (rdata_o),
-      .w_in_rsp_valid_i        (wrsp_in_valid_i),
+      .w_in_rsp_valid_i        (wrsp_in_valid_i & fpga_simmem_en_i),
       .w_in_rsp_ready_o        (wrsp_in_ready_o),
-      .r_in_data_valid_i       (rdata_in_valid_i),
+      .r_in_data_valid_i       (rdata_in_valid_i & fpga_simmem_en_i),
       .r_in_data_ready_o       (rdata_in_ready_o),
       .w_out_rsp_ready_i       (wrsp_out_ready_i),
       .w_out_rsp_valid_o       (wrsp_out_valid_o),
