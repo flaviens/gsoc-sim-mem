@@ -43,11 +43,11 @@ module simmem_top (
     output simmem_pkg::waddr_t waddr_o,
     output simmem_pkg::wdata_t wdata_o,
     output simmem_pkg::rdata_t rdata_o,
-    output simmem_pkg::wrsp_t  wrsp_o
+    output simmem_pkg::wrsp_t  wrsp_o,
 
     // FPGA test signals, to enable acceptance of new requests
-    input logic fpga_simmem_en_i;
-    output logic fpga_simmem_en_o;
+    input  logic fpga_simmem_en_i,
+    output logic fpga_simmem_en_o
 );
 
   import simmem_pkg::*;
