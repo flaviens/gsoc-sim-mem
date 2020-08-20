@@ -352,7 +352,7 @@ module simmem_delay_calculator_core #(
     if (i_slt == 0) begin
       assign nxt_free_w_slt_onehot[0] = free_wslt_mhot[0];
     end else begin
-      assign nxt_free_w_slt_onehot[i_slt] = free_wslt_mhot[i_slt] && !|free_wslt_mhot[i_slt - 1:0];
+      assign nxt_free_w_slt_onehot[i_slt] = free_wslt_mhot[i_slt] && ~|free_wslt_mhot[i_slt - 1:0];
     end
   end : gen_nxt_free_w_slot
 
@@ -362,7 +362,7 @@ module simmem_delay_calculator_core #(
     if (i_slt == 0) begin
       assign nxt_free_r_slt_onehot[0] = free_rslt_mhot[0];
     end else begin
-      assign nxt_free_r_slt_onehot[i_slt] = free_rslt_mhot[i_slt] && !|free_rslt_mhot[i_slt - 1:0];
+      assign nxt_free_r_slt_onehot[i_slt] = free_rslt_mhot[i_slt] && ~|free_rslt_mhot[i_slt - 1:0];
     end
   end : gen_nxt_free_r_slot
 
@@ -441,7 +441,7 @@ module simmem_delay_calculator_core #(
         logic matrix_elem_q, matrix_elem_d;
         always @(posedge clk_i or negedge rst_ni) begin
           if (~rst_ni) begin
-            matrix_elem_q <= 1'0;
+            matrix_elem_q <= 0;
           end else begin
             matrix_elem_q <= matrix_elem_d;
           end
@@ -473,7 +473,7 @@ module simmem_delay_calculator_core #(
         logic matrix_elem_q, matrix_elem_d;
         always @(posedge clk_i or negedge rst_ni) begin
           if (~rst_ni) begin
-            matrix_elem_q <= 1'0;
+            matrix_elem_q <= 0;
           end else begin
             matrix_elem_q <= matrix_elem_d;
           end
