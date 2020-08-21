@@ -162,6 +162,7 @@ In addition to the pointers, lengths of sub-segments of linked lists are stored 
 - _rsp_len_: Holds the number of extended cells that have received some response already, but are still active in the sense that they either still hold responses dedicated to the requester, or await additional response of a burst for which the extended cell has already received some responses but not all.
 
 Additionally, another length is combinatorially inferred:
+
 - _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data. This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
 
 #### Extended cell state
@@ -187,7 +188,7 @@ These three elements maintain full knowledge of the extended cell state and give
 
 A pointer _pA_ is said to _piggyback_ another pointer _pB_ when we impose that _pA_ takes the same value as _pB_. Typically, this happens when _pA_ needs to be updated, but has to stay behind or equal to _pB_.
 
-This part depicts the linked list operation on different events: reservation, response acquisition and response transmission. Those events can all occur simultaneously, or any simultaneous combination of them is possible. 
+This part depicts the linked list operation on different events: reservation, response acquisition and response transmission. Those events can all occur simultaneously, or any simultaneous combination of them is possible.
 
 ##### Reservation
 
@@ -197,12 +198,12 @@ On reservation,
 
 - _Reservation head_: The reservation head of the linked list corresponding to the address request's AXI identifier (_rsv_req_id_onehot_i_) is moved to the address of a free extended RAM cell.
 - _Response head_: If the response head used to point to an extended cell which already had received data (implying that is was equal to the reservation pointer), then the response head is piggybacked with the response head. This means, that if the reservation head is updated, then the response head is also updated with the same value. Else, they both remain untouched. Additionally, the response head is piggybacked with the reservation head if the linked list was empty.
-- _Pre\_tail_: The pre_tail is piggybacked with the reservation head on one of the conditions:
+- _Pre_tail_: The pre_tail is piggybacked with the reservation head on one of the conditions:
   - The linked list was empty.
-  - The reservation length was 0 and the response length after possible output (*rsp_len_after_out*) is equal to 1.
+  - The reservation length was 0 and the response length after possible output (_rsp_len_after_out_) is equal to 1.
 - _Tail_: The tail is piggybacked with the reservation head if the linked list was empty.
-- _Meta RAMs_: The metadata RAM is updated to let the previous reservation head point to the new reservation head, if the linked list was not empty. 
-- _Payload RAM_: Remains untouched. 
+- _Meta RAMs_: The metadata RAM is updated to let the previous reservation head point to the new reservation head, if the linked list was not empty.
+- _Payload RAM_: Remains untouched.
 
 ##### Response acquisition
 
@@ -212,32 +213,32 @@ On response acquisition, if the extended cell is not becoming full (i.e., $rsv\_
 - _Response head_:
   - If the response head is different from the reservation head, then it is updated from the metadata RAM.
   - Else, it is piggybacked with the reservation head (informally, it should be updated, but can only if the reservation head itself is updated, and additionally the linked list chain is not up to date in the RAM yet if the response head is updated).
-- _Pre\_tail_: The pre_tail is piggybacked with the response head the pre-tail used to be equal to the response head and one of the conditions:
+- _Pre_tail_: The pre_tail is piggybacked with the response head the pre-tail used to be equal to the response head and one of the conditions:
   - $rsp\_len\_after\_out == 0$: when there is no no response stored or awaited in the linked list, then the pre_tail must be equal to the response head.
   - $rsp\_len\_after\_out == 1$: the pre_tail must be one cell ahead of the tail in the linked list, provided the response head is advanced enough.
 - _Tail_: Remains untouched.
-- _Meta RAMs_: Is read at the address _rsp\_heads_, to possibly update the response head from the linked list pointers stored in RAM (see the _Response head_ point above).
-- _Payload RAM_: The acquired response is stored in the payload RAM. 
+- _Meta RAMs_: Is read at the address _rsp_heads_, to possibly update the response head from the linked list pointers stored in RAM (see the _Response head_ point above).
+- _Payload RAM_: The acquired response is stored in the payload RAM.
 
 ##### Response release
 
 On response release, if the extended cell still holds or awaits data (i.e., $tail\_rsv\_cnt > 0 || tail\_rsp\_cnt > 0$), then no pointer or metadata RAM is updated. Only the burst counters are updated. Else:
+
 - _Reservation head_: Remains untouched.
 - _Response head_: Remains untouched.
-- _Pre\_tail_: If the pre_tail is different from (i.e., strictly behind) the response head, then it is updated from the metadata RAM. Else, it is piggybacked with the response head.
+- _Pre_tail_: If the pre_tail is different from (i.e., strictly behind) the response head, then it is updated from the metadata RAM. Else, it is piggybacked with the response head.
 - _Tail_: Takes the previous value of the pre_tail.
-- _Meta RAMs_: Is read at the address _pre\_tails_, to possibly update the pre_tail from the linked list pointers stored in RAM (see the _Pre\_tail_ point above).
-- _Payload RAM_: The response is read from the RAM. 
-
+- _Meta RAMs_: Is read at the address _pre_tails_, to possibly update the pre*tail from the linked list pointers stored in RAM (see the \_Pre_tail* point above).
+- _Payload RAM_: The response is read from the RAM.
 
 #### Additional respoonse bank features
 
 ##### Release enable double-check
 
 The release enable signal is read twice:
-* During the cycle before the corresponding output, to select which signal to read from the RAMs.
-* During the output cycle, to make sure that the release enable signal is still set. Else, the output is cancelled. The cancellation is done implicitly by unsetting the output ready signal.
 
+- During the cycle before the corresponding output, to select which signal to read from the RAMs.
+- During the output cycle, to make sure that the release enable signal is still set. Else, the output is cancelled. The cancellation is done implicitly by unsetting the output ready signal.
 
 ## Delay calculator
 
@@ -245,65 +246,74 @@ The release enable signal is read twice:
 
 The delay calculator emulates a memory request scheduler and applies a FR-FCFS scheme (First Ready, First Come First Served) scheduling strategy. For each parallel rank, if it is ready to take a new request, among all the memory requests mapping to this rank, consider the subset of those that has a minimal request cost (in terms of latency). Among this subset, take the oldest entry.
 
-It favors write requests over read requests when all things are equal, but this have a very low impact. To favor read requests, follow the instructions in the three comment lines starting with ```To favor read requests```.
+It favors write requests over read requests when all things are equal, but this have a very low impact. To favor read requests, follow the instructions in the three comment lines starting with _To favor read requests_.
+
+Other scheduling strategies can be implemented without major architectural changes in the delay calculator core module, and without changes in any other module.
 
 ### Design
 
 The _simmem_delay_calculator_ module observes and the requests coming from the requester. When address requests are detected, metadata is stored in _slots_. It then emulates a memory request scheduler to estimate the delay of the request in the simulated setting.
 
 The _simmem_delay_calculator_ module is a wrapper around the _simmem_delay_calculator_core_ module. The wrapper's role is related to the write data requests ordering relatively to write address requests:
+
 - It ensures that write data requests always reach the _simmem_delay_calculator_core_ module after the corresponding write address request.
-- When a write address request is observed, if the wrapper had seen write data in advance, it sends this count (bounded by the burst length of the observed write address signal) to the core module using the _wdata\_immediate\_cnt\_i_ signal. Fundamentally, only the count of write data, and not their content, is relevant for delay calculation.
+- When a write address request is observed, if the wrapper had seen write data in advance, it sends this count (bounded by the burst length of the observed write address signal) to the core module using the _wdata_immediate_cnt_i_ signal. Fundamentally, only the count of write data, and not their content, is relevant for delay calculation.
 
 To count the write data awaited or received in advance, the wrapper maintains a signed counter, incremented when write data is observed in advance, and when a write address is observed, it is decreased by the corresponding burst length.
 
 #### Address request slots
 
 _Slots_ are used to store address request metadata, as well as the status of the elementary requests in the bursts. Write and read slots are disjoint, because of the chronology of write and read elementary burst request arrival:
-- Read elementary burst requests all arrive at once: when the read address request is opened. 
+
+- Read elementary burst requests all arrive at once: when the read address request is opened.
 - Write elementary burst requests may arrive progressively, when write data requests arrive later than the corresponding write address request.
 
 _Write slots_ are memory structures defined as follows:
+
 - Valid (_v_): Is set iff the slot is currently occupied.
 - Internal identifier (_iid_): Contains the identifier that will be used to identify the extended cell where to release some response.
 - Address (_addr_): Contains the base address of the address request. It is used to estimate the delay caused by the requests contained in the burst.
 - Burst size (_addr_): Contains the burst size of the address request. It is used to calculate the address of the subsequent. It may also be used in the future for improved delay estimation.
-- Data valid (_data\_v_): Contains one bit per elementary burst request. Each bit is unset iff the corresponding elementary burst request is awaited.
-- Memory pending (_mem\_pending_): Contains one bit per elementary burst request. Each bit is set iff there is currently a simulated memory operation pending.
-- Memory done (_mem\_done_): Contains one bit per elementary burst request. Each bit is set iff the corresponding simulated memory operation is done, or this is an entry beyond the burst length.
+- Data valid (_data_v_): Contains one bit per elementary burst request. Each bit is unset iff the corresponding elementary burst request is awaited.
+- Memory pending (_mem_pending_): Contains one bit per elementary burst request. Each bit is set iff there is currently a simulated memory operation pending.
+- Memory done (_mem_done_): Contains one bit per elementary burst request. Each bit is set iff the corresponding simulated memory operation is done, or this is an entry beyond the burst length.
 
 _Read slots_ are defined identically, except that:
-- There is no _data\_v_ field, since elementary burst read requests arrive simultanously with the read address request.
+
+- There is no _data_v_ field, since elementary burst read requests arrive simultanously with the read address request.
 - There internal identifier for read and write address requests do not need to be of equal width, which depends on the maximal number of pending requests.
 
-The burst length does not need to be stored explicitly, as the _data\_v_ and _mem\_done_ bit arrays are set accordingly during the slot allocation.
+The burst length does not need to be stored explicitly, as the _data_v_ and _mem_done_ bit arrays are set accordingly during the slot allocation.
 
 #### Delay estimation
 
-The delay estimation is performed using a decrementing counter (_rank\_delay\_cnt_) per rank (currently, only one rank is supported). When a simulated memory operation starts, the decrementing counter is set to a value corresponding to the situation:
+The delay estimation is performed using a decrementing counter (_rank_delay_cnt_) per rank (currently, only one rank is supported). When a simulated memory operation starts, the decrementing counter is set to a value corresponding to the situation:
+
 1. If this is a row hit.
 2. If this is a row miss, and there was no row in the buffer.
 3. If this is a row miss, and there was another row in the buffer.
 
 Rank states are represented by two additional elements (in addition to the decrementing counter):
-- *is_row_open*: Is set iff there is a row stored in the simulated  row buffer. Currently, this signal is only unset before the first memory request.
-- *row_start_addr*: Stores the identifier of the currently open row, if any. The row identifier corresponds to all the most significant bits, that are not used for intra-row addressing.
+
+- _is_row_open_: Is set iff there is a row stored in the simulated row buffer. Currently, this signal is only unset before the first memory request.
+- _row_start_addr_: Stores the identifier of the currently open row, if any. The row identifier corresponds to all the most significant bits, that are not used for intra-row addressing.
 
 #### Release enable structures
 
 Write responses have a release enable structure made of one flip-flop per internal identifier. When the flip-flop is set, then the corresponding release eanble signal is propagated to the write response bank, which releases the signal if the requester is ready and if the signal is at the response head of its linked list.
 
-As read data come as a burst, and to allow the progressive release of the data in the burst,
+As read data come as a burst, and to allow the progressive release of the data in the burst, small counters are used to maintain the number of read data that can currently be released per internal identifier (i.e., per extended cell). The multi-hot release enable signal, similar to the one used for the write responses but with a possibly different width, has each bit set iff the corresponding counter is non-zero.
 
-When data is effectively released, the response banks notify this event using the *wrsp_released_iid_onehot* and *rdata_released_iid_onehot* one-hot signals.
+When data is effectively released, the response banks notify this event using the _wrsp_released_iid_onehot_ and _rdata_released_iid_onehot_ one-hot signals. In the case of read data, the corresponding counter is decremented. In the case of write responses, the corresponding flip-flop is unset.
 
+### Age management
 
+Age management is used in two point of the delay calculator core:
 
-
+- As many common scheduling strategies consider request relative age at some point, including the currently implemented strategy, the relative age between burst elementary entries must be (at least partially) maintained.
+- The oldest write slots must receive write data information first, as in AXI, write data requests correspond in order with the write address requests: the earlier write data requests correspond to the earlier write address requests.
 
 // TODO Expliquer le retrait de 3 cycles.
-
-
 
 TODO Document how to extend the scheduling strategy
 
