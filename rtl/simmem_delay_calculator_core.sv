@@ -115,8 +115,8 @@ module simmem_delay_calculator_core #(
     output logic [ simmem_pkg::RDataBankCapa-1:0] rdata_release_en_mhot_o,
 
     // Release confirmations sent by the message banks
-    input logic [simmem_pkg::WRspBankCapa-1:0] wrsp_released_addr_onehot_i,
-    input logic [ simmem_pkg::RDataBankCapa-1:0] rdata_released_addr_onehot_i,
+    input logic [simmem_pkg::WRspBankCapa-1:0] wrsp_released_iid_onehot_i,
+    input logic [ simmem_pkg::RDataBankCapa-1:0] rdata_released_iid_onehot_i,
 
     // Ready signals from the response banks
     input logic wrsp_bank_ready_i,
@@ -719,7 +719,7 @@ module simmem_delay_calculator_core #(
 
   // Determines the start address of the open row. This is useful for request cost calculation. If
   // no row is open in the rank, then this value is irrelevant.
-  logic [GlobalMemCapaW-1:0] open_row_start_addr_d[NumRanks];
+  logic [GlobalMemCapaW-1:0] row_start_addr_d[NumRanks];
   logic [GlobalMemCapaW-1:0] row_start_addr_q[NumRanks];
 
   // Decreasing counter that determines the number of cycles in which the rank will be able to take
@@ -757,7 +757,7 @@ module simmem_delay_calculator_core #(
     // Default assignments
     for (int unsigned i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin
       is_row_open_d[i_rk] = is_row_open_q[i_rk];
-      open_row_start_addr_d[i_rk] = row_start_addr_q[i_rk];
+      row_start_addr_d[i_rk] = row_start_addr_q[i_rk];
     end
 
     wrsp_release_en_mhot_d = wrsp_release_en_mhot_o;
@@ -772,6 +772,8 @@ module simmem_delay_calculator_core #(
     ////////////////////////////
 
     // This part is dedicated to the the acceptation of write or read address requests.
+
+    // To favor read requests, swap this part with the following part.
 
     // Write address request input.
     for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
@@ -819,6 +821,30 @@ module simmem_delay_calculator_core #(
       end
     end
 
+
+    //////////////////////////////
+    // Write data request input //
+    //////////////////////////////
+
+    // This part is dedicated to the acceptance of write data  requests when there are some occupied
+    // but incomplete write slots (i.e., write addresses with some missing write_data corresponding
+    // to the burst).
+
+    for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
+      for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
+        if (nxt_nv_bit_onehot[i_slt][i_bit] && free_w_slt_for_data_onehot[i_slt]  &&
+            wdata_valid_i) begin
+          // The data_v signal is OR-masked with a mask determining where the new data should land.
+          // Most of the times, the mask is full-zero, as there is no write data input handshake or
+          // because this is not the slot where the write data where it should land.
+          wslt_d[i_slt].data_v[i_bit] = 1'b1;
+          main_new_entry[i_slt * MaxWBurstLen+i_bit] = 1'b1;
+        end
+      end
+    end
+
+    // To favor read requests, swap this part with the previous part.
+
     // Read address request input.
     for (int unsigned i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin
       // By default, keep the slots' previous value.
@@ -852,28 +878,7 @@ module simmem_delay_calculator_core #(
       end
     end
 
-
-    //////////////////////////////
-    // Write data request input //
-    //////////////////////////////
-
-    // This part is dedicated to the acceptance of write data  requests when there are some occupied
-    // but incomplete write slots (i.e., write addresses with some missing write_data corresponding
-    // to the burst).
-
-    for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
-      for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-        if (nxt_nv_bit_onehot[i_slt][i_bit] && free_w_slt_for_data_onehot[i_slt]  &&
-            wdata_valid_i) begin
-          // The data_v signal is OR-masked with a mask determining where the new data should land.
-          // Most of the times, the mask is full-zero, as there is no write data input handshake or
-          // because this is not the slot where the write data where it should land.
-          wslt_d[i_slt].data_v[i_bit] = 1'b1;
-          main_new_entry[i_slt * MaxWBurstLen+i_bit] = 1'b1;
-        end
-      end
-    end
-
+    // To favor read requests, swap until here.
 
     /////////////////////////
     // Rank counter update //
@@ -904,7 +909,7 @@ module simmem_delay_calculator_core #(
         end
 
         // Update the row start address.
-        open_row_start_addr_d[i_rk] = {opti_rbuf[i_rk], {RowBufLenW{1'b0}}};
+        row_start_addr_d[i_rk] = {opti_rbuf[i_rk], {RowBufLenW{1'b0}}};
       end
     end
 
@@ -949,14 +954,14 @@ module simmem_delay_calculator_core #(
     end
 
     // Input signals from message banks about released signals
-    wrsp_release_en_mhot_d ^= wrsp_released_addr_onehot_i;
+    wrsp_release_en_mhot_d ^= wrsp_released_iid_onehot_i;
 
     // Decrement the rdata_release_en_cnts_d if data has been released for this address (aka. iid).
     // If a counter is decremented, it was originally not zero, because a message bank is not
     // allowed to release read responses of the corresponding rdata_release_en_mhot_o bit is zero,
     // which happens iff the corresponding counter is zero.
     for (int unsigned i_iid = 0; i_iid < RDataBankCapa; i_iid = i_iid + 1) begin
-      if (rdata_released_addr_onehot_i[i_iid]) begin
+      if (rdata_released_iid_onehot_i[i_iid]) begin
         rdata_release_en_cnts_d[i_iid] -= 1;
       end
     end
@@ -1016,7 +1021,7 @@ module simmem_delay_calculator_core #(
       wslt_q <= wslt_d;
       rslt_q <= rslt_d;
       is_row_open_q <= is_row_open_d;
-      row_start_addr_q <= open_row_start_addr_d;
+      row_start_addr_q <= row_start_addr_d;
       rank_delay_cnt_q <= rank_delay_cnt_d;
       wrsp_release_en_mhot_o <= wrsp_release_en_mhot_d;
       rdata_release_en_cnts_q <= rdata_release_en_cnts_d;

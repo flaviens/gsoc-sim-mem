@@ -52,8 +52,8 @@ module simmem_delay_calculator #(
     output logic [simmem_pkg::RDataBankCapa-1:0] rdata_release_en_mhot_o,
 
     // Release confirmations sent by the message banks
-    input logic [ simmem_pkg::WRspBankCapa-1:0] wrsp_released_addr_onehot_i,
-    input logic [simmem_pkg::RDataBankCapa-1:0] rdata_released_addr_onehot_i,
+    input logic [ simmem_pkg::WRspBankCapa-1:0] wrsp_released_iid_onehot_i,
+    input logic [simmem_pkg::RDataBankCapa-1:0] rdata_released_iid_onehot_i,
 
     // Ready signals from the response banks
     input logic wrsp_bank_ready_i,
@@ -156,8 +156,8 @@ module simmem_delay_calculator #(
       .wrsp_release_en_mhot_o (wrsp_release_en_mhot_o),
       .rdata_release_en_mhot_o(rdata_release_en_mhot_o),
 
-      .wrsp_released_addr_onehot_i (wrsp_released_addr_onehot_i),
-      .rdata_released_addr_onehot_i(rdata_released_addr_onehot_i),
+      .wrsp_released_iid_onehot_i (wrsp_released_iid_onehot_i),
+      .rdata_released_iid_onehot_i(rdata_released_iid_onehot_i),
 
       .wrsp_bank_ready_i(wrsp_bank_ready_i),
       .rrsp_bank_ready_i(rrsp_bank_ready_i),
