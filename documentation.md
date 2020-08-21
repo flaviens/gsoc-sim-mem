@@ -310,10 +310,57 @@ When data is effectively released, the response banks notify this event using th
 
 Age management is used in two point of the delay calculator core:
 
-- As many common scheduling strategies consider request relative age at some point, including the currently implemented strategy, the relative age between burst elementary entries must be (at least partially) maintained.
+- As many common scheduling strategies consider request relative age at some point, including the currently implemented strategy, the relative age between elementary burst entries must be (at least partially) maintained.
 - The oldest write slots must receive write data information first, as in AXI, write data requests correspond in order with the write address requests: the earlier write data requests correspond to the earlier write address requests.
 
+#### Write slot age matrix
+
+The write slot age matrix is a simple example of an age matrix. An element at index (i,j) is set iff the write slot j is older than i. Only the top-right part above the diagonal is stored.
+
+Each row is then masked with the _free\_wslt\_for\_data\_mhot_ multi-hot signal, which indicates whether each write slot is valid and able to host new write data entries, which is the case iff there is at least one unset bit in the corresponding _data\_v_ signal.
+
+#### Main age matrix
+
+The main age matrix side is the concatenation of two types of entries:
+
+- The $NumWSlots \* MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+- The $NumRSlots$ read data slots / read address requests.
+
+We have taken into account the fact that all read elementary burst entries in the same burst share the  same age.
+
+### Finding optimal entries
+
+To find optimal the optimal entries to simulate new memory operations, the entries are first grouped by rank. All these groups, quotiented by rank, work in parallel without interaction.
+
+Entries are then regrouped by cost categories (which are representations of memory operation latency on fewer bits), depending on the memory operation address and on the current corresponding rank row buffer state.
+
+The oldest candidate entry for each cost category is determined by masking the main age matrix rows with the *matches\_cond* signal.
+
+The lowest cost category where there is at least one candidate entry is determined. The oldest candidate within this cost category
+
+Additionally, the cost and row buffer identifier corresponding to the optimal entry are determined (resp. on the signals _opti\_cost\_cat_ and _opti\_rbuf_). This row buffer identifier helps updating the simulated rank state.
+
+### Detailed slot operation
+
+#### Request acceptance
+
+TODO
+
+#### Slot liberation
+
+TODO
+
+#### Rank state update
+
+TODO
 // TODO Expliquer le retrait de 3 cycles.
+
+
+## Future work
+
+TODO
+TODO Explain that refreshing is not emulated.
+
 
 TODO Document how to extend the scheduling strategy
 
@@ -323,7 +370,6 @@ TODO Integerate images properly
 
 TODO: Mettre des compteurs par AXI ID.
 
-TODO Explain that refreshing is not emulated.
 
 TODO REMOVE BELOW
 

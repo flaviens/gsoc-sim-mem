@@ -262,7 +262,7 @@ module simmem_delay_calculator_core #(
   rslt_t rslt_d[NumRSlots];
   rslt_t rslt_q[NumRSlots];
 
-  // Candidate signals calculation Is a write data request candidate for a given (rank, category)
+  // Candidate signals calculation: is a write data request candidate for a given (rank, category)
   // pair.
   logic [MaxWBurstLen-1:0] is_wd_cand_cat_mhot[NumRanks][NumCostCats][NumWSlots];
   // Is a read data request candidate for a given (rank, category) pair.
@@ -343,16 +343,16 @@ module simmem_delay_calculator_core #(
   logic [NumRSlots-1:0] free_rslt_mhot;
   // Intermediate one-hot signals determining the position of the free slot with lowest position in
   // the slots arrays.
-  logic [NumWSlots-1:0] nxt_free_w_slt_onehot;
-  logic [NumRSlots-1:0] nxt_free_r_slt_onehot;
+  logic [NumWSlots-1:0] nxt_free_wslt_onehot;
+  logic [NumRSlots-1:0] nxt_free_rslt_onehot;
 
   // Determine the next free slot for write slots.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_nxt_free_w_slot
     assign free_wslt_mhot[i_slt] = ~wslt_q[i_slt].v;
     if (i_slt == 0) begin
-      assign nxt_free_w_slt_onehot[0] = free_wslt_mhot[0];
+      assign nxt_free_wslt_onehot[0] = free_wslt_mhot[0];
     end else begin
-      assign nxt_free_w_slt_onehot[i_slt] = free_wslt_mhot[i_slt] && ~|free_wslt_mhot[i_slt - 1:0];
+      assign nxt_free_wslt_onehot[i_slt] = free_wslt_mhot[i_slt] && ~|free_wslt_mhot[i_slt - 1:0];
     end
   end : gen_nxt_free_w_slot
 
@@ -360,16 +360,16 @@ module simmem_delay_calculator_core #(
   for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_nxt_free_r_slot
     assign free_rslt_mhot[i_slt] = ~rslt_q[i_slt].v;
     if (i_slt == 0) begin
-      assign nxt_free_r_slt_onehot[0] = free_rslt_mhot[0];
+      assign nxt_free_rslt_onehot[0] = free_rslt_mhot[0];
     end else begin
-      assign nxt_free_r_slt_onehot[i_slt] = free_rslt_mhot[i_slt] && ~|free_rslt_mhot[i_slt - 1:0];
+      assign nxt_free_rslt_onehot[i_slt] = free_rslt_mhot[i_slt] && ~|free_rslt_mhot[i_slt - 1:0];
     end
   end : gen_nxt_free_r_slot
 
   // The module is ready to accept address requests if there is a free corresponding (write or read)
   // slot.
-  assign wrsp_bank_ready_o = |nxt_free_w_slt_onehot;
-  assign rrsp_bank_ready_o = |nxt_free_r_slt_onehot;
+  assign wrsp_bank_ready_o = |nxt_free_wslt_onehot;
+  assign rrsp_bank_ready_o = |nxt_free_rslt_onehot;
 
   assign waddr_ready_o = wrsp_bank_ready_o & wrsp_bank_ready_i;
   assign raddr_ready_o = rrsp_bank_ready_o & rrsp_bank_ready_i;
@@ -410,7 +410,6 @@ module simmem_delay_calculator_core #(
   // * W
   //
   // Only the area marked by 'x' symbols is actually stored.
-  //
   //
   // Age matrix splitting: The main age matrix cannot be split in several disjoint sub-matrices to
   //  take advantage of the partition to different ranks, because this partition is made dynamically
@@ -623,8 +622,8 @@ module simmem_delay_calculator_core #(
   // valid, if applicable.
 
   // Slot where the data should fit (binary representation).
-  logic [NumWSlots-1:0] free_w_slt_for_data_mhot;
-  logic [NumWSlots-1:0] free_w_slt_for_data_onehot;
+  logic [NumWSlots-1:0] free_wslt_for_data_mhot;
+  logic [NumWSlots-1:0] free_wslt_for_data_onehot;
   // First non-valid bit in the write slot, for each slot.
   logic [MaxWBurstLen-1:0] nxt_nv_bit_onehot[NumWSlots];
 
@@ -642,9 +641,9 @@ module simmem_delay_calculator_core #(
 
   // Find the oldest slot where data is expected
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_wslt_for_in_data_onehot
-    assign free_w_slt_for_data_mhot[i_slt] = wslt_q[i_slt].v & ~&wslt_q[i_slt].data_v;
-    assign free_w_slt_for_data_onehot[i_slt] =
-        free_w_slt_for_data_mhot[i_slt] & ~|(wslt_age_matrix[i_slt] & free_w_slt_for_data_mhot);
+    assign free_wslt_for_data_mhot[i_slt] = wslt_q[i_slt].v & ~&wslt_q[i_slt].data_v;
+    assign free_wslt_for_data_onehot[i_slt] =
+        free_wslt_for_data_mhot[i_slt] & ~|(wslt_age_matrix[i_slt] & free_wslt_for_data_mhot);
   end : gen_wslt_for_in_data_onehot
 
 
@@ -667,7 +666,7 @@ module simmem_delay_calculator_core #(
   logic [BurstAddrLSBs-1:0] slt_raddr_lsbs[NumRSlots][MaxRBurstLen];
 
   // Write data entries address.
-  for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_waddrs_per_slt
+  for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_waddrs_perslt
     for (genvar i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin : gen_waddrs
       if (i_bit == 0) begin
         assign slt_waddr_lsbs[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
@@ -683,10 +682,10 @@ module simmem_delay_calculator_core #(
           slt_waddr_lsbs[i_slt][i_bit]
         };
       end : gen_waddrs
-  end : gen_waddrs_per_slt
+  end : gen_waddrs_perslt
 
   // Read data entries address.
-  for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_raddrs_per_slt
+  for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : gen_raddrs_perslt
     for (genvar i_bit = 0; i_bit < MaxRBurstLen; i_bit = i_bit + 1) begin : gen_raddrs
       if (i_bit == 0) begin
         assign slt_raddr_lsbs[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
@@ -702,7 +701,7 @@ module simmem_delay_calculator_core #(
         slt_raddr_lsbs[i_slt][i_bit]
       };
     end : gen_raddrs
-  end : gen_raddrs_per_slt
+  end : gen_raddrs_perslt
 
 
   //////////////////
@@ -780,7 +779,7 @@ module simmem_delay_calculator_core #(
       // By default, keep the slots' previous value.
       wslt_d[i_slt] = wslt_q[i_slt];
 
-      if (waddr_valid_i && waddr_ready_o && nxt_free_w_slt_onehot[i_slt]) begin
+      if (waddr_valid_i && waddr_ready_o && nxt_free_wslt_onehot[i_slt]) begin
         // If there is a successful write address handshake and i_slt has been determined to be its
         // home slot, then fill the slot with the relevant information from the write address
         // request.
@@ -832,7 +831,7 @@ module simmem_delay_calculator_core #(
 
     for (int unsigned i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin
       for (int unsigned i_bit = 0; i_bit < MaxWBurstLen; i_bit = i_bit + 1) begin
-        if (nxt_nv_bit_onehot[i_slt][i_bit] && free_w_slt_for_data_onehot[i_slt]  &&
+        if (nxt_nv_bit_onehot[i_slt][i_bit] && free_wslt_for_data_onehot[i_slt]  &&
             wdata_valid_i) begin
           // The data_v signal is OR-masked with a mask determining where the new data should land.
           // Most of the times, the mask is full-zero, as there is no write data input handshake or
@@ -850,7 +849,7 @@ module simmem_delay_calculator_core #(
       // By default, keep the slots' previous value.
       rslt_d[i_slt] = rslt_q[i_slt];
 
-      if (raddr_valid_i && raddr_ready_o && nxt_free_r_slt_onehot[i_slt]) begin
+      if (raddr_valid_i && raddr_ready_o && nxt_free_rslt_onehot[i_slt]) begin
         // If there is a successful write address handshake and i_slt has been determined to be its
         // home slot, then fill the slot with the relevant information from the write address
         // request.
@@ -880,9 +879,9 @@ module simmem_delay_calculator_core #(
 
     // To favor read requests, swap until here.
 
-    /////////////////////////
-    // Rank counter update //
-    /////////////////////////
+    ///////////////////////
+    // Rank state update //
+    ///////////////////////
 
     // This part is dedicated to updating the rank counters and row state signals.
 
