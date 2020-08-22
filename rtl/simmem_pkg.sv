@@ -25,6 +25,9 @@ package simmem_pkg;
   localparam int unsigned PrechargeCost = 2;  // Cycles
   localparam int unsigned ActivationCost = 1;  // Cycles
 
+  // Log2 of the boundary that cannot be crossed by bursts.
+  localparam int unsigned BurstAddrLSBs = 12;
+
 
   /////////////////
   // AXI signals //

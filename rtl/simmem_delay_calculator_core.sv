@@ -72,6 +72,9 @@
 // (genvar i_rk...` loops.
 //
 
+// TODO Do not store the whole row start address.
+// TODO Add a "burst_fixed" field to the slots.
+
 module simmem_delay_calculator_core #(
     // NumRanks must be a power of two, used for address interleaving.
     parameter int unsigned NumRanks = 1,  // Interleaving is not supported yet.
@@ -161,14 +164,14 @@ module simmem_delay_calculator_core #(
   *
   * @param address the requested address.
   * @param is_row_open 1'b1 iff a row is currently open in the corresponding rank.
-  * @param open_row_start_addr the start address of the open row, if applicable.
+  * @param open_row_buf_ident the start address of the open row, if applicable.
   * @return the cost of the access, in clock cycles.
   */
   function automatic mem_cost_category_e det_cost_cat(
       logic [GlobalMemCapaW-1:0] address, logic is_row_open,
-      logic [GlobalMemCapaW-1:0] open_row_start_addr);
+      logic [GlobalMemCapaW-1:0] open_row_buf_ident);
     if (is_row_open && (address & RowBufferMappingMask) == (
-        open_row_start_addr & RowBufferMappingMask)) begin
+        open_row_buf_ident & RowBufferMappingMask)) begin
       return C_CAS;
     end else if (!is_row_open) begin
       return C_ACT_CAS;
@@ -281,7 +284,7 @@ module simmem_delay_calculator_core #(
               // And the address corresponds to the right rank
               NumRksW'(i_rk) == get_assigned_rk_id(slt_waddrs[i_slt][i_bit]) &
               // And the address yields the right cost.
-              det_cost_cat(slt_waddrs[i_slt][i_bit], is_row_open_q[i_rk], row_start_addr_q[i_rk])
+              det_cost_cat(slt_waddrs[i_slt][i_bit], is_row_open_q[i_rk], row_buf_ident_q[i_rk])
               == NumCostCatsW'(i_cat);
         end : candidates_w_bit
       end : candidates_w_inner
@@ -292,7 +295,7 @@ module simmem_delay_calculator_core #(
           assign is_rdata_cand_cat_mhot[i_rk][i_cat][i_slt][i_bit] = rslt_q[i_slt].v &
           ~rslt_q[i_slt].mem_pending[i_bit] & ~rslt_q[i_slt].mem_done[i_bit] &
           NumRksW'(i_rk) == get_assigned_rk_id(slt_raddrs[i_slt][i_bit]) &
-          det_cost_cat(slt_raddrs[i_slt][i_bit], is_row_open_q[i_rk], row_start_addr_q[i_rk]) ==
+          det_cost_cat(slt_raddrs[i_slt][i_bit], is_row_open_q[i_rk], row_buf_ident_q[i_rk]) ==
           NumCostCatsW'(i_cat);
         end : candidates_r_bit
       end : candidates_r_inner
@@ -655,8 +658,6 @@ module simmem_delay_calculator_core #(
   // calculated from the slot burst base address and burst size. As bursts are aligned, only few
   // bits change between bits of the same burst.
 
-  localparam int unsigned BurstAddrLSBs = 12;
-
   // Addresses of slot entries.
   logic [GlobalMemCapaW-1:0] slt_waddrs[NumWSlots][MaxWBurstLen];
   logic [GlobalMemCapaW-1:0] slt_raddrs[NumRSlots][MaxRBurstLen];
@@ -718,8 +719,8 @@ module simmem_delay_calculator_core #(
 
   // Determines the start address of the open row. This is useful for request cost calculation. If
   // no row is open in the rank, then this value is irrelevant.
-  logic [GlobalMemCapaW-1:0] row_start_addr_d[NumRanks];
-  logic [GlobalMemCapaW-1:0] row_start_addr_q[NumRanks];
+  logic [GlobalMemCapaW-1:0] row_buf_ident_d[NumRanks];
+  logic [GlobalMemCapaW-1:0] row_buf_ident_q[NumRanks];
 
   // Decreasing counter that determines the number of cycles in which the rank will be able to take
   // a new request.
@@ -756,7 +757,7 @@ module simmem_delay_calculator_core #(
     // Default assignments
     for (int unsigned i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin
       is_row_open_d[i_rk] = is_row_open_q[i_rk];
-      row_start_addr_d[i_rk] = row_start_addr_q[i_rk];
+      row_buf_ident_d[i_rk] = row_buf_ident_q[i_rk];
     end
 
     wrsp_release_en_mhot_d = wrsp_release_en_mhot_o;
@@ -908,7 +909,7 @@ module simmem_delay_calculator_core #(
         end
 
         // Update the row start address.
-        row_start_addr_d[i_rk] = {opti_rbuf[i_rk], {RowBufLenW{1'b0}}};
+        row_buf_ident_d[i_rk] = {opti_rbuf[i_rk], {RowBufLenW{1'b0}}};
       end
     end
 
@@ -1012,7 +1013,7 @@ module simmem_delay_calculator_core #(
       wslt_q <= '{default: '0};
       rslt_q <= '{default: '0};
       is_row_open_q <= '{default: '0};
-      row_start_addr_q <= '{default: '0};
+      row_buf_ident_q <= '{default: '0};
       rank_delay_cnt_q <= '{default: '0};
       wrsp_release_en_mhot_o <= '0;
       rdata_release_en_cnts_q <= '0;
@@ -1020,7 +1021,7 @@ module simmem_delay_calculator_core #(
       wslt_q <= wslt_d;
       rslt_q <= rslt_d;
       is_row_open_q <= is_row_open_d;
-      row_start_addr_q <= row_start_addr_d;
+      row_buf_ident_q <= row_buf_ident_d;
       rank_delay_cnt_q <= rank_delay_cnt_d;
       wrsp_release_en_mhot_o <= wrsp_release_en_mhot_d;
       rdata_release_en_cnts_q <= rdata_release_en_cnts_d;

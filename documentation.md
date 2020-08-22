@@ -55,7 +55,7 @@ The simulated memory controller is made of two major blocks:
   a. Store the responses from the real memory controller until they can be released.
   b. Enforce the ordering per AXI identifier, letting the delay calculator be agnostic of the AXI identifier.
 
-The delay calculator identifies address requests by internal identifiers (_iids_), which are not correlated with AXI identifiers.
+The delay calculator identifies address requests by internal identifiers (_iids_), which are not correlated with AXI identifiers. Precisely, write responses and read data use separate iid spaces: each response to an address request is therefore identified by the pair (read/write, iid), although the first entry of the pair is always implicit.
 
 TODO: Faire un diagramme
 
@@ -179,7 +179,7 @@ An extended cell is said to be valid (_ram_v_) (in a terminology similar to a ca
 
 ##### Elementary cell offset
 
-These three elements maintain full knowledge of the extended cell state and give the offset of an elementary RAM cell inside an extended cell:
+These three elements maintain full information of the extended cell state and give the offset of an elementary RAM cell inside an extended cell:
 
 - The offset for data output is given by $tail\_burst\_len - tail\_rsv\_cnt - tail\_rsv\_cnt$, which corresponds to the number of burst responses already released. The offset may be taken from the _pre_tail_ instead of the _tail_ in the cases described further above.
 - The offset for data input is given by $rsp\_burst\_len - rsv\_cnt$, which corresponds to the number of burst responses already acquired (regardless of whether they have been already released).
@@ -317,7 +317,7 @@ Age management is used in two point of the delay calculator core:
 
 The write slot age matrix is a simple example of an age matrix. An element at index (i,j) is set iff the write slot j is older than i. Only the top-right part above the diagonal is stored.
 
-Each row is then masked with the _free\_wslt\_for\_data\_mhot_ multi-hot signal, which indicates whether each write slot is valid and able to host new write data entries, which is the case iff there is at least one unset bit in the corresponding _data\_v_ signal.
+Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, which indicates whether each write slot is valid and able to host new write data entries, which is the case iff there is at least one unset bit in the corresponding _data_v_ signal.
 
 #### Main age matrix
 
@@ -326,7 +326,7 @@ The main age matrix side is the concatenation of two types of entries:
 - The $NumWSlots \* MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code.
 - The $NumRSlots$ read data slots / read address requests.
 
-We have taken into account the fact that all read elementary burst entries in the same burst share the  same age.
+We have taken into account the fact that all read elementary burst entries in the same burst share the same age.
 
 ### Finding optimal entries
 
@@ -334,33 +334,104 @@ To find optimal the optimal entries to simulate new memory operations, the entri
 
 Entries are then regrouped by cost categories (which are representations of memory operation latency on fewer bits), depending on the memory operation address and on the current corresponding rank row buffer state.
 
-The oldest candidate entry for each cost category is determined by masking the main age matrix rows with the *matches\_cond* signal.
+The oldest candidate entry for each cost category is determined by masking the main age matrix rows with the _matches_cond_ signal.
 
 The lowest cost category where there is at least one candidate entry is determined. The oldest candidate within this cost category
 
-Additionally, the cost and row buffer identifier corresponding to the optimal entry are determined (resp. on the signals _opti\_cost\_cat_ and _opti\_rbuf_). This row buffer identifier helps updating the simulated rank state.
+Additionally, the cost and row buffer identifier corresponding to the optimal entry are determined (resp. on the signals _opti_cost_cat_ and _opti_rbuf_). This row buffer identifier helps updating the simulated rank state.
 
 ### Detailed slot operation
 
 #### Request acceptance
 
-TODO
+##### Write requests
 
-#### Slot liberation
+When a write slot is free (_~v_), a new write address request can be accepted. The allocated free slot fields takes the following values:
 
-TODO
+- _v_ is set.
+- _iid_ takes the value held by the _waddr_iid_i_ signal, which is the write reservation output signal from the response banks.
+- _addr_ takes the value held by the address request.
+- _burst_size_ takes the value held by the address request.
+- _burst_fixed_ takes the value 1 iff the burst type is fixed.
+- _data_v_ takes the value, for each bit:
+  - 1 for the first _wdata_immediate_cnt_i_ bits, which correspond to the number of write data requests that had arrived not later than the write address request.
+  - 0 for the next bits corresponding to entries in the burst.
+  - 1 for the last entries, which correspond to entries beyond the burst length.
+- _mem_pending_ takes the value '0, as no simulated memory operation has started for any of these new entries.
+- _mem_done_ is set to zero, except for the last bits, which correspond to entries beyond the burst length. The latter bits are set, because an unset bit in the _mem_done_ array represents an entry which must be eventually completed.
+
+##### Read requests
+
+Read request acceptance is identical to write address acceptance, except that:
+
+- Read and write slots are disjoint.
+- The _data_v_ field is absent from read slots. Virtually, all the bits would be set to 1 when a read slot is allocated.
+
+#### Entry and slot liberation
+
+For each write or read slot, for each entry, if the corresponding _mem_pending_ bit is set, then it is swapped with the _mem_done_ bit when the corresponding rank decrementing counter reaches 3. This accommodates the propagation delay until the requester, assuming the latter is ready. This is referred as _three-cycles-early_ _mem_done_ setting.
+
+This forces, in particular, all the simulated memory delays to be at least 3 cycles This lower bound is much lower than typical main memory access delays.
+
+##### Write requests
+
+As there is a single write response per write address request, the release of the write response corresponding to write slot is enabled when all the entries (i.e., all the write data requests) of the slot are completed: when the _mem_done_ array is full of ones. Precisely, when the _mem_done_ array is full of ones,
+
+- The valid bit of the slot is unset.
+- The release enable flip-flop corresponding to the write slot's iid field is unset.
+
+##### Read data
+
+As opposed to write responses, one read data is release for each each data request in the read slot. Everytime a memory request is completed (_mem\_pending_ is being unset and _mem\_done_ is simultaneously being set), the release enable counter associated with the read slot's iid field is incremented. When the _mem_done_ array is full of ones, the valid bit of the slot is unset.
 
 #### Rank state update
 
-TODO
-// TODO Expliquer le retrait de 3 cycles.
+The rank decrementing counter (_rank_delay_cnt_) is systematically decreased to zero. The rest of the rank state is only modified if the decrementing counter is zero, as the rank is else considered busy. In the former case, the row buffer identifier (_row_buf_ident_) is set to the row identifier of the optimal entry for the rank.
 
+### Burst support and addressing
+
+#### Burst support
+
+Bursts are not allowed to cross boundaries defined by *BurstAddrLSBs* bits. If a burst does, then it is automatically considered a wrap burst relative to this boundary. Therefore, the simulated memory controller does not make a difference between *incr* and *wrap* bursts. Boundaries must not match with bank row widths.
+
+Fixed bursts, additionally, are supported by setting the *burst_fixed* field of the slot, which will provide the same address to all the entries.
+
+#### Entry addressing
+
+Taking advantage of the boundaries described above, all the entries of a slot share all their address bits, except the *BurstAddrLSBs* least significant bits. The per-entry address is therefore calculated with the slot address as a base, to which the burst size bits are iteratively added, using adders only on the *BurstAddrLSBs* LSBs. The wrap modulo operation is implicitly performed when the adders overflow.
 
 ## Future work
 
-TODO
-TODO Explain that refreshing is not emulated.
+### Delay calculator
 
+#### DRAM refreshing
+
+DRAM refreshing simulation is currently not implemented. It can be implemented by periodically setting rank counters to a large value. One has to be careful in the implementation to not interfere with the three-cycles-early _mem_done_ setting.
+
+#### Rank interleaving
+
+Currently, only one rank is implemented, but the necessary infrastructure to implement different kinds of interleaving are already integrated, notably the optimizations are implemented per-rank (visible through the _for (genvar i\_rk..._ loops).
+
+It remains mostly to define how interleaving is mapped, and to add additional information to the slots in case a memory request entryu is split between several ranks. This situation seems preferable to avoid, by using higher-order bits to select the rank mapping.
+
+#### Request cost precision
+
+So far, all the memory request entries with the same address have the same cost, regardless of the burst size, for instance. To implement finer-grained costs, more cost categories may be necessary, making the physical implementation potentially more expensive in terms of required area and delays.
+
+#### Scheduling strategy
+
+The implemented scheduling strategy is a mainstream and representative strategy. The delay calculator has been designed in a way that the scheduling strategy can reasonably easily be extended: the request ages are explicitly maintained, the outstanding entries are stored and accessible concurrently. This provides support for more complex scheduling strategies implementations.
+
+### Response banks
+
+#### Scalable burst management
+
+So far, we have used 3 counters (_rsp_cnt_, _rsv_cnt_ and _burst_len_) per extended cell to maintain the burst state. This is the most efficient as long as the ratio of AXI identifiers over the number of extended cells is quite large (>= 1). To support much smaller ratios, which typically means, to support larger numbers of outstanding requests, the _rsp_cnt_ and _rsv_cnt_ counters may be implemented per linked list instead of per extended cell.
+
+
+TODO Transformer
+-> le burst length pour avoit la bonne longueur effective.
+-> le burst size.
 
 TODO Document how to extend the scheduling strategy
 
@@ -369,7 +440,6 @@ TODO Ready signal harmonization.
 TODO Integerate images properly
 
 TODO: Mettre des compteurs par AXI ID.
-
 
 TODO REMOVE BELOW
 
