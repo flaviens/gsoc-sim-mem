@@ -27,8 +27,8 @@ const int kTraceLevel = 6;
 const int kTrailingTicks = 100;
 
 // Constant burst lengths supplied to the DUT
-const int kWBurstLen = 3;
-const int kRBurstLen = 4;
+const int kWBurstLen = 1;
+const int kRBurstLen = 2;
 const size_t kAdjustmentDelay = 1;  // Cycles to subtract to the actual delay
 
 typedef Vsimmem_top Module;

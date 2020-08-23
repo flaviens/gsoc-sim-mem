@@ -13,7 +13,7 @@
 
 // TODO: Change the const names to fit with the C++ coding style
 
-const uint64_t GlobalMemCapaW = 16;
+const uint64_t GlobalMemCapaW = 19;
 
 const uint64_t IDWidth = 2;
 const uint64_t NumIds = 1 << IDWidth;

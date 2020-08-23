@@ -4,9 +4,14 @@
 //
 // simmem package
 
-// Values must match those in simmem_axi_dimensions.h
-
-// TODO Document simmem_pkg
+// The simmem_pkg module is structured as follows:
+//  * Parameters for the AXI fields dimensions and several simulated memory controller parameters.
+//  * AXI signals structure definitions
+//  * Helper function definitions
+//
+// Only the first of the three parts should be modified for configuration.
+//
+// Parameters must match those in dv/simmem_top/simmem_axi_dimensions.h
 
 package simmem_pkg;
 
@@ -14,8 +19,9 @@ package simmem_pkg;
   // System parameters //
   ///////////////////////
 
-  localparam int unsigned GlobalMemCapa = 65536;  // Bytes.
-  localparam int unsigned GlobalMemCapaW = $clog2(GlobalMemCapa);
+  // The capacity of the global memory
+  localparam int unsigned GlobalMemCapaW = 19;
+  localparam int unsigned GlobalMemCapa = 1 << GlobalMemCapaW;  // Bytes.
 
   // The log2 of the width of a bank row.
   localparam int unsigned RowBufLenW = 10;
@@ -79,6 +85,38 @@ package simmem_pkg;
   // Effective max burst length (in number of elements)
   localparam int unsigned MaxRBurstEffLen = 1 << MaxRBurstLenField;
   localparam int unsigned MaxWBurstEffLen = 1 << MaxWBurstLenField;
+
+
+  ////////////////////////////
+  // Dimensions for modules //
+  ////////////////////////////
+
+  localparam int unsigned WRspBankCapa = 32;
+  localparam int unsigned RDataBankCapa = 16;
+
+  localparam int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
+  localparam int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
+
+  // Internal identifier types.
+  typedef logic [WRspBankAddrW-1:0] write_iid_t;
+  typedef logic [RDataBankAddrW-1:0] read_iid_t;
+
+  // Delay calculator slot constants definition.
+  localparam int unsigned NumWSlots = 6;
+  localparam int unsigned NumRSlots = 3;
+
+  // Maximal bit width on which to encode a delay.(measured in clock cycles).
+  localparam int unsigned DelayW = 6;  // bits
+
+
+  ///////////////////////////////////
+  // End of the parameters section //
+  ///////////////////////////////////
+
+  typedef enum logic {
+    WRSP_BANK = 0,
+    RDATA_BANK = 1
+  } rsp_bank_type_e;
 
   typedef enum logic [AxBurstWidth-1:0] {
     BURST_FIXED = 0,
@@ -153,28 +191,6 @@ package simmem_pkg;
   typedef union packed {wrsp_merged_payload_t merged_payload;} wrsp_t;
 
 
-  ////////////////////////////
-  // Dimensions for modules //
-  ////////////////////////////
-
-  localparam int unsigned WRspBankCapa = 32;
-  localparam int unsigned RDataBankCapa = 16;
-
-  localparam int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
-  localparam int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
-
-  // Internal identifier types.
-  typedef logic [WRspBankAddrW-1:0] write_iid_t;
-  typedef logic [RDataBankAddrW-1:0] read_iid_t;
-
-  // Delay calculator slot constants definition.
-  localparam int unsigned NumWSlots = 6;
-  localparam int unsigned NumRSlots = 3;
-
-  // Maximal bit width on which to encode a delay.(measured in clock cycles).
-  localparam int unsigned DelayW = 6;  // bits
-
-
   //////////////////////
   // Helper functions //
   //////////////////////
@@ -207,9 +223,9 @@ package simmem_pkg;
     * @param burst_len_field the burst_size field of the AXI signal
     * @return the size of the elements in the burst
     */
-  function automatic logic [MaxBurstEffSizeBytes-1:0] get_effective_wburst_size(
+  function automatic logic [MaxBurstEffSizeBytes-1:0] get_effective_burst_size(
       logic [MaxBurstSizeField-1:0] burst_size_field);
     return 1 << burst_size_field;
-  endfunction : get_effective_wburst_size
+  endfunction : get_effective_burst_size
 
 endpackage
