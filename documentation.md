@@ -407,7 +407,7 @@ Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, whi
 
 The main age matrix side is the concatenation of two types of entries:
 
-- The $NumWSlots * MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+- The $NumWSlots * MaxWBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
 - The $NumRSlots$ read data slots / read address requests.
 
 We have taken into account the fact that all read elementary burst entries in the same burst share the same age.

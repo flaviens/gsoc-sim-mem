@@ -67,7 +67,7 @@ module simmem_delay_calculator #(
   import simmem_pkg::*;
 
   // MaxPendingWData is the maximum possible number of distinct values taken by the write data.
-  localparam int unsigned MaxPendingWData = MaxWBurstLen * WRspBankCapa;
+  localparam int unsigned MaxPendingWData = MaxWBurstEffLen * WRspBankCapa;
 
   // Additional 32 bits are added to avoid overflow in tests.
   localparam int unsigned MaxPendingWDataW = $clog2(MaxPendingWData) + 32;
@@ -84,7 +84,7 @@ module simmem_delay_calculator #(
   assign core_wdata_ready = wdata_cnt_q[MaxPendingWDataW];
 
   // Counts how many data requests have been received before or with the write address request.
-  logic [MaxWBurstLenW-1:0] wdata_immediate_cnt;
+  logic [MaxWBurstLenField-1:0] wdata_immediate_cnt;
 
   always_comb begin
     wdata_cnt_d = wdata_cnt_q;
@@ -109,11 +109,11 @@ module simmem_delay_calculator #(
         if (AxLenWidth'(wdata_cnt_d) >= waddr_i.burst_len) begin
           // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
           // transmit all this data with the address request to the delay calculator core.
-          wdata_immediate_cnt = waddr_i.burst_len[MaxWBurstLenW - 1:0];
+          wdata_immediate_cnt = waddr_i.burst_len[MaxWBurstLenField - 1:0];
         end else begin
           // Else, transmit only the already and currently received write data, and set the counter to
           // zero, as it has been emptied.
-          wdata_immediate_cnt = wdata_cnt_d[MaxWBurstLenW - 1:0];
+          wdata_immediate_cnt = wdata_cnt_d[MaxWBurstLenField - 1:0];
         end
       end
 

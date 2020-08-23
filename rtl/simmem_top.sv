@@ -130,7 +130,7 @@ module simmem_top (
       .rrsv_req_id_onehot_i    (rrsv_req_id_onehot),
       .wrsv_iid_o              (wrsv_iid),
       .rrsv_iid_o              (rrsv_iid),
-      .rrsv_burst_len_i        ((MaxRBurstLenW + 1)'(raddr_i.burst_len)),
+      .rrsv_burst_len_i        ((MaxRBurstLenField + 1)'(raddr_i.burst_len)),
       .wrsv_valid_i            (wrsv_valid_in),
       .wrsv_ready_o            (wrsv_ready_out),
       .rrsv_valid_i            (rrsv_valid_in),

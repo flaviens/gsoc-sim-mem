@@ -6,6 +6,8 @@
 
 // Values must match those in simmem_axi_dimensions.h
 
+// TODO Document simmem_pkg
+
 package simmem_pkg;
 
   ///////////////////////
@@ -15,15 +17,14 @@ package simmem_pkg;
   localparam int unsigned GlobalMemCapa = 65536;  // Bytes.
   localparam int unsigned GlobalMemCapaW = $clog2(GlobalMemCapa);
 
-  // The log2 of the width of a row in the banks.
-  localparam int unsigned RowBufLenW = 8;
+  // The log2 of the width of a bank row.
+  localparam int unsigned RowBufLenW = 10;
   // The number of MSBs that uniquely define a bank row in an address.
   localparam int unsigned RowIdWidth = GlobalMemCapaW - RowBufLenW;
 
-  // TODO: 10, 50, 45
-  localparam int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
-  localparam int unsigned PrechargeCost = 2;  // Cycles
-  localparam int unsigned ActivationCost = 1;  // Cycles
+  localparam int unsigned RowHitCost = 10;  // Cycles (must be at least 3)
+  localparam int unsigned PrechargeCost = 50;  // Cycles
+  localparam int unsigned ActivationCost = 45;  // Cycles
 
   // Log2 of the boundary that cannot be crossed by bursts.
   localparam int unsigned BurstAddrLSBs = 12;
@@ -50,16 +51,34 @@ package simmem_pkg;
   localparam int unsigned ArUserWidth = 0;
 
   // Data & response field widths
-  localparam int unsigned MaxBurstSizeBytes = 4;
-  localparam int unsigned MaxBurstSizeBits = MaxBurstSizeBytes * 8;
   localparam int unsigned XLastWidth = 1;
-  // TODO: Set XRespWidth to 3 when all tests are passed
-  localparam int unsigned XRespWidth = 10;
+  localparam int unsigned XRespWidth = 3;
   localparam int unsigned WUserWidth = 0;
   localparam int unsigned RUserWidth = 0;
   localparam int unsigned BUserWidth = 0;
 
-  localparam int unsigned WStrbWidth = MaxBurstSizeBytes;
+
+  // Burst size constants
+
+  // Maximal value of any burst_size field
+  localparam int unsigned MaxBurstSizeField = 2;
+
+  // Effective max burst size (in number of elements)
+  localparam int unsigned MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
+  localparam int unsigned MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
+
+  localparam int unsigned WStrbWidth = MaxBurstEffSizeBytes;
+
+
+  // Burst length constants
+
+  // Maximal allowed burst length field value
+  localparam int unsigned MaxRBurstLenField = 3;
+  localparam int unsigned MaxWBurstLenField = 2;
+
+  // Effective max burst length (in number of elements)
+  localparam int unsigned MaxRBurstEffLen = 1 << MaxRBurstLenField;
+  localparam int unsigned MaxWBurstEffLen = 1 << MaxWBurstLenField;
 
   typedef enum logic [AxBurstWidth-1:0] {
     BURST_FIXED = 0,
@@ -67,6 +86,10 @@ package simmem_pkg;
     BURST_WRAP = 2,
     BURST_RESERVED = 3
   } burst_type_e;
+
+  ////////////////////////
+  // Packet definitions //
+  ////////////////////////
 
   typedef struct packed {
     // logic [AwUserWidth-1:0] user_signal;
@@ -98,7 +121,7 @@ package simmem_pkg;
     // logic [WUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
     logic [WStrbWidth-1:0] strobes;
-    logic [MaxBurstSizeBytes-1:0] data;
+    logic [MaxBurstEffSizeBytes-1:0] data;
   // logic [IDWidth-1:0] id; AXI4 does not allocate identifiers in write data messages
   } wdata_t;
 
@@ -106,7 +129,7 @@ package simmem_pkg;
     // logic [RUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
     logic [WStrbWidth-1:0] response;
-    logic [MaxBurstSizeBytes-1:0] data;
+    logic [MaxBurstEffSizeBytes-1:0] data;
     logic [IDWidth-1:0] id;
   } rdata_all_fields_t;
 
@@ -129,11 +152,6 @@ package simmem_pkg;
   // For the write response, the union is only a wrapper helping generic response bank implementation
   typedef union packed {wrsp_merged_payload_t merged_payload;} wrsp_t;
 
-  localparam int unsigned MaxRBurstLen = 8;
-  localparam int unsigned MaxWBurstLen = 4;
-
-  localparam int unsigned MaxRBurstLenW = $clog2(MaxRBurstLen);
-  localparam int unsigned MaxWBurstLenW = $clog2(MaxWBurstLen);
 
   ////////////////////////////
   // Dimensions for modules //
@@ -145,7 +163,7 @@ package simmem_pkg;
   localparam int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
   localparam int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
 
-  // Internal identifier types
+  // Internal identifier types.
   typedef logic [WRspBankAddrW-1:0] write_iid_t;
   typedef logic [RDataBankAddrW-1:0] read_iid_t;
 
@@ -153,8 +171,45 @@ package simmem_pkg;
   localparam int unsigned NumWSlots = 6;
   localparam int unsigned NumRSlots = 3;
 
-  // Maximal width on which to encode a delay.
+  // Maximal bit width on which to encode a delay.(measured in clock cycles).
   localparam int unsigned DelayW = 6;  // bits
 
+
+  //////////////////////
+  // Helper functions //
+  //////////////////////
+
+  /**
+    * Determines the effective burst length from the burst length field
+    *
+    * @param burst_len_field the burst_length field of the AXI signal
+    * @return the number of elements in the burst
+    */
+  function automatic logic [MaxWBurstEffLen-1:0] get_effective_wburst_len(
+      logic [MaxWBurstLenField-1:0] burst_len_field);
+    return 1 << burst_len_field;
+  endfunction : get_effective_wburst_len
+
+  /**
+    * Determines the effective burst length from the burst length field
+    *
+    * @param burst_len_field the burst_length field of the AXI signal
+    * @return the number of elements in the burst
+    */
+  function automatic logic [MaxRBurstEffLen-1:0] get_effective_rburst_len(
+      logic [MaxRBurstLenField-1:0] burst_len_field);
+    return 1 << burst_len_field;
+  endfunction : get_effective_rburst_len
+
+  /**
+    * Determines the effective burst size from the burst size field
+    *
+    * @param burst_len_field the burst_size field of the AXI signal
+    * @return the size of the elements in the burst
+    */
+  function automatic logic [MaxBurstEffSizeBytes-1:0] get_effective_wburst_size(
+      logic [MaxBurstSizeField-1:0] burst_size_field);
+    return 1 << burst_size_field;
+  endfunction : get_effective_wburst_size
 
 endpackage

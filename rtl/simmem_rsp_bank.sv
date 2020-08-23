@@ -104,7 +104,7 @@
 
 module simmem_rsp_bank #(
     parameter int unsigned TotCapa = simmem_pkg::RDataBankCapa,
-    parameter int unsigned MaxBurstLen = simmem_pkg::MaxRBurstLen,
+    parameter int unsigned MaxBurstLen = simmem_pkg::MaxRBurstEffLen,
     parameter type DataType = simmem_pkg::rdata_t,
 
     // BurstLenWidth is the bit width to encode up to MaxBurstLen-1 in binary format.
