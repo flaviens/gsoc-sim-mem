@@ -116,6 +116,8 @@ class WriteRespBankTestbench {
   void simmem_reservation_start(uint32_t axi_id) {
     module_->rsv_valid_i = 1;
     module_->rsv_req_id_onehot_i = 1 << axi_id;
+
+    // Must be not larger than MaxBurstLenField
     module_->rsv_burst_len_i = 2;
   }
 

@@ -74,6 +74,7 @@
 
 // TODO Do not store the whole row start address.
 // TODO Add a "burst_fixed" field to the slots.
+// TODO Format document
 
 module simmem_delay_calculator_core #(
     // NumRanks must be a power of two, used for address interleaving.
@@ -673,7 +674,7 @@ module simmem_delay_calculator_core #(
         assign slt_waddr_lsbs[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
       end else begin
         assign slt_waddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_waddr_lsbs[i_slt][i_bit - 1] +
-            BurstAddrLSBs'(wslt_q[i_slt].burst_size));
+            BurstAddrLSBs'(get_effective_burst_size(wslt_q[i_slt].burst_size)));
       end
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
@@ -692,7 +693,7 @@ module simmem_delay_calculator_core #(
         assign slt_raddr_lsbs[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
       end else begin
         assign slt_raddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_raddr_lsbs[i_slt][i_bit - 1] +
-            BurstAddrLSBs'(rslt_q[i_slt].burst_size));
+            BurstAddrLSBs'(get_effective_burst_size(rslt_q[i_slt].burst_size)));
       end
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
@@ -789,7 +790,8 @@ module simmem_delay_calculator_core #(
         wslt_d[i_slt].addr = waddr_i.addr;
 
         // Support for fixed bursts is provided by setting a burst size of 0.
-        wslt_d[i_slt].burst_size = waddr_i.burst_type == BURST_FIXED ? '0 : waddr_i.burst_size;
+        wslt_d[i_slt].burst_size = waddr_i.burst_size;
+        wslt_d[i_slt].burst_fixed = waddr_i.burst_type == BURST_FIXED;
 
         // The mem_pending bits of a new request are always set to zero, until an access to the
         // corresponding rank is simulated.
@@ -807,7 +809,7 @@ module simmem_delay_calculator_core #(
           // write data to come in. The rest of the data_v bits (between the two possibly empty
           // ranges of ones) are set to zero, awaiting further write data requests.
           wslt_d[i_slt].data_v[i_bit] =
-              (AxLenWidth'(i_bit) >= waddr_i.burst_len) || (i_bit < wdata_immediate_cnt_i);
+              (AxLenWidth'(i_bit) >= get_effective_burst_len(waddr_i.burst_len)) || (i_bit < get_effective_burst_len(wdata_immediate_cnt_i));
           // The age matrix has to be updated for each immediate write data, with the same age
           // relative to the entries external to the slot.
           main_new_entry[i_slt * MaxBurstEffLen+i_bit] = i_bit < wdata_immediate_cnt_i;
@@ -816,7 +818,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          wslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= waddr_i.burst_len;
+          wslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= get_effective_burst_len(waddr_i.burst_len);
         end
       end
     end
@@ -859,7 +861,8 @@ module simmem_delay_calculator_core #(
         rslt_d[i_slt].addr = raddr_i.addr;
 
         // Support for fixed bursts is provided by setting a burst size of 0.
-        rslt_d[i_slt].burst_size = raddr_i.burst_type == BURST_FIXED ? '0 : raddr_i.burst_size;
+        rslt_d[i_slt].burst_size = raddr_i.burst_size;
+        rslt_d[i_slt].burst_fixed = raddr_i.burst_type == BURST_FIXED;
 
         // The mem_pending bits of a new request are always set to zero, until an access to the
         // corresponding rank is simulated.
@@ -871,7 +874,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          rslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= raddr_i.burst_len;
+          rslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= get_effective_burst_len(raddr_i.burst_len);
         end
 
         main_new_entry[MAgeMRSltStart + i_slt] = 1'b1;
