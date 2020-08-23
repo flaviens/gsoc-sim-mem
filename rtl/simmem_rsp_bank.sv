@@ -1,4 +1,5 @@
-// Copyright lowRISC contributors. Licensed under the Apache License, Version 2.0, see LICENSE for
+// Copyright lowRISC contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for
 // details. SPDX-License-Identifier: Apache-2.0
 //
 // Linked list bank for responses in the simulated memory controller with burst support
@@ -68,12 +69,13 @@
 //
 //  Burst data storage: To make burst data storage transparent, we introduce the notion of extended
 //    RAM cell (as opposed to plain "elementary" RAM cells), only applicable and useful for the
-//    payload RAM. An extended payload RAM cell is a succession of MaxBurstLen elementary RAM cells,
-//    aligned to a MaxBurstLen "full" address. We define the full address as the address pointing to
-//    a given elementary cell, while a ("plain") address refers to the index of the extended cell.
-//    This makes addresses in metadata RAMs match with "plain" addresses of the payload RAM.
+//    payload RAM. An extended payload RAM cell is a succession of MaxBurstEffLen elementary RAM
+//    cells, aligned to a MaxBurstEffLen "full" address. We define the full address as the address
+//    pointing to a given elementary cell, while a ("plain") address refers to the index of the
+//    extended cell. This makes addresses in metadata RAMs match with "plain" addresses of the
+//    payload RAM.
 //
-//  Example of addresses and full addresses for MaxBurstLen=4:
+//  Example of addresses and full addresses for MaxBurstEffLen=4:
 //
 //  *  +---------Pyld RAM---------+ 
 //  *  | Burst id 0, data 0.      |  Addr: 0, full addr: 0.
@@ -102,69 +104,64 @@
 //  *  +--------------------------+
 //
 
-// TODO Format document
-
 module simmem_rsp_bank #(
     parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::WRSP_BANK,
     parameter type DataType = simmem_pkg::wrsp_t,
 
-    // MaxBurstLen is the maximal value of the AXI burst_len field
-    localparam int unsigned MaxBurstLen = RspBankType == simmem_pkg::WRSP_BANK ?
-        simmem_pkg::MaxBurstLenField : simmem_pkg::MaxBurstLenField, // derived parameter
     localparam int unsigned TotCapa = RspBankType == simmem_pkg::WRSP_BANK ?
-        simmem_pkg::WRspBankCapa : simmem_pkg::RDataBankCapa, // derived parameter
-
-    // * BurstLenWidth is the bit width to encode up to MaxBurstLen-1 in binary format.
-    // * XBurstLenWidth is the bit width to encode up to MaxBurstLen in binary format. This is
-    //   useful, as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLen burst data. It is
-    //   used to encode lengths.
-    localparam int unsigned XBurstLenWidth = $clog2 (MaxBurstLen + 1),  // derived parameter
-    localparam int unsigned BurstLenWidth = MaxBurstLen == 1 ? 1 : $clog2 (MaxBurstLen),  // derived parameter
-    localparam int unsigned BankAddrWidth = $clog2 (TotCapa),       // derived parameter
-    localparam int unsigned DataWidth = $bits (DataType),           // derived parameter
-    localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstEffLen // derived parameter
+        simmem_pkg::WRspBankCapa : simmem_pkg::RDataBankCapa,  // derived parameter
+    // * BurstLenWidth is the bit width to encode up to MaxBurstLenField-1 in binary format.
+    // * XBurstLenWidth is the bit width to encode up to MaxBurstLenField in binary format. This is
+    //   useful, as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLenField burst data. It
+    //   is used to encode lengths.
+    localparam int unsigned XBurstLenWidth = $clog2 (MaxBurstLenField + 1),  // derived parameter
+    localparam int unsigned BurstLenWidth =
+        MaxBurstLenField == 1 ? 1 : $clog2 (MaxBurstLenField),  // derived parameter
+    localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
+    localparam int unsigned DataWidth = $bits (DataType),  // derived parameter
+    localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstEffLen  // derived parameter
 ) (
-  input logic clk_i,
-  input logic rst_ni,
+    input logic clk_i,
+    input logic rst_ni,
 
-  // Reservation interface AXI identifier for which the reseration request is being done.
-  input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
-  // Information about currently reserved address. Will be stored by other modules as an internal
-  // identifier to uniquely identify the response (or response burst in case of read data).
-  output logic [     BankAddrWidth-1:0] rsv_iid_o,
-  // The number of data elements to reserve in the RAM cell, in binary representation.
-  input  logic [    XBurstLenWidth-1:0] rsv_burst_len_i,
-  // Reservation handshake signals
-  input  logic                          rsv_valid_i,
-  output logic                          rsv_ready_o,
+    // Reservation interface AXI identifier for which the reseration request is being done.
+    input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
+    // Information about currently reserved address. Will be stored by other modules as an internal
+    // identifier to uniquely identify the response (or response burst in case of read data).
+    output logic [     BankAddrWidth-1:0] rsv_iid_o,
+    // The number of data elements to reserve in the RAM cell, in binary representation.
+    input  logic [    XBurstLenWidth-1:0] rsv_burst_len_i,
+    // Reservation handshake signals
+    input  logic                          rsv_valid_i,
+    output logic                          rsv_ready_o,
 
-  // Interface with the releaser Multi-hot signal that enables the release for given internal
-  // addresses (i.e., RAM addresses).
-  input  logic [TotCapa-1:0] release_en_i,
-  // Signals which address has been released, if any. One-hot signal. Is set to one for each
-  // released response in a burst.
-  output logic [TotCapa-1:0] released_addr_onehot_o,
+    // Interface with the releaser Multi-hot signal that enables the release for given internal
+    // addresses (i.e., RAM addresses).
+    input  logic [TotCapa-1:0] release_en_i,
+    // Signals which address has been released, if any. One-hot signal. Is set to one for each
+    // released response in a burst.
+    output logic [TotCapa-1:0] released_addr_onehot_o,
 
-  // Interface with the real memory controller AXI response excluding handshake
-  input  DataType rsp_i,
-  output DataType rsp_o,
-  // Response acquisition handshake signal
-  input  logic in_rsp_valid_i,
-  output logic in_rsp_ready_o,
+    // Interface with the real memory controller AXI response excluding handshake
+    input  DataType rsp_i,
+    output DataType rsp_o,
+    // Response acquisition handshake signal
+    input  logic    in_rsp_valid_i,
+    output logic    in_rsp_ready_o,
 
-  // Interface with the requester
-  input  logic out_rsp_ready_i,
-  output logic out_rsp_valid_o,
+    // Interface with the requester
+    input  logic out_rsp_ready_i,
+    output logic out_rsp_valid_o,
 
-  // Ready signal from the delay calculator
-  input  logic delay_calc_ready_i,
-  // Ready signal to the delay calculator
-  output logic delay_calc_ready_o
+    // Ready signal from the delay calculator
+    input  logic delay_calc_ready_i,
+    // Ready signal to the delay calculator
+    output logic delay_calc_ready_o
 );
 
   import simmem_pkg::*;
 
-  localparam int unsigned XBurstEffLenWidth = $clog2 (MaxBurstEffLen + 1);
+  localparam int unsigned XBurstEffLenWidth = $clog2(MaxBurstEffLen + 1);
   localparam int unsigned PayloadWidth = DataWidth - IDWidth;
 
   typedef struct packed {logic [BankAddrWidth-1:0] nxt_elem;} metadata_e;
@@ -320,44 +317,43 @@ module simmem_rsp_bank #(
   //      is equal to rsv_cnt_q-1).
   //    * rsp_cnt_d, rsp_cnt_q: Count the elements contained in a given RAM address. The counters
   //      are increased when responses are acquired and decreased when data is released.
-  //    * blen_d, blen_q: Stores the burst length for a given reservation. It is necessary
-  //      to provide support for burst data output before all the data of the burst has arrived.
+  //    * blen_d, blen_q: Stores the burst length for a given reservation. It is necessary to
+  //      provide support for burst data output before all the data of the burst has arrived.
   //
   //  Counters are updated using three masks:
   //    * cnt_rsv_mask: contains at most one bit to one, where a new reservation is performed.
   //    * cnt_in_mask: contains at most one bit to one, where a response is accepted. This mask is
   //      collaboratively built by all linkedlists using the signals cnt_in_mask_id_addr.
-  //    * released_addr_onehot_o: contains at most one bit to one, where a response is released. Additionally,
-  //      the cnt_in_mask_id signal tracks, for each linked list the cnt_in_mask value under the
-  //      response heads. This helps reducing the latency between response acquisition and release,
-  //      and most importantly helps determine the response part of the queue after output.
+  //    * released_addr_onehot_o: contains at most one bit to one, where a response is released.
+  //      Additionally, the cnt_in_mask_id signal tracks, for each linked list the cnt_in_mask value
+  //      under the response heads. This helps reducing the latency between response acquisition and
+  //      release, and most importantly helps determine the response part of the queue after output.
   //
   //  Per-linked list counters: Each linked list has its own counters to track how many responses
   //  are in certain cells. These are not new physical counters. Instead, they base on rsv_cnt and
   //  rsp_cnt counters. Each linked list has the following logical counters:
   //    * rsp_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the
   //      response head pointer. This is useful to update the response head.
-  //    * pt_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under
-  //      the pre_tail pointer. This is useful to calculate the output offset of the payload RAM.
-  //    * t_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the
-  //      tail pointer. This is useful to calculate the output offset of the payload RAM, to update
-  //      the tails on output and to determine the next identifier to release.
-  //    * pt_rsp_cnt_id: Tracks the number of not-filled-yet reserved slots contained under
-  //      the pre_tail pointer. This is useful to calculate the output offset of the payload RAM and
-  //      to determine whether an identifier awaits data.
-  //    * t_rsp_cnt_id: Tracks the number of responses contained under the pre_tail pointer. This
-  //      is useful to calculate the output offset, to update the tail pointers, to determine the
+  //    * pt_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the
+  //      pre_tail pointer. This is useful to calculate the output offset of the payload RAM.
+  //    * t_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the tail
+  //      pointer. This is useful to calculate the output offset of the payload RAM, to update the
+  //      tails on output and to determine the next identifier to release.
+  //    * pt_rsp_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the
+  //      pre_tail pointer. This is useful to calculate the output offset of the payload RAM and to
+  //      determine whether an identifier awaits data.
+  //    * t_rsp_cnt_id: Tracks the number of responses contained under the pre_tail pointer. This is
+  //      useful to calculate the output offset, to update the tail pointers, to determine the
   //      length of the response part of the queue after output and to determine the next identifier
   //      to release.
-  //    * pt_blen_id: Tracks the burst length for the burst stored in the extended cell
-  //      under the pre-tail pointer. This is useful to calculate the output offset of the payload
-  //      RAM.
-  //    * t_blen_id: Tracks the burst length for the burst stored in the extended cell under
-  //      the tail pointer. This is useful to calculate the output offset of the payload RAM.
+  //    * pt_blen_id: Tracks the burst length for the burst stored in the extended cell under the
+  //      pre-tail pointer. This is useful to calculate the output offset of the payload RAM.
+  //    * t_blen_id: Tracks the burst length for the burst stored in the extended cell under the
+  //      tail pointer. This is useful to calculate the output offset of the payload RAM.
   //
-  //  While blen signals contain the value present in the blen field, befflen is the
-  //  effective burst length (how many elements in the burst).
-  
+  //  While blen signals contain the value present in the blen field, befflen is the effective burst
+  //  length (how many elements in the burst).
+
   logic [XBurstEffLenWidth-1:0] rsv_cnt_d[TotCapa];
   logic [XBurstEffLenWidth-1:0] rsv_cnt_q[TotCapa];
   logic [XBurstLenWidth-1:0] blen_d[TotCapa];
@@ -379,8 +375,8 @@ module simmem_rsp_bank #(
 
     // An output mask bit is set to one if there is a successful output handshake and this bit
     // corresponds to address of the data at the output.
-    assign
-        released_addr_onehot_o[i_addr] = cur_out_addr_onehot_q[i_addr] && out_rsp_valid_o && out_rsp_ready_i;
+    assign released_addr_onehot_o[i_addr] =
+        cur_out_addr_onehot_q[i_addr] && out_rsp_valid_o && out_rsp_ready_i;
 
     for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_cnt_in_mask
       // Here is looked at which address the incoming response would land, if there were an incoming
@@ -415,7 +411,8 @@ module simmem_rsp_bank #(
     end
 
     // Update immediately the rsp_cnt on related output.
-    assign rsp_cnt[i_addr] = released_addr_onehot_o[i_addr] ? rsp_cnt_q[i_addr] - 1 : rsp_cnt_q[i_addr];
+    assign rsp_cnt[i_addr] =
+        released_addr_onehot_o[i_addr] ? rsp_cnt_q[i_addr] - 1 : rsp_cnt_q[i_addr];
   end : cnt_update
 
   // Intermediate signals to calculate counts
@@ -460,34 +457,28 @@ module simmem_rsp_bank #(
           rsv_cnt_q[i_addr] & {XBurstEffLenWidth{pre_tails[i_id] == i_addr}};
       assign pt_rsp_cnt_addr[i_id][i_addr] =
           rsp_cnt[i_addr] & {XBurstEffLenWidth{pre_tails[i_id] == i_addr}};
-      assign pt_blen_addr[i_id][i_addr] =
-          blen_q[i_addr] & {XBurstLenWidth{pre_tails[i_id] == i_addr}};
+      assign
+          pt_blen_addr[i_id][i_addr] = blen_q[i_addr] & {XBurstLenWidth{pre_tails[i_id] == i_addr}};
       assign t_rsv_cnt_addr[i_id][i_addr] =
           rsv_cnt_q[i_addr] & {XBurstEffLenWidth{tails[i_id] == i_addr}};
       assign t_rsp_cnt_addr[i_id][i_addr] =
           rsp_cnt[i_addr] & {XBurstEffLenWidth{tails[i_id] == i_addr}};
-      assign t_blen_addr[i_id][i_addr] =
-          blen_q[i_addr] & {XBurstLenWidth{tails[i_id] == i_addr}};
+      assign t_blen_addr[i_id][i_addr] = blen_q[i_addr] & {XBurstLenWidth{tails[i_id] == i_addr}};
 
       for (genvar i_bit = 0; i_bit < XBurstLenWidth; i_bit = i_bit + 1) begin : gen_cnt_addr_rot
-        assign
-            rsp_blen_addr_rot90[i_id][i_bit][i_addr] = rsp_blen_addr[i_id][i_addr][i_bit];
-        assign pt_blen_addr_rot90[i_id][i_bit][i_addr] =
-            pt_blen_addr[i_id][i_addr][i_bit];
-        assign t_blen_addr_rot90[i_id][i_bit][i_addr] =
-            t_blen_addr[i_id][i_addr][i_bit];
+        assign rsp_blen_addr_rot90[i_id][i_bit][i_addr] = rsp_blen_addr[i_id][i_addr][i_bit];
+        assign pt_blen_addr_rot90[i_id][i_bit][i_addr] = pt_blen_addr[i_id][i_addr][i_bit];
+        assign t_blen_addr_rot90[i_id][i_bit][i_addr] = t_blen_addr[i_id][i_addr][i_bit];
       end : gen_cnt_addr_rot
 
-      for (genvar i_bit = 0; i_bit < XBurstEffLenWidth; i_bit = i_bit + 1) begin : e_gen_cnt_addr_rot
-          assign rsp_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = rsp_rsv_cnt_addr[i_id][i_addr][i_bit];
-          assign pt_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] =
-              pt_rsv_cnt_addr[i_id][i_addr][i_bit];
-          assign pt_rsp_cnt_addr_rot90[i_id][i_bit][i_addr] =
-              pt_rsp_cnt_addr[i_id][i_addr][i_bit];
-          assign
-              t_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = t_rsv_cnt_addr[i_id][i_addr][i_bit];
-          assign
-              t_rsp_cnt_addr_rot90[i_id][i_bit][i_addr] = t_rsp_cnt_addr[i_id][i_addr][i_bit];
+      for (
+          genvar i_bit = 0; i_bit < XBurstEffLenWidth; i_bit = i_bit + 1
+      ) begin : e_gen_cnt_addr_rot
+        assign rsp_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = rsp_rsv_cnt_addr[i_id][i_addr][i_bit];
+        assign pt_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = pt_rsv_cnt_addr[i_id][i_addr][i_bit];
+        assign pt_rsp_cnt_addr_rot90[i_id][i_bit][i_addr] = pt_rsp_cnt_addr[i_id][i_addr][i_bit];
+        assign t_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = t_rsv_cnt_addr[i_id][i_addr][i_bit];
+        assign t_rsp_cnt_addr_rot90[i_id][i_bit][i_addr] = t_rsp_cnt_addr[i_id][i_addr][i_bit];
       end : e_gen_cnt_addr_rot
 
     end : gen_cnt_addr
@@ -516,13 +507,12 @@ module simmem_rsp_bank #(
 
   // Calculate the length of each AXI identifier queue after the potential output
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_len_after_output
-    assign
-    // The response length is decreased after output if there is an output for this identifier
-    rsp_len_after_out[i_id] = out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] &&
-    // And the burst data will be completely empty in the extended payload RAM cell under the tail
+    // The response length is decreased after output if there is an output for this identifier and
+    // the burst data will be completely empty in the extended payload RAM cell under the tail
     // pointer.
-    t_rsv_cnt_id[i_id] == 0 && t_rsp_cnt_id[i_id] == 0 && !cnt_in_mask_id[i_id] ?
-        rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
+    assign rsp_len_after_out[i_id] =
+        out_rsp_valid_o && out_rsp_ready_i && cur_out_id_onehot[i_id] && t_rsv_cnt_id[i_id] == 0 &&
+        t_rsp_cnt_id[i_id] == 0 && !cnt_in_mask_id[i_id] ? rsp_len_q[i_id] - 1 : rsp_len_q[i_id];
 
     // A linked list is said to await data when both its tail and pre_tail response bursts are
     // empty. In the opposite case, the linked list could provide data.
@@ -604,7 +594,7 @@ module simmem_rsp_bank #(
   //
   //  Rotated signals are used to aggregate the signals, where the dimensions have to be transposed.
   //
-  //  Address offsets: Each extended payload RAM cell has MaxBurstLen successive elementary RAM
+  //  Address offsets: Each extended payload RAM cell has MaxBurstLenField successive elementary RAM
   //  cells to host all of the data of a given burst in successive cells.
 
   logic pyld_ram_in_req, pyld_ram_out_req;
@@ -722,7 +712,7 @@ module simmem_rsp_bank #(
   // Until this step, payload data is managed as if there had been one payload RAM address per full
   // response burst. To store multiple data of the same burst, however, the module uses consecutive
   // elementary RAM cells. In this part, the payload RAM access addresses are generated as follows:
-  // realAddress = (iid << MaxBurstLen) + offset.
+  // realAddress = (iid << MaxBurstLenField) + offset.
 
   logic [MaxBurstLenField-1:0] pyld_ram_in_offset_id[NumIds];
   logic [MaxBurstLenField-1:0] pyld_ram_out_offset_id[NumIds];
@@ -735,7 +725,9 @@ module simmem_rsp_bank #(
   logic [$clog2(PayloadRamDepth)-1:0] pyld_ram_out_full_addr;
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_offset
-    for (genvar i_bit = 0; i_bit < MaxBurstLenField; i_bit = i_bit + 1) begin : rotate_ram_offset_inner
+    for (
+        genvar i_bit = 0; i_bit < MaxBurstLenField; i_bit = i_bit + 1
+    ) begin : rotate_ram_offset_inner
       assign pyld_ram_in_offset_rot90[i_bit][i_id] = pyld_ram_in_offset_id[i_id][i_bit];
       assign pyld_ram_out_offset_rot90[i_bit][i_id] = pyld_ram_out_offset_id[i_id][i_bit];
     end : rotate_ram_offset_inner
@@ -745,11 +737,11 @@ module simmem_rsp_bank #(
     assign pyld_ram_out_offset[i_bit] = |pyld_ram_out_offset_rot90[i_bit];
   end : aggregate_ram_offset
 
-  if (MaxBurstLen > 1) begin
+  if (MaxBurstLenField > 1) begin
     assign pyld_ram_in_full_addr = {pyld_ram_in_addr, pyld_ram_in_offset};
     assign pyld_ram_out_full_addr = {pyld_ram_out_addr, pyld_ram_out_offset};
   end else begin
-    // For a MaxBurstLen of 1, full address and address match.
+    // For a MaxBurstLenField of 1, full address and address match.
     assign pyld_ram_in_full_addr = pyld_ram_in_addr;
     assign pyld_ram_out_full_addr = pyld_ram_out_addr;
   end
@@ -791,8 +783,8 @@ module simmem_rsp_bank #(
       always_comb begin
         // Fundamentally, the next address to release needs to belong to a non-empty AXI identifier
         // and must be enabled for release
-        nxt_addr_mhot_id[i_id][i_addr] = |(rsp_len_after_out[i_id]) && !awaits_data[i_id] &&
-            release_en_i[i_addr]; 
+        nxt_addr_mhot_id[i_id][i_addr] =
+            |(rsp_len_after_out[i_id]) && !awaits_data[i_id] && release_en_i[i_addr];
 
         // The address must additionally be, depending on the situation, the pre_tail or the tail of
         // the corresponding queue. It is the pre_tail iff the work with the tail is complete (both
@@ -960,17 +952,16 @@ module simmem_rsp_bank #(
             // Set the corresponding payload RAM output offset. This offset is determined by the
             // number of burst data already released, which can be expressed as follows.
             pyld_ram_out_offset_id[i_id] =
-                MaxBurstLenField'(pt_befflen_id[i_id] - pt_rsv_cnt_id[i_id] -
-                               pt_rsp_cnt_id[i_id]);
+                MaxBurstLenField'(pt_befflen_id[i_id] - pt_rsv_cnt_id[i_id] - pt_rsp_cnt_id[i_id]);
           end else begin
             pyld_ram_out_addr_id[i_id] = tails[i_id];
-            pyld_ram_out_offset_id[i_id] = MaxBurstLenField
-                '(t_befflen_id[i_id] - t_rsv_cnt_id[i_id] - t_rsp_cnt_id[i_id]);
+            pyld_ram_out_offset_id[i_id] =
+                MaxBurstLenField'(t_befflen_id[i_id] - t_rsv_cnt_id[i_id] - t_rsp_cnt_id[i_id]);
           end
         end else begin
           pyld_ram_out_addr_id[i_id] = tails[i_id];
-          pyld_ram_out_offset_id[i_id] = MaxBurstLenField
-              '(t_befflen_id[i_id] - t_rsv_cnt_id[i_id] - t_rsp_cnt_id[i_id]);
+          pyld_ram_out_offset_id[i_id] =
+              MaxBurstLenField'(t_befflen_id[i_id] - t_rsv_cnt_id[i_id] - t_rsp_cnt_id[i_id]);
         end
       end
 
@@ -1025,7 +1016,8 @@ module simmem_rsp_bank #(
         meta_ram_out_addr_head_id[i_id] = rsp_heads[i_id];
 
         // The input offset is determined by the reservation count.
-        pyld_ram_in_offset_id[i_id] = MaxBurstLenField'(rsp_befflen_id[i_id] - rsp_rsv_cnt_id[i_id]);
+        pyld_ram_in_offset_id[i_id] =
+            MaxBurstLenField'(rsp_befflen_id[i_id] - rsp_rsv_cnt_id[i_id]);
       end
 
       // Reservation handshake
@@ -1201,19 +1193,19 @@ module simmem_rsp_bank #(
     .clk_a_i     (clk_i),
     .clk_b_i     (clk_i),
 
-    .a_req_i     (meta_ram_in_req),
-    .a_write_i   (meta_ram_in_write),
-    .a_wmask_i   (meta_ram_in_wmask),
-    .a_addr_i    (meta_ram_in_addr),
-    .a_wdata_i   (meta_ram_in_content),
-    .a_rdata_o   (),
+      .a_req_i  (meta_ram_in_req),
+      .a_write_i(meta_ram_in_write),
+      .a_wmask_i(meta_ram_in_wmask),
+      .a_addr_i (meta_ram_in_addr),
+      .a_wdata_i(meta_ram_in_content),
+      .a_rdata_o(),
 
-    .b_req_i     (meta_ram_out_req),
-    .b_write_i   (meta_ram_out_write),
-    .b_wmask_i   (meta_ram_out_wmask),
-    .b_addr_i    (meta_ram_out_addr_head),
-    .b_wdata_i   (),
-    .b_rdata_o   (meta_ram_out_rsp_head)
+      .b_req_i  (meta_ram_out_req),
+      .b_write_i(meta_ram_out_write),
+      .b_wmask_i(meta_ram_out_wmask),
+      .b_addr_i (meta_ram_out_addr_head),
+      .b_wdata_i(),
+      .b_rdata_o(meta_ram_out_rsp_head)
   );
 
 endmodule
