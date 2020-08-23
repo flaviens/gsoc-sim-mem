@@ -29,7 +29,7 @@ The simulated memory controller enforces response ordering per write AXI channel
 The simulated memory controller module is inserted between the _requester_ (typically the CPU) and the (real) _memory controller_.
 
 <figure class="image">
-  <img src="https://i.imgur.com/d8Mdtiu.png" alt="Simulated memory controller overview">
+  <img src="https://i.imgur.com/d8Mdtiu.png" alt="Simulated memory controller integration overview">
   <figcaption>Fig: Simulated memory controller overview</figcaption>
 </figure>
 
@@ -50,14 +50,18 @@ The responses are then stored in the simulated memory controller while waiting a
 The simulated memory controller is made of two major blocks:
 
 - The delay calculator, which has as major responsibility to look at the request traffic and to deduce, according to the simulated memory controller parameters.
-
 - The response banks, which have as major responsibilities to:
   a. Store the responses from the real memory controller until they can be released.
   b. Enforce the ordering per AXI identifier, letting the delay calculator be agnostic of the AXI identifier.
 
 The delay calculator identifies address requests by internal identifiers (_iids_), which are not correlated with AXI identifiers. Precisely, write responses and read data use separate iid spaces: each response to an address request is therefore identified by the pair (read/write, iid), although the first entry of the pair is always implicit.
 
-TODO: Faire un diagramme
+<figure class="image">
+  <img src="https://i.imgur.com/ri0Ej2o.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Simulated memory controller overview</figcaption>
+</figure>
+
+
 
 #### Top-level flow
 
@@ -68,11 +72,17 @@ The top-level flow happens as follows:
    - The delay calculator and the response banks are notified when an address request happens.
    - The delay calculator stores metadata for its delay computation.
    - The response banks reserve space for the corresponding responses that will subsequently come back from the real memory controller.
-2. When the corresponding responses comes back from the real memory controller, they are stored by the
+2. When the corresponding responses comes back from the real memory controller, they are stored by the message banks.
 3. When the delay enables the release of some response and all the previous responses of the same AXI are released, the response banks transmit the response to the requester.
 4. When all the responses corresponding to a given address request have been transmitted to the requester, the response banks free the allocated memory for reuse.
+5. 
 
-TODO Faire un diagramme avec des flèches
+<figure class="image">
+  <img src="https://i.imgur.com/pbbpy0Y.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Simulated memory controller top-level flow</figcaption>
+</figure>
+
+
 
 ## Response banks
 
@@ -85,9 +95,13 @@ The _simmem_resp_banks_ module is made of two distinct _simmem_resp_bank_ module
 
 The two banks act independently.
 
-// TODO Faire un diagramme
-
 Each response bank has a FIFO interface with reservations, and stores messages in RAMs. FIFOs are implemented as linked lists to make best use of the RAM space.
+
+<figure class="image">
+  <img src="https://i.imgur.com/BpU4aZz.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Response bank top-level interface</figcaption>
+</figure>
+
 
 ### Reservations
 
@@ -106,6 +120,12 @@ Each response bank uses three dual-port RAM banks:
 Two RAM banks are used to hold pointer to next elements, as three ports are needed (which is explained by the linked list implementation below). Their content is therefore maintained identical, but they may be read at different addresses simultaneously.
 
 Using RAMs is efficient as it does not require a massive amount of flip-flops to store data, but incurs one cycle latency for the output.
+
+
+<figure class="image">
+  <img src="https://i.imgur.com/mH3dPLo.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Response banks RAMs</figcaption>
+</figure>
 
 ### Extended RAM cells
 
@@ -441,76 +461,4 @@ TODO Integerate images properly
 
 TODO: Mettre des compteurs par AXI ID.
 
-TODO REMOVE BELOW
-
-## User story
-
-```gherkin=
-Feature: Guess the word
-
-  # The first example has two steps
-  Scenario: Maker starts a game
-    When the Maker starts a game
-    Then the Maker waits for a Breaker to join
-
-  # The second example has three steps
-  Scenario: Breaker joins a game
-    Given the Maker has started a game with the word "silky"
-    When the Breaker joins the Maker's game
-    Then the Breaker must guess a word with 5 characters
-```
-
-> I choose a lazy person to do a hard job. Because a lazy person will find an easy way to do it. [name=Bill Gates]
-
-```gherkin=
-Feature: Shopping Cart
-  As a Shopper
-  I want to put items in my shopping cart
-  Because I want to manage items before I check out
-
-  Scenario: User adds item to cart
-    Given I'm a logged-in User
-    When I go to the Item page
-    And I click "Add item to cart"
-    Then the quantity of items in my cart should go up
-    And my subtotal should increment
-    And the warehouse inventory should decrement
-```
-
-> Read more about Gherkin here: https://docs.cucumber.io/gherkin/reference/
-
-## User flows
-
-```sequence
-Alice->Bob: Hello Bob, how are you?
-Note right of Bob: Bob thinks
-Bob-->Alice: I am good thanks!
-Note left of Alice: Alice responds
-Alice->Bob: Where have you been?
-```
-
-> Read more about sequence-diagrams here: http://bramp.github.io/js-sequence-diagrams/
-
-## Project Timeline
-
-```mermaid
-gantt
-    title A Gantt Diagram
-
-    section Section
-    A task           :a1, 2014-01-01, 30d
-    Another task     :after a1  , 20d
-    section Another
-    Task in sec      :2014-01-12  , 12d
-    anther task      : 24d
-```
-
-> Read more about mermaid here: http://mermaid-js.github.io/mermaid/
-
-## Appendix and FAQ
-
-:::info
-**Find this document incomplete?** Leave a comment!
-:::
-
-###### tags: `Templates` `Documentation`
+> View on Github: 
