@@ -122,7 +122,7 @@ module simmem_rsp_bank #(
     localparam int unsigned BurstLenWidth = MaxBurstLen == 1 ? 1 : $clog2 (MaxBurstLen),  // derived parameter
     localparam int unsigned BankAddrWidth = $clog2 (TotCapa),       // derived parameter
     localparam int unsigned DataWidth = $bits (DataType),           // derived parameter
-    localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstLen // derived parameter
+    localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstEffLen // derived parameter
 ) (
   input logic clk_i,
   input logic rst_ni,
@@ -734,23 +734,23 @@ module simmem_rsp_bank #(
   // elementary RAM cells. In this part, the payload RAM access addresses are generated as follows:
   // realAddress = (iid << MaxBurstLen) + offset.
 
-  logic [BurstLenWidth-1:0] pyld_ram_in_offset_id[NumIds];
-  logic [BurstLenWidth-1:0] pyld_ram_out_offset_id[NumIds];
-  logic [BurstLenWidth-1:0][NumIds-1:0] pyld_ram_in_offset_rot90;
-  logic [BurstLenWidth-1:0][NumIds-1:0] pyld_ram_out_offset_rot90;
-  logic [BurstLenWidth-1:0] pyld_ram_in_offset;
-  logic [BurstLenWidth-1:0] pyld_ram_out_offset;
+  logic [MaxBurstLenField-1:0] pyld_ram_in_offset_id[NumIds];
+  logic [MaxBurstLenField-1:0] pyld_ram_out_offset_id[NumIds];
+  logic [MaxBurstLenField-1:0][NumIds-1:0] pyld_ram_in_offset_rot90;
+  logic [MaxBurstLenField-1:0][NumIds-1:0] pyld_ram_out_offset_rot90;
+  logic [MaxBurstLenField-1:0] pyld_ram_in_offset;
+  logic [MaxBurstLenField-1:0] pyld_ram_out_offset;
 
   logic [$clog2(PayloadRamDepth)-1:0] pyld_ram_in_full_addr;
   logic [$clog2(PayloadRamDepth)-1:0] pyld_ram_out_full_addr;
 
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : rotate_ram_offset
-    for (genvar i_bit = 0; i_bit < BurstLenWidth; i_bit = i_bit + 1) begin : rotate_ram_offset_inner
+    for (genvar i_bit = 0; i_bit < MaxBurstLenField; i_bit = i_bit + 1) begin : rotate_ram_offset_inner
       assign pyld_ram_in_offset_rot90[i_bit][i_id] = pyld_ram_in_offset_id[i_id][i_bit];
       assign pyld_ram_out_offset_rot90[i_bit][i_id] = pyld_ram_out_offset_id[i_id][i_bit];
     end : rotate_ram_offset_inner
   end : rotate_ram_offset
-  for (genvar i_bit = 0; i_bit < BurstLenWidth; i_bit = i_bit + 1) begin : aggregate_ram_offset
+  for (genvar i_bit = 0; i_bit < MaxBurstLenField; i_bit = i_bit + 1) begin : aggregate_ram_offset
     assign pyld_ram_in_offset[i_bit] = |pyld_ram_in_offset_rot90[i_bit];
     assign pyld_ram_out_offset[i_bit] = |pyld_ram_out_offset_rot90[i_bit];
   end : aggregate_ram_offset
@@ -970,16 +970,16 @@ module simmem_rsp_bank #(
             // Set the corresponding payload RAM output offset. This offset is determined by the
             // number of burst data already released, which can be expressed as follows.
             pyld_ram_out_offset_id[i_id] =
-                BurstLenWidth'(pt_befflen_id[i_id] - pt_rsv_cnt_id[i_id] -
+                MaxBurstLenField'(pt_befflen_id[i_id] - pt_rsv_cnt_id[i_id] -
                                pt_rsp_cnt_id[i_id]);
           end else begin
             pyld_ram_out_addr_id[i_id] = tails[i_id];
-            pyld_ram_out_offset_id[i_id] = BurstLenWidth
+            pyld_ram_out_offset_id[i_id] = MaxBurstLenField
                 '(t_befflen_id[i_id] - t_rsv_cnt_id[i_id] - t_rsp_cnt_id[i_id]);
           end
         end else begin
           pyld_ram_out_addr_id[i_id] = tails[i_id];
-          pyld_ram_out_offset_id[i_id] = BurstLenWidth
+          pyld_ram_out_offset_id[i_id] = MaxBurstLenField
               '(t_befflen_id[i_id] - t_rsv_cnt_id[i_id] - t_rsp_cnt_id[i_id]);
         end
       end
@@ -1037,7 +1037,7 @@ module simmem_rsp_bank #(
         meta_ram_out_addr_head_id[i_id] = rsp_heads[i_id];
 
         // The input offset is determined by the reservation count.
-        pyld_ram_in_offset_id[i_id] = BurstLenWidth'(rsp_befflen_id[i_id] - rsv_cnt_id[i_id]);
+        pyld_ram_in_offset_id[i_id] = MaxBurstLenField'(rsp_befflen_id[i_id] - rsp_rsv_cnt_id[i_id]);
       end
 
       // Reservation handshake

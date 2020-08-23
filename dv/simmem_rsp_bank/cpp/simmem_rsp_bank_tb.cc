@@ -31,7 +31,7 @@ typedef enum {
 typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
-const int kTestStrategy = SINGLE_ID_TEST; // TODO
+const int kTestStrategy = MULTIPLE_ID_TEST; // TODO
 
 // This class implements elementary operations for the testbench
 class WriteRespBankTestbench {
@@ -116,7 +116,7 @@ class WriteRespBankTestbench {
   void simmem_reservation_start(uint32_t axi_id) {
     module_->rsv_valid_i = 1;
     module_->rsv_req_id_onehot_i = 1 << axi_id;
-    module_->rsv_burst_len_i = 3;
+    module_->rsv_burst_len_i = 2;
   }
 
   /**
