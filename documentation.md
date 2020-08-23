@@ -121,7 +121,6 @@ Two RAM banks are used to hold pointer to next elements, as three ports are need
 
 Using RAMs is efficient as it does not require a massive amount of flip-flops to store data, but incurs one cycle latency for the output.
 
-
 <figure class="image">
   <img src="https://i.imgur.com/mH3dPLo.png" alt="Simulated memory controller internal overview">
   <figcaption>Fig: Response banks RAMs</figcaption>
@@ -131,8 +130,13 @@ Using RAMs is efficient as it does not require a massive amount of flip-flops to
 
 Two options have been explored to store burst responses, while keeping a single internal identifier per address (and, therefore, per full burst of responses):
 
-1. _In-width storage_: Storing all the responses corresponding to the same burst in the same physical RAM cell, using masks to write and retrieve them.
-2. _In-depth storage_: Storing all the responses corresponding to the same burst in consecutive physical RAM cells.
+1. _In-width burst storage_: Storing all the responses corresponding to the same burst in the same physical RAM cell, using masks to write and retrieve them.
+2. _In-depth burst storage_: Storing all the responses corresponding to the same burst in consecutive physical RAM cells.
+
+<figure class="image">
+  <img src="https://i.imgur.com/1yWktlc.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: In-width burst storage (not chosen as implementation), for a burst length of 4</figcaption>
+</figure>
 
 The burst support has been implemented _in-depth_, because the block RAMs are typically narrow and deep, and do not always propose write masks, which makes in-width storage difficult.
 
@@ -143,9 +147,21 @@ We additionally introduce two address spaces:
 - _address_: refers to the address of the extended cells, viewing them as elementary storage elements. This matches with addresses as defined by the metadata RAM.
 - _full address_: refers to the full address of an elementary cell in the payload RAM.
 
-// TODO Diagramme.
+<figure class="image">
+  <img src="https://i.imgur.com/VzySGSn.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: In-depth burst storage, for a burst length of 4</figcaption>
+</figure>
+
+
+<figure class="image">
+  <img src="https://i.imgur.com/fzaWZ6v.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: In-depth burst storage addressing</figcaption>
+</figure>
+
 
 Therefore, there are _MaxBurstLen_ times as many elementary RAM cells in _i_payload_ram_ than there are in each of _i_meta_ram_out_tail_ and _i_meta_ram_out_head_.
+
+An extended cell is called _active_ if it has already acquired a response and has not acquired and released all the responses corresponding to the allocated burst.
 
 ### Linked list implementation
 
@@ -157,7 +173,7 @@ Linked lists are logical structures maintained by the _i_meta_ram_out_tail_ and 
 
 - Reservation head (_rsv_heads_q_): Points to the most recently reserved extended cell.
 - Response head (_rsp_heads_): Points to the next RAM address where a response of the corresponding AXI identifier will be stored.
-- Pre*tail (\_pre_tails*): Points to the second-to-last cell hosting or awaiting a response in the linked list.
+- Pre_tail (_pre_tails_): Points to the second-to-last cell hosting or awaiting a response in the linked list.
 - Tail (_tails_): Points to the oldest cell hosting or awaiting a response in the linked list.
 
 The order of the pointers must always be respected. They can be equal but never overtake each other, in the order defined by the linked list.
@@ -171,18 +187,26 @@ Two distinct tail pointers are required to dynamically manage the two following 
 - The tail address is given as input to the payload RAM in all other cases. This case disjunction prevents an output data from being output twice, and prevents any bandwidth drop at the output. It must point to:
   - The last element element of the linked list if the list contains one response or more,
   - pre_tail if the list contains no responses.
-
-TODO Example diagramme
-
+  
+<figure class="image">
+  <img src="https://i.imgur.com/Y7XwICc.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Linked list representation. t: tail, pt: pre_tail, rsp: response head, rsv: reservation head. Arrows between extended cells represent the linked list structure (cells must not have consecutive addresses)</figcaption>
+</figure>
+ 
+ 
 #### Lengths
 
 In addition to the pointers, lengths of sub-segments of linked lists are stored to maintain the state of each linked lists, which is not fully defined by the four pointer and metadata RAMs only:
 
 - _rsv_len_: Holds the number of extended cells that have been reserved, but have not received any response yet.
-- _rsp_len_: Holds the number of extended cells that have received some response already, but are still active in the sense that they either still hold responses dedicated to the requester, or await additional response of a burst for which the extended cell has already received some responses but not all.
+- _rsp_len_: Holds the number of active extended cells.
+
+<figure class="image">
+  <img src="https://i.imgur.com/gj5IPNo.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Example of rsv_len and rsp_len</figcaption>
+</figure>
 
 Additionally, another length is combinatorially inferred:
-
 - _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data. This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
 
 #### Extended cell state
@@ -192,8 +216,17 @@ Additionally, another length is combinatorially inferred:
 For each extended RAM cells, additional memory is dedicated to maintaining the extended RAM cell state:
 
 - _rsv_cnt_: Counts the number of responses that are still awaited in the burst. When reserving an extended cell, this counter is set to the address request burst length. The counter is decremented every time a burst response is transmitted from this extended RAM cell to the requester.
-- _burst_len_: Stores the burst length of the address request corresponding to this extended RAM cell.
 - _rsp_cnt_: Counts the number of responses that are currently stored in the extended cell. The counter is incremented everytime a response is acquired and decremented everytime a response is released.
+- _burst_len_: Stores the burst length of the address request corresponding to this extended RAM cell.
+
+The following relationship always holds:
+$$burst\_len \ge rsv\_cnt + rsp\_cnt$$
+
+Additionally, the number of released responses in a burst is given by:
+$$burst\_len - rsv\_cnt - rsp\_cnt$$
+
+And the number of already released responses in a burst is given by:
+$$burst\_len - rsv\_cnt$$
 
 An extended cell is said to be valid (_ram_v_) (in a terminology similar to a cache line for instance) if _rsv_cnt_ is non-zero or _rsp_cnt_ is non-zero.
 
@@ -202,11 +235,16 @@ An extended cell is said to be valid (_ram_v_) (in a terminology similar to a ca
 These three elements maintain full information of the extended cell state and give the offset of an elementary RAM cell inside an extended cell:
 
 - The offset for data output is given by $tail\_burst\_len - tail\_rsv\_cnt - tail\_rsv\_cnt$, which corresponds to the number of burst responses already released. The offset may be taken from the _pre_tail_ instead of the _tail_ in the cases described further above.
-- The offset for data input is given by $rsp\_burst\_len - rsv\_cnt$, which corresponds to the number of burst responses already acquired (regardless of whether they have been already released).
+- The offset for data input is given by $rsp\_burst\_len - rsp\_rsv\_cnt$, which corresponds to the number of burst responses already acquired (regardless of whether they have been already released).
 
 #### Linked list detailed operation
 
-A pointer _pA_ is said to _piggyback_ another pointer _pB_ when we impose that _pA_ takes the same value as _pB_. Typically, this happens when _pA_ needs to be updated, but has to stay behind or equal to _pB_.
+A pointer _pA_ is said to be _piggybacked with_ another pointer _pB_ when we impose that _pA_ takes the same value as _pB_. Typically, this happens when _pA_ needs to be updated, but has to stay behind or equal to _pB_.
+
+<figure class="image">
+  <img src="https://i.imgur.com/qmJwLMn.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Piggybacking example, for pA piggybacked with pB </figcaption>
+</figure>
 
 This part depicts the linked list operation on different events: reservation, response acquisition and response transmission. Those events can all occur simultaneously, or any simultaneous combination of them is possible.
 
@@ -251,7 +289,14 @@ On response release, if the extended cell still holds or awaits data (i.e., $tai
 - _Meta RAMs_: Is read at the address _pre_tails_, to possibly update the pre*tail from the linked list pointers stored in RAM (see the \_Pre_tail* point above).
 - _Payload RAM_: The response is read from the RAM.
 
-#### Additional respoonse bank features
+#### Output data
+
+As there is one cycle latency between the output response selection and output response supply, some signals need to be stored over this clock cycle to identify which response is currently output:
+- _cur_out_id_: Identifies the AXI identifier currently released. This helps updating the linked list pointers.
+- _cur_out_addr_: Identifies the extended cell address currently released. This is involved in the release feedback signal to the delay calculator (_released_addr_).
+- _cur_out_valid_: Identifies whether the output was intended in the previous clock cycle.
+
+#### Additional response bank features
 
 ##### Release enable double-check
 
@@ -280,6 +325,12 @@ The _simmem_delay_calculator_ module is a wrapper around the _simmem_delay_calcu
 - When a write address request is observed, if the wrapper had seen write data in advance, it sends this count (bounded by the burst length of the observed write address signal) to the core module using the _wdata_immediate_cnt_i_ signal. Fundamentally, only the count of write data, and not their content, is relevant for delay calculation.
 
 To count the write data awaited or received in advance, the wrapper maintains a signed counter, incremented when write data is observed in advance, and when a write address is observed, it is decreased by the corresponding burst length.
+
+<figure class="image">
+  <img src="https://i.imgur.com/H1FLUsu.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Delay calculator wrapper. The blue arrow is taken if the delay calculator core currently expects write data for a previous write address request. Else, the black arrow is taken. Additionally, the red arrow gives the number of write data for the potentially incoming write address request</figcaption>
+</figure>
+
 
 #### Address request slots
 
@@ -461,4 +512,4 @@ TODO Integerate images properly
 
 TODO: Mettre des compteurs par AXI ID.
 
-> View on Github: 
+> View on GitHub: https://github.com/lowRISC/gsoc-sim-mem
