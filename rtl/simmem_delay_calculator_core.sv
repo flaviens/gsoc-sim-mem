@@ -732,7 +732,7 @@ module simmem_delay_calculator_core #(
   // Outputs //
   /////////////
 
-  // The output x_release_en_onehot_o signals enable the release of some addresses (aka. iids) by
+  // The output *_release_en_mhot_o signals enable the release of some addresses (aka. iids) by
   // the response banks. As there is only one output fired per write burst, a single one-hot row of
   // flip-flops is sufficient for the wrsp_release_en signal. Counters are useful, however, for
   // read data, which are subject to burst responses.

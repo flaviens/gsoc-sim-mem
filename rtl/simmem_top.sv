@@ -4,6 +4,10 @@
 //
 // Simulated memory controller top-level
 
+// TODO Transformer
+// -> le burst length pour avoit la bonne longueur effective.
+// -> le burst size.
+
 module simmem_top (
     input logic clk_i,
     input logic rst_ni,

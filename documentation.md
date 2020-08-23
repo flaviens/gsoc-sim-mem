@@ -344,7 +344,7 @@ _Write slots_ are memory structures defined as follows:
 - Valid (_v_): Is set iff the slot is currently occupied.
 - Internal identifier (_iid_): Contains the identifier that will be used to identify the extended cell where to release some response.
 - Address (_addr_): Contains the base address of the address request. It is used to estimate the delay caused by the requests contained in the burst.
-- Burst size (_addr_): Contains the burst size of the address request. It is used to calculate the address of the subsequent. It may also be used in the future for improved delay estimation.
+- Burst size (_burst_size_): Contains the burst size of the address request. It is used to calculate the address of the subsequent. It may also be used in the future for improved delay estimation.
 - Data valid (_data_v_): Contains one bit per elementary burst request. Each bit is unset iff the corresponding elementary burst request is awaited.
 - Memory pending (_mem_pending_): Contains one bit per elementary burst request. Each bit is set iff there is currently a simulated memory operation pending.
 - Memory done (_mem_done_): Contains one bit per elementary burst request. Each bit is set iff the corresponding simulated memory operation is done, or this is an entry beyond the burst length.
@@ -377,6 +377,13 @@ As read data come as a burst, and to allow the progressive release of the data i
 
 When data is effectively released, the response banks notify this event using the _wrsp_released_iid_onehot_ and _rdata_released_iid_onehot_ one-hot signals. In the case of read data, the corresponding counter is decremented. In the case of write responses, the corresponding flip-flop is unset.
 
+<figure class="image">
+  <img src="https://i.imgur.com/zbh9VpO.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Delay calculator core: slots and release signals</figcaption>
+</figure>
+
+
+
 ### Age management
 
 Age management is used in two point of the delay calculator core:
@@ -390,11 +397,17 @@ The write slot age matrix is a simple example of an age matrix. An element at in
 
 Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, which indicates whether each write slot is valid and able to host new write data entries, which is the case iff there is at least one unset bit in the corresponding _data_v_ signal.
 
+<figure class="image">
+  <img src="https://i.imgur.com/zRb7Ptp.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Generic age matrix: the blue cells are stored in flip-flops</figcaption>
+</figure>
+
+
 #### Main age matrix
 
 The main age matrix side is the concatenation of two types of entries:
 
-- The $NumWSlots \* MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+- The $NumWSlots * MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code.
 - The $NumRSlots$ read data slots / read address requests.
 
 We have taken into account the fact that all read elementary burst entries in the same burst share the same age.
@@ -431,6 +444,13 @@ When a write slot is free (_~v_), a new write address request can be accepted. T
 - _mem_pending_ takes the value '0, as no simulated memory operation has started for any of these new entries.
 - _mem_done_ is set to zero, except for the last bits, which correspond to entries beyond the burst length. The latter bits are set, because an unset bit in the _mem_done_ array represents an entry which must be eventually completed.
 
+<figure class="image">
+  <img src="https://i.imgur.com/eUkYbI9.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Read slot state just after acceptance of a new write address of burst length 2 and 1 immediate wdata (write data arrived not after the write address request)</figcaption>
+</figure>
+
+
+
 ##### Read requests
 
 Read request acceptance is identical to write address acceptance, except that:
@@ -453,7 +473,7 @@ As there is a single write response per write address request, the release of th
 
 ##### Read data
 
-As opposed to write responses, one read data is release for each each data request in the read slot. Everytime a memory request is completed (_mem\_pending_ is being unset and _mem\_done_ is simultaneously being set), the release enable counter associated with the read slot's iid field is incremented. When the _mem_done_ array is full of ones, the valid bit of the slot is unset.
+As opposed to write responses, one read data is released for each each data request in the read slot. Everytime a memory request is completed (_mem\_pending_ is being unset and _mem\_done_ is simultaneously being set), the release enable counter associated with the read slot's iid field is incremented. When the _mem_done_ array is full of ones, the valid bit of the slot is unset.
 
 #### Rank state update
 
@@ -470,6 +490,11 @@ Fixed bursts, additionally, are supported by setting the *burst_fixed* field of 
 #### Entry addressing
 
 Taking advantage of the boundaries described above, all the entries of a slot share all their address bits, except the *BurstAddrLSBs* least significant bits. The per-entry address is therefore calculated with the slot address as a base, to which the burst size bits are iteratively added, using adders only on the *BurstAddrLSBs* LSBs. The wrap modulo operation is implicitly performed when the adders overflow.
+
+<figure class="image">
+  <img src="https://i.imgur.com/H8IVMBk.png" alt="Simulated memory controller internal overview">
+  <figcaption>Fig: Individual burst entry address dynamic calculation</figcaption>
+</figure>
 
 ## Future work
 
@@ -499,17 +524,5 @@ The implemented scheduling strategy is a mainstream and representative strategy.
 
 So far, we have used 3 counters (_rsp_cnt_, _rsv_cnt_ and _burst_len_) per extended cell to maintain the burst state. This is the most efficient as long as the ratio of AXI identifiers over the number of extended cells is quite large (>= 1). To support much smaller ratios, which typically means, to support larger numbers of outstanding requests, the _rsp_cnt_ and _rsv_cnt_ counters may be implemented per linked list instead of per extended cell.
 
-
-TODO Transformer
--> le burst length pour avoit la bonne longueur effective.
--> le burst size.
-
-TODO Document how to extend the scheduling strategy
-
-TODO Ready signal harmonization.
-
-TODO Integerate images properly
-
-TODO: Mettre des compteurs par AXI ID.
 
 > View on GitHub: https://github.com/lowRISC/gsoc-sim-mem
