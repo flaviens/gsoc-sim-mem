@@ -15,7 +15,7 @@
 
 const bool kIterationVerbose = false;
 const bool kTransactionsVerbose = false;
-const bool kPairsVerbose = true;
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -31,17 +31,17 @@ typedef enum {
 typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
-const int kTestStrategy = MULTIPLE_ID_TEST; // TODO
+const int kTestStrategy = MULTIPLE_ID_TEST;
 
 // This class implements elementary operations for the testbench
-class WriteRespBankTestbench {
+class WriteRspBankTestbench {
  public:
   /**
    * @param trailing_clock_cycles number of ticks to perform after all the
    * requests have been performed
    * @param record_trace set to false to skip trace recording
    */
-  WriteRespBankTestbench(vluint32_t trailing_clock_cycles = 0,
+  WriteRspBankTestbench(vluint32_t trailing_clock_cycles = 0,
                          bool record_trace = true,
                          const std::string &trace_filename = "sim.fst")
       : tick_count_(0l),
@@ -61,7 +61,7 @@ class WriteRespBankTestbench {
     module_->delay_calc_ready_i = 1;
   }
 
-  ~WriteRespBankTestbench(void) { simmem_close_trace(); }
+  ~WriteRspBankTestbench(void) { simmem_close_trace(); }
 
   void simmem_reset(void) {
     module_->rst_ni = 0;
@@ -248,60 +248,36 @@ class WriteRespBankTestbench {
  *
  * @param tb a pointer to a fresh testbench instance
  */
-void sequential_test(WriteRespBankTestbench *tb) {
+void sequential_test(WriteRspBankTestbench *tb) {
   tb->simmem_reset();
 
   // Apply reservation requests for 4 ticks
   tb->simmem_reservation_start(
-      1);  // Start issuing reservation requests for AXI ID 1
+      4);  // Start issuing reservation requests for AXI ID 4
   tb->simmem_tick(4);
   tb->simmem_reservation_stop();  // Stop issuing reservation requests
 
   tb->simmem_tick(4);
 
   // Apply inputs for 6 ticks
-  tb->simmem_input_data_apply(1, 0);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 1);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 2);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 3);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 4);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 5);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 6);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 7);
-  tb->simmem_tick();
+  tb->simmem_input_data_apply(4, 3);
+  tb->simmem_tick(6);
   tb->simmem_input_data_stop();
 
-  tb->simmem_tick();
+  tb->simmem_tick(4);
 
-  // Enable data output
-  tb->simmem_output_data_request();
+  // Enable data toutput
   tb->simmem_output_data_allow();
-  tb->simmem_tick(10);
-  tb->simmem_output_data_forbid();
-  tb->simmem_output_data_stop();
-
-  tb->simmem_input_data_apply(1, 8);
-  tb->simmem_tick();
-  tb->simmem_input_data_apply(1, 9);
-  tb->simmem_tick();
-
-  tb->simmem_input_data_stop();
-  tb->simmem_tick();
+  tb->simmem_tick(4);
 
   tb->simmem_output_data_request();
-  tb->simmem_output_data_allow();
   tb->simmem_tick(10);
-  tb->simmem_output_data_forbid();
   tb->simmem_output_data_stop();
 
-  tb->simmem_tick(50);
+  tb->simmem_requests_complete();
+  while (!tb->simmem_is_done()) {
+    tb->simmem_tick();
+  }
 }
 
 /**
@@ -314,11 +290,11 @@ void sequential_test(WriteRespBankTestbench *tb) {
  *
  * @return the number of mismatches between the expected and acquired outputs
  */
-size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
+size_t single_id_test(WriteRspBankTestbench *tb, unsigned int seed) {
   srand(seed);
 
-  uint32_t current_input_id = 1;
-  size_t nb_iterations = 200;
+  uint32_t current_input_id = 4;
+  size_t nb_iterations = 1000;
 
   // Generate inputs
   std::queue<uint32_t> input_queue;
@@ -366,12 +342,6 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     if (request_output_data) {
       if (tb->simmem_output_data_fetch(current_output)) {
         output_queue.push(current_output);
-        if (kTransactionsVerbose) {
-          std::cout << std::dec
-                    << (uint32_t)(current_output &
-                                  tb->simmem_get_identifier_mask())
-                    << " outputs " << std::hex << current_output << std::endl;
-        }
       }
     }
 
@@ -409,10 +379,10 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
     output_queue.pop();
 
     if (kPairsVerbose) {
-      std::cout << std::hex << cur_in_pyld << " - " << cur_out_pyld
+      std::cout << std::hex << current_input << " - " << current_output
                 << std::endl;
     }
-    nb_mismatches += (size_t)(cur_in_pyld != cur_out_pyld);
+    nb_mismatches += (size_t)(current_input != current_output);
   }
   if (kPairsVerbose) {
     std::cout << std::endl
@@ -436,7 +406,7 @@ size_t single_id_test(WriteRespBankTestbench *tb, unsigned int seed) {
  * @return the number of mismatches between the expected and acquired outputs
  */
 
-size_t multiple_ids_test(WriteRespBankTestbench *tb, size_t num_identifiers,
+size_t multiple_ids_test(WriteRspBankTestbench *tb, size_t num_identifiers,
                          unsigned int seed) {
   srand(seed);
 
@@ -609,8 +579,8 @@ int main(int argc, char **argv, char **env) {
     size_t local_nb_mismatches;
 
     // Instantiate the DUT instance
-    WriteRespBankTestbench *tb =
-        new WriteRespBankTestbench(100, true, "rsp_bank.fst");
+    WriteRspBankTestbench *tb =
+        new WriteRspBankTestbench(100, true, "rsp_bank.fst");
 
     // Perform one test for the given seed
     if (kTestStrategy == SEQUENTIAL_TEST) {

@@ -105,58 +105,58 @@
 //
 
 module simmem_rsp_bank #(
-    parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::WRSP_BANK,
-    parameter type DataType = simmem_pkg::wrsp_t,
+  parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::WRSP_BANK,
+  parameter type DataType = simmem_pkg::wrsp_t,
 
-    localparam int unsigned TotCapa = RspBankType == simmem_pkg::WRSP_BANK ?
-        simmem_pkg::WRspBankCapa : simmem_pkg::RDataBankCapa,  // derived parameter
-    // * BurstLenWidth is the bit width to encode up to MaxBurstLenField-1 in binary format.
-    // * XBurstLenWidth is the bit width to encode up to MaxBurstLenField in binary format. This is
-    //   useful, as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLenField burst data. It
-    //   is used to encode lengths.
-    localparam int unsigned XBurstLenWidth = $clog2 (MaxBurstLenField + 1),  // derived parameter
-    localparam int unsigned BurstLenWidth =
-        MaxBurstLenField == 1 ? 1 : $clog2 (MaxBurstLenField),  // derived parameter
-    localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
-    localparam int unsigned DataWidth = $bits (DataType),  // derived parameter
-    localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstEffLen  // derived parameter
+  localparam int unsigned TotCapa = RspBankType == simmem_pkg::WRSP_BANK ?
+      simmem_pkg::WRspBankCapa : simmem_pkg::RDataBankCapa,  // derived parameter
+  // * BurstLenWidth is the bit width to encode up to MaxBurstLenField-1 in binary format.
+  // * XBurstLenWidth is the bit width to encode up to MaxBurstLenField in binary format. This is
+  //   useful, as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLenField burst data. It
+  //   is used to encode lengths.
+  localparam int unsigned XBurstLenWidth = $clog2 (MaxBurstLenField + 1),  // derived parameter
+  localparam int unsigned BurstLenWidth =
+      MaxBurstLenField == 1 ? 1 : $clog2 (MaxBurstLenField),  // derived parameter
+  localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
+  localparam int unsigned DataWidth = $bits (DataType),  // derived parameter
+  localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstEffLen  // derived parameter
 ) (
-    input logic clk_i,
-    input logic rst_ni,
+  input logic clk_i,
+  input logic rst_ni,
 
-    // Reservation interface AXI identifier for which the reseration request is being done.
-    input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
-    // Information about currently reserved address. Will be stored by other modules as an internal
-    // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [     BankAddrWidth-1:0] rsv_iid_o,
-    // The number of data elements to reserve in the RAM cell, in binary representation.
-    input  logic [    XBurstLenWidth-1:0] rsv_burst_len_i,
-    // Reservation handshake signals
-    input  logic                          rsv_valid_i,
-    output logic                          rsv_ready_o,
+  // Reservation interface AXI identifier for which the reseration request is being done.
+  input  logic [simmem_pkg::NumIds-1:0] rsv_req_id_onehot_i,
+  // Information about currently reserved address. Will be stored by other modules as an internal
+  // identifier to uniquely identify the response (or response burst in case of read data).
+  output logic [     BankAddrWidth-1:0] rsv_iid_o,
+  // The number of data elements to reserve in the RAM cell, in binary representation.
+  input  logic [    XBurstLenWidth-1:0] rsv_burst_len_i,
+  // Reservation handshake signals
+  input  logic                          rsv_valid_i,
+  output logic                          rsv_ready_o,
 
-    // Interface with the releaser Multi-hot signal that enables the release for given internal
-    // addresses (i.e., RAM addresses).
-    input  logic [TotCapa-1:0] release_en_i,
-    // Signals which address has been released, if any. One-hot signal. Is set to one for each
-    // released response in a burst.
-    output logic [TotCapa-1:0] released_addr_onehot_o,
+  // Interface with the releaser Multi-hot signal that enables the release for given internal
+  // addresses (i.e., RAM addresses).
+  input  logic [TotCapa-1:0] release_en_i,
+  // Signals which address has been released, if any. One-hot signal. Is set to one for each
+  // released response in a burst.
+  output logic [TotCapa-1:0] released_addr_onehot_o,
 
-    // Interface with the real memory controller AXI response excluding handshake
-    input  DataType rsp_i,
-    output DataType rsp_o,
-    // Response acquisition handshake signal
-    input  logic    in_rsp_valid_i,
-    output logic    in_rsp_ready_o,
+  // Interface with the real memory controller AXI response excluding handshake
+  input  DataType rsp_i,
+  output DataType rsp_o,
+  // Response acquisition handshake signal
+  input  logic    in_rsp_valid_i,
+  output logic    in_rsp_ready_o,
 
-    // Interface with the requester
-    input  logic out_rsp_ready_i,
-    output logic out_rsp_valid_o,
+  // Interface with the requester
+  input  logic out_rsp_ready_i,
+  output logic out_rsp_valid_o,
 
-    // Ready signal from the delay calculator
-    input  logic delay_calc_ready_i,
-    // Ready signal to the delay calculator
-    output logic delay_calc_ready_o
+  // Ready signal from the delay calculator
+  input  logic delay_calc_ready_i,
+  // Ready signal to the delay calculator
+  output logic delay_calc_ready_o
 );
 
   import simmem_pkg::*;
@@ -1193,19 +1193,19 @@ module simmem_rsp_bank #(
     .clk_a_i     (clk_i),
     .clk_b_i     (clk_i),
 
-      .a_req_i  (meta_ram_in_req),
-      .a_write_i(meta_ram_in_write),
-      .a_wmask_i(meta_ram_in_wmask),
-      .a_addr_i (meta_ram_in_addr),
-      .a_wdata_i(meta_ram_in_content),
-      .a_rdata_o(),
+    .a_req_i     (meta_ram_in_req),
+    .a_write_i   (meta_ram_in_write),
+    .a_wmask_i   (meta_ram_in_wmask),
+    .a_addr_i    (meta_ram_in_addr),
+    .a_wdata_i   (meta_ram_in_content),
+    .a_rdata_o   (),
 
-      .b_req_i  (meta_ram_out_req),
-      .b_write_i(meta_ram_out_write),
-      .b_wmask_i(meta_ram_out_wmask),
-      .b_addr_i (meta_ram_out_addr_head),
-      .b_wdata_i(),
-      .b_rdata_o(meta_ram_out_rsp_head)
+    .b_req_i     (meta_ram_out_req),
+    .b_write_i   (meta_ram_out_write),
+    .b_wmask_i   (meta_ram_out_wmask),
+    .b_addr_i    (meta_ram_out_addr_head),
+    .b_wdata_i   (),
+    .b_rdata_o   (meta_ram_out_rsp_head)
   );
 
 endmodule
