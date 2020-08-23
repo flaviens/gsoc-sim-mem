@@ -58,7 +58,7 @@ package simmem_pkg;
 
   // Data & response field widths
   localparam int unsigned XLastWidth = 1;
-  localparam int unsigned XRespWidth = 10;  // TODO 3
+  localparam int unsigned XRespWidth = 3;
   localparam int unsigned WUserWidth = 0;
   localparam int unsigned RUserWidth = 0;
   localparam int unsigned BUserWidth = 0;
