@@ -43,8 +43,8 @@ const uint64_t BUserWidth = 0;
 
 const uint64_t WStrbWidth = MaxBurstEffSizeBytes;
 
-const unsigned int MaxRBurstEffLen = 8;
-const unsigned int MaxWBurstEffLen = 4;
+const unsigned int MaxBurstEffLen = 8;
+const unsigned int MaxBurstEffLen = 4;
 
 ////////////////////////////
 // Dimensions for modules //
@@ -58,6 +58,6 @@ const uint64_t RDataBankCapa = 16;
 ///////////////////////
 
 const unsigned int PackedW = 64;
-const unsigned int MaxPendingWData = WRspBankCapa * MaxWBurstEffLen / 2;
+const unsigned int MaxPendingWData = WRspBankCapa * MaxBurstEffLen / 2;
 
 #endif  // SIMMEM_DV_AXI_DIMENSIONS

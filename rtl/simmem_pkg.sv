@@ -58,7 +58,7 @@ package simmem_pkg;
 
   // Data & response field widths
   localparam int unsigned XLastWidth = 1;
-  localparam int unsigned XRespWidth = 3;
+  localparam int unsigned XRespWidth = 10;  // TODO 3
   localparam int unsigned WUserWidth = 0;
   localparam int unsigned RUserWidth = 0;
   localparam int unsigned BUserWidth = 0;
@@ -79,12 +79,10 @@ package simmem_pkg;
   // Burst length constants
 
   // Maximal allowed burst length field value
-  localparam int unsigned MaxRBurstLenField = 3;
-  localparam int unsigned MaxWBurstLenField = 2;
+  localparam int unsigned MaxBurstLenField = 2;
 
   // Effective max burst length (in number of elements)
-  localparam int unsigned MaxRBurstEffLen = 1 << MaxRBurstLenField;
-  localparam int unsigned MaxWBurstEffLen = 1 << MaxWBurstLenField;
+  localparam int unsigned MaxBurstEffLen = 1 << MaxBurstLenField;
 
 
   ////////////////////////////
@@ -201,21 +199,10 @@ package simmem_pkg;
     * @param burst_len_field the burst_length field of the AXI signal
     * @return the number of elements in the burst
     */
-  function automatic logic [MaxWBurstEffLen-1:0] get_effective_wburst_len(
-      logic [MaxWBurstLenField-1:0] burst_len_field);
+  function automatic logic [MaxBurstLenField:0] get_effective_burst_len(
+      logic [$clog2(MaxBurstLenField):0] burst_len_field);
     return 1 << burst_len_field;
-  endfunction : get_effective_wburst_len
-
-  /**
-    * Determines the effective burst length from the burst length field
-    *
-    * @param burst_len_field the burst_length field of the AXI signal
-    * @return the number of elements in the burst
-    */
-  function automatic logic [MaxRBurstEffLen-1:0] get_effective_rburst_len(
-      logic [MaxRBurstLenField-1:0] burst_len_field);
-    return 1 << burst_len_field;
-  endfunction : get_effective_rburst_len
+  endfunction : get_effective_burst_len
 
   /**
     * Determines the effective burst size from the burst size field
@@ -223,8 +210,8 @@ package simmem_pkg;
     * @param burst_len_field the burst_size field of the AXI signal
     * @return the size of the elements in the burst
     */
-  function automatic logic [MaxBurstEffSizeBytes-1:0] get_effective_burst_size(
-      logic [MaxBurstSizeField-1:0] burst_size_field);
+  function automatic logic [MaxBurstSizeField:0] get_effective_burst_size(
+      logic [$clog2(MaxBurstSizeField):0] burst_size_field);
     return 1 << burst_size_field;
   endfunction : get_effective_burst_size
 

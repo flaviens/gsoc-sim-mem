@@ -61,8 +61,6 @@ The delay calculator identifies address requests by internal identifiers (_iids_
   <figcaption>Fig: Simulated memory controller overview</figcaption>
 </figure>
 
-
-
 #### Top-level flow
 
 The top-level flow happens as follows:
@@ -75,14 +73,12 @@ The top-level flow happens as follows:
 2. When the corresponding responses comes back from the real memory controller, they are stored by the message banks.
 3. When the delay enables the release of some response and all the previous responses of the same AXI are released, the response banks transmit the response to the requester.
 4. When all the responses corresponding to a given address request have been transmitted to the requester, the response banks free the allocated memory for reuse.
-5. 
+5.
 
 <figure class="image">
   <img src="https://i.imgur.com/pbbpy0Y.png" alt="Simulated memory controller internal overview">
   <figcaption>Fig: Simulated memory controller top-level flow</figcaption>
 </figure>
-
-
 
 ## Response banks
 
@@ -101,7 +97,6 @@ Each response bank has a FIFO interface with reservations, and stores messages i
   <img src="https://i.imgur.com/BpU4aZz.png" alt="Simulated memory controller internal overview">
   <figcaption>Fig: Response bank top-level interface</figcaption>
 </figure>
-
 
 ### Reservations
 
@@ -140,7 +135,7 @@ Two options have been explored to store burst responses, while keeping a single 
 
 The burst support has been implemented _in-depth_, because the block RAMs are typically narrow and deep, and do not always propose write masks, which makes in-width storage difficult.
 
-The _MaxBurstLen_ (maximum read burst length, or 1 for write responses) consecutive RAM cells dedicated to the same burst are referred to as _extended RAM cells_. On a high level, extended RAM cells are the elementary data structures in linked lists. BY opposition to extended RAM cells, the actual physical RAM cells are called _elementary RAM cells_.
+The _MaxBurstLen_ (maximum burst length for reads, and 1 for write responses) consecutive RAM cells dedicated to the same burst are referred to as _extended RAM cells_. On a high level, extended RAM cells are the elementary data structures in linked lists. BY opposition to extended RAM cells, the actual physical RAM cells are called _elementary RAM cells_.
 
 We additionally introduce two address spaces:
 
@@ -152,12 +147,10 @@ We additionally introduce two address spaces:
   <figcaption>Fig: In-depth burst storage, for a burst length of 4</figcaption>
 </figure>
 
-
 <figure class="image">
   <img src="https://i.imgur.com/fzaWZ6v.png" alt="Simulated memory controller internal overview">
   <figcaption>Fig: In-depth burst storage addressing</figcaption>
 </figure>
-
 
 Therefore, there are _MaxBurstLen_ times as many elementary RAM cells in _i_payload_ram_ than there are in each of _i_meta_ram_out_tail_ and _i_meta_ram_out_head_.
 
@@ -173,7 +166,7 @@ Linked lists are logical structures maintained by the _i_meta_ram_out_tail_ and 
 
 - Reservation head (_rsv_heads_q_): Points to the most recently reserved extended cell.
 - Response head (_rsp_heads_): Points to the next RAM address where a response of the corresponding AXI identifier will be stored.
-- Pre_tail (_pre_tails_): Points to the second-to-last cell hosting or awaiting a response in the linked list.
+- Pre*tail (\_pre_tails*): Points to the second-to-last cell hosting or awaiting a response in the linked list.
 - Tail (_tails_): Points to the oldest cell hosting or awaiting a response in the linked list.
 
 The order of the pointers must always be respected. They can be equal but never overtake each other, in the order defined by the linked list.
@@ -185,9 +178,10 @@ Two distinct tail pointers are required to dynamically manage the two following 
   - The last element of the linked list if the list contains just one response,
   - rsp_head if the list contains no responses.
 - The tail address is given as input to the payload RAM in all other cases. This case disjunction prevents an output data from being output twice, and prevents any bandwidth drop at the output. It must point to:
+
   - The last element of the linked list if the list contains one response or more,
   - pre_tail if the list contains no responses.
-  
+
 <figure class="image">
   <img src="https://i.imgur.com/Y7XwICc.png" alt="Simulated memory controller internal overview">
   <figcaption>Fig: Linked list representation. t: tail, pt: pre_tail, rsp: response head, rsv: reservation head. Arrows between extended cells represent the linked list structure (cells must not have consecutive addresses)</figcaption>
@@ -207,6 +201,7 @@ In addition to the pointers, lengths of sub-segments of linked lists are stored 
 </figure>
 
 Additionally, another length is combinatorically inferred:
+
 - _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data. This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
 
 #### Extended cell state
@@ -292,6 +287,7 @@ On response release, if the extended cell still holds or awaits data (i.e., $tai
 #### Output data
 
 As there is one cycle latency between the output response selection and output response supply, some signals need to be stored over this clock cycle to identify which response is currently output:
+
 - _cur_out_id_: Identifies the AXI identifier currently released. This helps updating the linked list pointers.
 - _cur_out_addr_: Identifies the extended cell address currently released. This is involved in the release feedback signal to the delay calculator (_released_addr_).
 - _cur_out_valid_: Identifies whether the output was intended in the previous clock cycle.
@@ -330,7 +326,6 @@ To count the write data awaited or received in advance, the wrapper maintains a 
   <img src="https://i.imgur.com/H1FLUsu.png" alt="Simulated memory controller internal overview">
   <figcaption>Fig: Delay calculator wrapper. The blue arrow is taken if the delay calculator core currently expects write data for a previous write address request. Else, the black arrow is taken. Additionally, the red arrow gives the number of write data for the potentially incoming write address request</figcaption>
 </figure>
-
 
 #### Address request slots
 
@@ -382,8 +377,6 @@ When data is effectively released, the response banks notify this event using th
   <figcaption>Fig: Delay calculator core: slots and release signals</figcaption>
 </figure>
 
-
-
 ### Age management
 
 Age management is used in two point of the delay calculator core:
@@ -402,16 +395,15 @@ Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, whi
   <figcaption>Fig: Generic age matrix: the blue cells are stored in flip-flops</figcaption>
 </figure>
 
-
 #### Main age matrix
 
 The main age matrix side is the concatenation of two types of entries:
 
 <<<<<<< HEAD
-- The $NumWSlots * MaxWBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
-=======
-- The $NumWSlots * MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code, for the element identifier in the  burst.
->>>>>>> b3a4e0088a49849c34ceb9257f9e89316461ac0c
+
+- # The $NumWSlots * MaxBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+- The $NumWSlots * MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code, for the element identifier in the burst.
+  > > > > > > > b3a4e0088a49849c34ceb9257f9e89316461ac0c
 - The $NumRSlots$ read data slots / read address requests.
 
 We have considered the fact that all read elementary burst entries in the same burst share the same age.
@@ -453,8 +445,6 @@ When a write slot is free (_~v_), a new write address request can be accepted. T
   <figcaption>Fig: Read slot state just after acceptance of a new write address of burst length 2 and 1 immediate wdata (write data arrived not after the write address request)</figcaption>
 </figure>
 
-
-
 ##### Read requests
 
 Read request acceptance is identical to write address acceptance, except that:
@@ -477,7 +467,7 @@ As there is a single write response per write address request, the release of th
 
 ##### Read data
 
-As opposed to write responses, one read data is released for each data request in the read slot. Whenever a memory request is completed (_mem\_pending_ is being unset and _mem\_done_ is simultaneously being set), the release enable counter associated with the read slot's iid field is incremented. When the _mem_done_ array is full of ones, the valid bit of the slot is unset.
+As opposed to write responses, one read data is released for each data request in the read slot. Whenever a memory request is completed (_mem_pending_ is being unset and _mem_done_ is simultaneously being set), the release enable counter associated with the read slot's iid field is incremented. When the _mem_done_ array is full of ones, the valid bit of the slot is unset.
 
 #### Rank state update
 
@@ -487,13 +477,13 @@ The rank decrementing counter (_rank_delay_cnt_) is systematically decreased to 
 
 #### Burst support
 
-Bursts are not allowed to cross boundaries defined by *BurstAddrLSBs* bits. If a burst does, then it is automatically considered a wrap burst relative to this boundary. Therefore, the simulated memory controller does not make a difference between *incr* and *wrap* bursts. Boundaries must not match with bank row widths.
+Bursts are not allowed to cross boundaries defined by _BurstAddrLSBs_ bits. If a burst does, then it is automatically considered a wrap burst relative to this boundary. Therefore, the simulated memory controller does not make a difference between _incr_ and _wrap_ bursts. Boundaries must not match with bank row widths.
 
-Fixed bursts, additionally, are supported by setting the *burst_fixed* field of the slot, which will provide the same address to all the entries.
+Fixed bursts, additionally, are supported by setting the _burst_fixed_ field of the slot, which will provide the same address to all the entries.
 
 #### Entry addressing
 
-Taking advantage of the boundaries described above, all the entries of a slot share all their address bits, except the *BurstAddrLSBs* least significant bits. The per-entry address is therefore calculated with the slot address as a base, to which the burst size bits are iteratively added, using adders only on the *BurstAddrLSBs* LSBs. The wrap modulo operation is implicitly performed when the adders overflow.
+Taking advantage of the boundaries described above, all the entries of a slot share all their address bits, except the _BurstAddrLSBs_ least significant bits. The per-entry address is therefore calculated with the slot address as a base, to which the burst size bits are iteratively added, using adders only on the _BurstAddrLSBs_ LSBs. The wrap modulo operation is implicitly performed when the adders overflow.
 
 <figure class="image">
   <img src="https://i.imgur.com/H8IVMBk.png" alt="Simulated memory controller internal overview">
@@ -510,7 +500,7 @@ DRAM refreshing simulation is currently not implemented. It can be implemented b
 
 #### Rank interleaving
 
-Currently, only one rank is implemented, but the necessary infrastructure to implement different kinds of interleaving are already integrated, notably the optimizations are implemented per-rank (visible through the _for (genvar i\_rk..._ loops).
+Currently, only one rank is implemented, but the necessary infrastructure to implement different kinds of interleaving are already integrated, notably the optimizations are implemented per-rank (visible through the _for (genvar i_rk..._ loops).
 
 It remains mostly to define how interleaving is mapped, and to add additional information to the slots in case a memory request entry is split between several ranks. This situation seems preferable to avoid, by using higher-order bits to select the rank mapping.
 
@@ -527,6 +517,5 @@ The implemented scheduling strategy is a mainstream and representative strategy.
 #### Scalable burst management
 
 So far, we have used 3 counters (_rsp_cnt_, _rsv_cnt_ and _burst_len_) per extended cell to maintain the burst state. This is the most efficient as long as the ratio of AXI identifiers over the number of extended cells is quite large (>= 1). To support much smaller ratios, which typically means, to support larger numbers of outstanding requests, the _rsp_cnt_ and _rsv_cnt_ counters may be implemented per linked list instead of per extended cell.
-
 
 > View on GitHub: https://github.com/lowRISC/gsoc-sim-mem

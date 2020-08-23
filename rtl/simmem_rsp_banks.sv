@@ -15,7 +15,7 @@ module simmem_rsp_banks (
     output logic [      WRspBankCapa-1:0] wrsv_iid_o,
     output logic [    RDataBankAddrW-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [       MaxRBurstLenField:0] rrsv_burst_len_i,
+    input  logic [    MaxBurstLenField:0] rrsv_burst_len_i,
     // Reservation handshake signals
     input  logic                          wrsv_valid_i,
     output logic                          wrsv_ready_o,
@@ -85,7 +85,7 @@ module simmem_rsp_banks (
 
   simmem_rsp_bank #(
       .TotCapa(RDataBankCapa),
-      .MaxBurstLen(MaxRBurstEffLen),
+      .MaxBurstLen(MaxBurstEffLen),
       .DataType(rdata_t)
   ) i_simmem_rdata_bank (
       .clk_i                 (clk_i),

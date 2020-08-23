@@ -130,7 +130,7 @@ module simmem_top (
       .rrsv_req_id_onehot_i    (rrsv_req_id_onehot),
       .wrsv_iid_o              (wrsv_iid),
       .rrsv_iid_o              (rrsv_iid),
-      .rrsv_burst_len_i        ((MaxRBurstLenField + 1)'(raddr_i.burst_len)),
+      .rrsv_burst_len_i        ((MaxBurstLenField + 1)'(raddr_i.burst_len)),
       .wrsv_valid_i            (wrsv_valid_in),
       .wrsv_ready_o            (wrsv_ready_out),
       .rrsv_valid_i            (rrsv_valid_in),
@@ -158,26 +158,26 @@ module simmem_top (
   );
 
   simmem_delay_calculator i_simmem_delay_calculator (
-      .clk_i                       (clk_i),
-      .rst_ni                      (rst_ni),
-      .waddr_i                     (waddr_i),
-      .waddr_iid_i                 (wrsv_iid),
-      .waddr_valid_i               (waddr_valid_in_delay_calc),
-      .waddr_ready_o               (waddr_ready_out_delay_calc),
-      .wdata_valid_i               (wdata_valid_in_delay_calc),
-      .wdata_ready_o               (wdata_ready_out_delay_calc),
-      .raddr_i                     (raddr_i),
-      .raddr_iid_i                 (rrsv_iid),
-      .raddr_valid_i               (raddr_valid_in_delay_calc),
-      .raddr_ready_o               (raddr_ready_out_delay_calc),
-      .wrsp_release_en_mhot_o      (wrsp_release_en_mhot),
-      .rdata_release_en_mhot_o     (rdata_release_en_mhot),
+      .clk_i                      (clk_i),
+      .rst_ni                     (rst_ni),
+      .waddr_i                    (waddr_i),
+      .waddr_iid_i                (wrsv_iid),
+      .waddr_valid_i              (waddr_valid_in_delay_calc),
+      .waddr_ready_o              (waddr_ready_out_delay_calc),
+      .wdata_valid_i              (wdata_valid_in_delay_calc),
+      .wdata_ready_o              (wdata_ready_out_delay_calc),
+      .raddr_i                    (raddr_i),
+      .raddr_iid_i                (rrsv_iid),
+      .raddr_valid_i              (raddr_valid_in_delay_calc),
+      .raddr_ready_o              (raddr_ready_out_delay_calc),
+      .wrsp_release_en_mhot_o     (wrsp_release_en_mhot),
+      .rdata_release_en_mhot_o    (rdata_release_en_mhot),
       .wrsp_released_iid_onehot_i (wrsp_released_onehot),
       .rdata_released_iid_onehot_i(rdata_released_onehot),
-      .wrsp_bank_ready_o           (w_delay_calc_ready_in),
-      .rrsp_bank_ready_o           (r_delay_calc_ready_in),
-      .wrsp_bank_ready_i           (w_delay_calc_ready_out),
-      .rrsp_bank_ready_i           (r_delay_calc_ready_out)
+      .wrsp_bank_ready_o          (w_delay_calc_ready_in),
+      .rrsp_bank_ready_o          (r_delay_calc_ready_in),
+      .wrsp_bank_ready_i          (w_delay_calc_ready_out),
+      .rrsp_bank_ready_i          (r_delay_calc_ready_out)
 
   );
 
