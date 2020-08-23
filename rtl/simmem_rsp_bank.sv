@@ -335,7 +335,7 @@ module simmem_rsp_bank #(
   //  Per-linked list counters: Each linked list has its own counters to track how many responses
   //  are in certain cells. These are not new physical counters. Instead, they base on rsv_cnt and
   //  rsp_cnt counters. Each linked list has the following logical counters:
-  //    * rsp_rsv_cnt_id: Tracks the number of responses reserved but not acquired yet in the extended
+  //    * rsv_cnt_id: Tracks the number of responses reserved but not acquired yet in the extended
   //      RAM cell pointed by the response head pointer. This is useful to track when to update the
   //      rsp_head pointer. TODO Remove entry
   //    * rsp_rsv_cnt_id: Tracks the number of not-filled-yet reserved slots contained under the
@@ -442,7 +442,7 @@ module simmem_rsp_bank #(
   logic [XBurstEffLenWidth-1:0][TotCapa-1:0] t_rsp_cnt_addr_rot90[NumIds];
   logic [XBurstLenWidth-1:0][TotCapa-1:0] t_blen_addr_rot90[NumIds];
   // Actual counts per linked list
-  logic [XBurstEffLenWidth-1:0] rsp_rsv_cnt_id[NumIds]; // TODO Rename
+  // logic [XBurstEffLenWidth-1:0] rsv_cnt_id[NumIds]; // TODO Rename
   logic [XBurstEffLenWidth-1:0] rsp_rsv_cnt_id[NumIds];
   logic [XBurstLenWidth-1:0] rsp_blen_id[NumIds];
   logic [XBurstEffLenWidth-1:0] rsp_befflen_id[NumIds];
@@ -458,8 +458,8 @@ module simmem_rsp_bank #(
   // Assign the count intermediate signals
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_cnt
     for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_cnt_addr
-      assign rsv_cnt_addr[i_id][i_addr] =
-          rsv_cnt_q[i_addr] & {XBurstEffLenWidth{rsp_heads[i_id] == i_addr && |rsv_len_q[i_id]}};
+      // assign rsv_cnt_addr[i_id][i_addr] =
+      //     rsv_cnt_q[i_addr] & {XBurstEffLenWidth{rsp_heads[i_id] == i_addr && |rsv_len_q[i_id]}}; TODO
       assign rsp_rsv_cnt_addr[i_id][i_addr] = rsv_cnt_q[i_addr] & {
           XBurstEffLenWidth{rsp_heads[i_id] == i_addr && (|rsv_len_q[i_id] || |rsp_len_q[i_id])}};
       assign rsp_blen_addr[i_id][i_addr] = blen_q[i_addr] & {
@@ -487,7 +487,7 @@ module simmem_rsp_bank #(
       end : gen_cnt_addr_rot
 
       for (genvar i_bit = 0; i_bit < XBurstEffLenWidth; i_bit = i_bit + 1) begin : e_gen_cnt_addr_rot
-          assign rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = rsv_cnt_addr[i_id][i_addr][i_bit];
+          // assign rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = rsv_cnt_addr[i_id][i_addr][i_bit]; // TODO
           assign rsp_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] = rsp_rsv_cnt_addr[i_id][i_addr][i_bit];
           assign pt_rsv_cnt_addr_rot90[i_id][i_bit][i_addr] =
               pt_rsv_cnt_addr[i_id][i_addr][i_bit];
@@ -508,7 +508,7 @@ module simmem_rsp_bank #(
     end : gen_cnt_after_rot
 
     for (genvar i_bit = 0; i_bit < XBurstEffLenWidth; i_bit = i_bit + 1) begin : e_gen_cnt_after_rot
-      assign rsp_rsv_cnt_id[i_id][i_bit] = |rsv_cnt_addr_rot90[i_id][i_bit];
+      // assign rsv_cnt_id[i_id][i_bit] = |rsv_cnt_addr_rot90[i_id][i_bit]; TODO
       assign rsp_rsv_cnt_id[i_id][i_bit] = |rsp_rsv_cnt_addr_rot90[i_id][i_bit];
       assign pt_rsv_cnt_id[i_id][i_bit] = |pt_rsv_cnt_addr_rot90[i_id][i_bit];
       assign pt_rsp_cnt_id[i_id][i_bit] = |pt_rsp_cnt_addr_rot90[i_id][i_bit];
@@ -1037,7 +1037,7 @@ module simmem_rsp_bank #(
         meta_ram_out_addr_head_id[i_id] = rsp_heads[i_id];
 
         // The input offset is determined by the reservation count.
-        pyld_ram_in_offset_id[i_id] = BurstLenWidth'(rsp_befflen_id[i_id] - rsp_rsv_cnt_id[i_id]);
+        pyld_ram_in_offset_id[i_id] = BurstLenWidth'(rsp_befflen_id[i_id] - rsv_cnt_id[i_id]);
       end
 
       // Reservation handshake
