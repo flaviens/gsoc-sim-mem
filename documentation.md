@@ -107,7 +107,7 @@ Each response bank has a FIFO interface with reservations, and stores messages i
 
 The reservation mechanism built in the response banks provides simultaneously two features:
 
-1. It ensures that the responses to an address request will have space to be stored aas soon as they are produced. This prevents inflated delays between request address acceptation and its response in the case of congestion in the response banks. This also prevents any deadlock situation.
+1. It ensures that the responses to an address request will have space to be stored as soon as they are produced. This prevents inflated delays between request address acceptation and its response in the case of congestion in the response banks. This also prevents any deadlock situation.
 2. It provides internal identifiers, as soon as the address requests are made. This allows the delay calculator to immediately label the request metadata, for immediate processing. As the real memory controller may require multiple cycles to provide a response to an address request, producing an internal identifier as early as possible is a necessary feature.
 
 ### RAMs
@@ -119,7 +119,7 @@ Each response bank uses three dual-port RAM banks:
 
 Two RAM banks are used to hold pointer to next elements, as three ports are needed (which is explained by the linked list implementation below). Their content is therefore maintained identical, but they may be read at different addresses simultaneously.
 
-Using RAMs is efficient as it does not require a massive amount of flip-flops to store data, but incurs one cycle latency for the output.
+Using RAMs is efficient as it does not require a massive number of flip-flops to store data, but incurs one cycle latency for the output.
 
 <figure class="image">
   <img src="https://i.imgur.com/mH3dPLo.png" alt="Simulated memory controller internal overview">
@@ -182,10 +182,10 @@ Two distinct tail pointers are required to dynamically manage the two following 
 
 - The pre_tail address is given as input to the payload RAM if there is a successful output handshake and the value at the output has an AXI id corresponding to the AXI id of the considered linked list. It must point to:
   - The second-to-last element of the linked list if the list contains two reponses or more,
-  - The last element element of the linked list if the list contains just one response,
+  - The last element of the linked list if the list contains just one response,
   - rsp_head if the list contains no responses.
 - The tail address is given as input to the payload RAM in all other cases. This case disjunction prevents an output data from being output twice, and prevents any bandwidth drop at the output. It must point to:
-  - The last element element of the linked list if the list contains one response or more,
+  - The last element of the linked list if the list contains one response or more,
   - pre_tail if the list contains no responses.
   
 <figure class="image">
@@ -198,7 +198,7 @@ Two distinct tail pointers are required to dynamically manage the two following 
 
 In addition to the pointers, lengths of sub-segments of linked lists are stored to maintain the state of each linked lists, which is not fully defined by the four pointer and metadata RAMs only:
 
-- _rsv_len_: Holds the number of extended cells that have been reserved, but have not received any response yet.
+- _rsv_len_: Holds the number of extended cells that have been reserved but have not received any response yet.
 - _rsp_len_: Holds the number of active extended cells.
 
 <figure class="image">
@@ -206,7 +206,7 @@ In addition to the pointers, lengths of sub-segments of linked lists are stored 
   <figcaption>Fig: Example of rsv_len and rsp_len</figcaption>
 </figure>
 
-Additionally, another length is combinatorially inferred:
+Additionally, another length is combinatorically inferred:
 - _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data. This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
 
 #### Extended cell state
@@ -216,7 +216,7 @@ Additionally, another length is combinatorially inferred:
 For each extended RAM cells, additional memory is dedicated to maintaining the extended RAM cell state:
 
 - _rsv_cnt_: Counts the number of responses that are still awaited in the burst. When reserving an extended cell, this counter is set to the address request burst length. The counter is decremented every time a burst response is transmitted from this extended RAM cell to the requester.
-- _rsp_cnt_: Counts the number of responses that are currently stored in the extended cell. The counter is incremented everytime a response is acquired and decremented everytime a response is released.
+- _rsp_cnt_: Counts the number of responses that are currently stored in the extended cell. The counter is incremented every time a response is acquired and decremented every time a response is released.
 - _burst_len_: Stores the burst length of the address request corresponding to this extended RAM cell.
 
 The following relationship always holds:
@@ -228,7 +228,7 @@ $$burst\_len - rsv\_cnt - rsp\_cnt$$
 And the number of already released responses in a burst is given by:
 $$burst\_len - rsv\_cnt$$
 
-An extended cell is said to be valid (_ram_v_) (in a terminology similar to a cache line for instance) if _rsv_cnt_ is non-zero or _rsp_cnt_ is non-zero.
+An extended cell is said to be valid (_ram_v_) (in a terminology like a cache line for instance) if _rsv_cnt_ is non-zero or _rsp_cnt_ is non-zero.
 
 ##### Elementary cell offset
 
@@ -239,7 +239,7 @@ These three elements maintain full information of the extended cell state and gi
 
 #### Linked list detailed operation
 
-A pointer _pA_ is said to be _piggybacked with_ another pointer _pB_ when we impose that _pA_ takes the same value as _pB_. Typically, this happens when _pA_ needs to be updated, but has to stay behind or equal to _pB_.
+A pointer _pA_ is said to be _piggybacked with_ another pointer _pB_ when we impose that _pA_ takes the same value as _pB_. Typically, this happens when _pA_ needs to be updated but has to stay behind or equal to _pB_.
 
 <figure class="image">
   <img src="https://i.imgur.com/qmJwLMn.png" alt="Simulated memory controller internal overview">
@@ -351,7 +351,7 @@ _Write slots_ are memory structures defined as follows:
 
 _Read slots_ are defined identically, except that:
 
-- There is no _data_v_ field, since elementary burst read requests arrive simultanously with the read address request.
+- There is no _data_v_ field, since elementary burst read requests arrive simultaneously with the read address request.
 - There internal identifier for read and write address requests do not need to be of equal width, which depends on the maximal number of pending requests.
 
 The burst length does not need to be stored explicitly, as the _data_v_ and _mem_done_ bit arrays are set accordingly during the slot allocation.
@@ -407,10 +407,14 @@ Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, whi
 
 The main age matrix side is the concatenation of two types of entries:
 
+<<<<<<< HEAD
 - The $NumWSlots * MaxWBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+=======
+- The $NumWSlots * MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code, for the element identifier in the  burst.
+>>>>>>> b3a4e0088a49849c34ceb9257f9e89316461ac0c
 - The $NumRSlots$ read data slots / read address requests.
 
-We have taken into account the fact that all read elementary burst entries in the same burst share the same age.
+We have considered the fact that all read elementary burst entries in the same burst share the same age.
 
 ### Finding optimal entries
 
@@ -462,7 +466,7 @@ Read request acceptance is identical to write address acceptance, except that:
 
 For each write or read slot, for each entry, if the corresponding _mem_pending_ bit is set, then it is swapped with the _mem_done_ bit when the corresponding rank decrementing counter reaches 3. This accommodates the propagation delay until the requester, assuming the latter is ready. This is referred as _three-cycles-early_ _mem_done_ setting.
 
-This forces, in particular, all the simulated memory delays to be at least 3 cycles This lower bound is much lower than typical main memory access delays.
+It forces, in particular, all the simulated memory delays to be at least 3 cycles. This lower bound is much lower than typical main memory access delays.
 
 ##### Write requests
 
@@ -473,7 +477,7 @@ As there is a single write response per write address request, the release of th
 
 ##### Read data
 
-As opposed to write responses, one read data is released for each each data request in the read slot. Everytime a memory request is completed (_mem\_pending_ is being unset and _mem\_done_ is simultaneously being set), the release enable counter associated with the read slot's iid field is incremented. When the _mem_done_ array is full of ones, the valid bit of the slot is unset.
+As opposed to write responses, one read data is released for each data request in the read slot. Whenever a memory request is completed (_mem\_pending_ is being unset and _mem\_done_ is simultaneously being set), the release enable counter associated with the read slot's iid field is incremented. When the _mem_done_ array is full of ones, the valid bit of the slot is unset.
 
 #### Rank state update
 
@@ -508,7 +512,7 @@ DRAM refreshing simulation is currently not implemented. It can be implemented b
 
 Currently, only one rank is implemented, but the necessary infrastructure to implement different kinds of interleaving are already integrated, notably the optimizations are implemented per-rank (visible through the _for (genvar i\_rk..._ loops).
 
-It remains mostly to define how interleaving is mapped, and to add additional information to the slots in case a memory request entryu is split between several ranks. This situation seems preferable to avoid, by using higher-order bits to select the rank mapping.
+It remains mostly to define how interleaving is mapped, and to add additional information to the slots in case a memory request entry is split between several ranks. This situation seems preferable to avoid, by using higher-order bits to select the rank mapping.
 
 #### Request cost precision
 
@@ -516,7 +520,7 @@ So far, all the memory request entries with the same address have the same cost,
 
 #### Scheduling strategy
 
-The implemented scheduling strategy is a mainstream and representative strategy. The delay calculator has been designed in a way that the scheduling strategy can reasonably easily be extended: the request ages are explicitly maintained, the outstanding entries are stored and accessible concurrently. This provides support for more complex scheduling strategies implementations.
+The implemented scheduling strategy is a mainstream and representative strategy. The delay calculator has been designed in a way that the scheduling strategy can reasonably easily be extended: the request ages are explicitly maintained; the outstanding entries are stored and accessible concurrently. This provides support for more complex scheduling strategies implementations.
 
 ### Response banks
 
