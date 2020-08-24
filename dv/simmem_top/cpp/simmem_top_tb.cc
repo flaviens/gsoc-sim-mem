@@ -629,7 +629,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                           unsigned int seed) {
   srand(seed);
 
-  size_t nb_iterations = 400;
+  size_t nb_iterations = 600;
 
   std::vector<uint64_t> ids;
 
@@ -709,6 +709,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   requester_current_waddr.from_packed(rand());
   requester_current_waddr.id = ids[rand() % num_identifiers];
   requester_current_waddr.burst_len = kWBurstLen;
+  requester_current_waddr.burst_type = BURST_INCR;
   requester_current_waddr.burst_size = 2;
   // requester_current_waddr.addr = 0;  // TODO Remove
   // Input waddr from the requester
@@ -716,6 +717,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   requester_current_raddr.from_packed(rand());
   requester_current_raddr.id = ids[rand() % num_identifiers];
   requester_current_raddr.burst_len = kRBurstLen;
+  requester_current_raddr.burst_type = BURST_INCR;
   requester_current_raddr.burst_size = 2;
   // requester_current_waddr.addr = 0;  // TODO Remove
 
@@ -856,6 +858,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       requester_current_waddr.id = ids[rand() % num_identifiers];
       requester_current_waddr.burst_len = kWBurstLen;
       requester_current_waddr.burst_size = 2;
+      requester_current_waddr.burst_type = BURST_INCR;
       // requester_current_waddr.addr = 0;  // TODO Remove
     }
     // raddr handshake
@@ -880,6 +883,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       requester_current_raddr.id = ids[rand() % num_identifiers];
       requester_current_raddr.burst_len = kRBurstLen;
       requester_current_raddr.burst_size = 2;
+      requester_current_raddr.burst_type = BURST_INCR;
       // requester_current_raddr.addr = 0;  // TODO Remove
     }
     // wdata handshake

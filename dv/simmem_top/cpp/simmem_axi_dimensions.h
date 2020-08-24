@@ -76,4 +76,12 @@
 
   const uint64_t PackedW = 64;
 
+
+  typedef enum {
+    BURST_FIXED = 0,
+    BURST_INCR = 1,
+    BURST_WRAP = 2,
+    BURST_RESERVED = 3
+  } burst_type_e;
+
 #endif  // SIMMEM_DV_AXI_DIMENSIONS
