@@ -105,8 +105,8 @@
 //
 
 module simmem_rsp_bank #(
-  parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::RDATA_BANK,
-  parameter type DataType = simmem_pkg::rdata_t,
+  parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::WRSP_BANK,
+  parameter type DataType = simmem_pkg::wrsp_t,
 
   localparam int unsigned TotCapa = RspBankType == simmem_pkg::WRSP_BANK ?
       simmem_pkg::WRspBankCapa : simmem_pkg::RDataBankCapa,  // derived parameter
