@@ -105,22 +105,18 @@
 //
 
 module simmem_rsp_bank #(
-  parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::WRSP_BANK,
-  parameter type DataType = simmem_pkg::wrsp_t,
+  parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::RDATA_BANK,
+  parameter type DataType = simmem_pkg::rdata_t,
 
   localparam int unsigned TotCapa = RspBankType == simmem_pkg::WRSP_BANK ?
       simmem_pkg::WRspBankCapa : simmem_pkg::RDataBankCapa,  // derived parameter
-  // * BurstLenWidth is the bit width to encode up to MaxBurstLenField-1 in binary format.
   // * XBurstLenWidth is the bit width to encode up to MaxBurstLenField in binary format. This is
-  //   useful, as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLenField burst data. It
+  //   useful, as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLenField burst data: it
   //   is used to encode lengths.
   localparam int unsigned XBurstLenWidth = RspBankType == simmem_pkg::WRSP_BANK ?
-      1 : $clog2 (simmem_pkgMaxBurstLenField + 1),  // derived parameter
-  localparam int unsigned BurstLenWidth = RspBankType == simmem_pkg::WRSP_BANK ?
-      1 : (simmem_pkgMaxBurstLenField == 1 ? 1 : $clog2 (simmem_pkgMaxBurstLenField)
-      ),// derived parameter
-  localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
-  localparam int unsigned DataWidth = $bits (DataType),  // derived parameter
+      1 : $clog2 (simmem_pkg::MaxBurstLenField + 1),                  // derived parameter
+  localparam int unsigned BankAddrWidth = $clog2 (TotCapa),           // derived parameter
+  localparam int unsigned DataWidth = $bits (DataType),               // derived parameter
   localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstEffLen  // derived parameter
 ) (
   input logic clk_i,
@@ -131,9 +127,9 @@ module simmem_rsp_bank #(
   // Information about currently reserved address. Will be stored by other modules as an internal
   // identifier to uniquely identify the response (or response burst in case of read data).
   output logic [     BankAddrWidth-1:0] rsv_iid_o,
-  // The number of data elements to reserve in the RAM cell, in binary representation.
+  // The burst length field for read data, 1 for write data.
   input  logic [    XBurstLenWidth-1:0] rsv_burst_len_i,
-  // Reservation handshake signals
+  // Reservation handshake signals.
   input  logic                          rsv_valid_i,
   output logic                          rsv_ready_o,
 

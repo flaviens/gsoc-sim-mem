@@ -15,7 +15,7 @@
 
 const bool kIterationVerbose = false;
 const bool kTransactionsVerbose = false;
-const bool kPairsVerbose = false;
+const bool kPairsVerbose = true; // TODO
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
