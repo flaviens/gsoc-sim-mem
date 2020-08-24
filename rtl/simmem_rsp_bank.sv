@@ -105,10 +105,10 @@
 //
 
 module simmem_rsp_bank #(
-  parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::WRSP_BANK,
+  parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::RDATA_BANK,
 
   // Must be simmem_pkg::wrsp_t for WRSP_BANK and simmem_pkg::rdata_t for RDATA_BANK.
-  parameter type DataType = simmem_pkg::wrsp_t,
+  parameter type DataType = simmem_pkg::rdata_t,
 
   localparam int unsigned TotCapa = RspBankType == simmem_pkg::WRSP_BANK ?
       simmem_pkg::WRspBankCapa : simmem_pkg::RDataBankCapa,  // derived parameter
@@ -737,11 +737,11 @@ module simmem_rsp_bank #(
     assign pyld_ram_out_offset[i_bit] = |pyld_ram_out_offset_rot90[i_bit];
   end : aggregate_ram_offset
 
-  if (MaxBurstLenField > 1) begin
+  if (MaxBurstLenField > 0) begin
     assign pyld_ram_in_full_addr = {pyld_ram_in_addr, pyld_ram_in_offset};
     assign pyld_ram_out_full_addr = {pyld_ram_out_addr, pyld_ram_out_offset};
   end else begin
-    // For a MaxBurstLenField of 1, full address and address match.
+    // For a MaxBurstLenField of 0, full address and address match.
     assign pyld_ram_in_full_addr = pyld_ram_in_addr;
     assign pyld_ram_out_full_addr = pyld_ram_out_addr;
   end

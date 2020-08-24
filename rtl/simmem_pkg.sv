@@ -58,7 +58,8 @@ package simmem_pkg;
 
   // Data & response field widths
   localparam int unsigned XLastWidth = 1;
-  localparam int unsigned XRespWidth = 10; //TODO
+  // XReespWidth should be increased to 10 when testing, to have wider patterns to compare.
+  localparam int unsigned XRespWidth = 10; // TODO
   localparam int unsigned WUserWidth = 0;
   localparam int unsigned RUserWidth = 0;
   localparam int unsigned BUserWidth = 0;
@@ -66,7 +67,7 @@ package simmem_pkg;
 
   // Burst size constants
 
-  // Maximal value of any burst_size field
+  // Maximal value of any burst_size field, must be positive.
   localparam int unsigned MaxBurstSizeField = 2;
 
   // Effective max burst size (in number of elements)
@@ -78,7 +79,7 @@ package simmem_pkg;
 
   // Burst length constants
 
-  // Maximal allowed burst length field value
+  // Maximal allowed burst length field value, must be positive.
   localparam int unsigned MaxBurstLenField = 2;
 
   // Effective max burst length (in number of elements)
@@ -200,7 +201,7 @@ package simmem_pkg;
     * @return the number of elements in the burst
     */
   function automatic logic [MaxBurstLenField:0] get_effective_burst_len(
-      logic [$clog2(MaxBurstLenField):0] burst_len_field);
+      logic [$clog2(MaxBurstLenField)-1:0] burst_len_field);
     return 1 << burst_len_field;
   endfunction : get_effective_burst_len
 
@@ -211,7 +212,7 @@ package simmem_pkg;
     * @return the size of the elements in the burst
     */
   function automatic logic [MaxBurstSizeField:0] get_effective_burst_size(
-      logic [$clog2(MaxBurstSizeField):0] burst_size_field);
+      logic [$clog2(MaxBurstSizeField)-1:0] burst_size_field);
     return 1 << burst_size_field;
   endfunction : get_effective_burst_size
 

@@ -60,8 +60,7 @@ module simmem_rsp_banks (
   import simmem_pkg::*;
 
   simmem_rsp_bank #(
-      .TotCapa(WRspBankCapa),
-      .MaxBurstLen(1),  // There is no burst in the write responses
+      .RspBankType(WRSP_BANK),
       .DataType(wrsp_t)
   ) i_simmem_wrsp_bank (
       .clk_i                 (clk_i),
@@ -84,8 +83,7 @@ module simmem_rsp_banks (
   );
 
   simmem_rsp_bank #(
-      .TotCapa(RDataBankCapa),
-      .MaxBurstLen(MaxBurstEffLen),
+      .RspBankType(RDATA_BANK),
       .DataType(rdata_t)
   ) i_simmem_rdata_bank (
       .clk_i                 (clk_i),
