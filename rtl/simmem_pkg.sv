@@ -20,69 +20,69 @@ package simmem_pkg;
   ///////////////////////
 
   // The capacity of the global memory
-  localparam int unsigned GlobalMemCapaW = 19;
-  localparam int unsigned GlobalMemCapa = 1 << GlobalMemCapaW;  // Bytes.
+  parameter int unsigned GlobalMemCapaW = 19;
+  parameter int unsigned GlobalMemCapa = 1 << GlobalMemCapaW;  // Bytes.
 
   // The log2 of the width of a bank row.
-  localparam int unsigned RowBufLenW = 10;
+  parameter int unsigned RowBufLenW = 10;
   // The number of MSBs that uniquely define a bank row in an address.
-  localparam int unsigned RowIdWidth = GlobalMemCapaW - RowBufLenW;
+  parameter int unsigned RowIdWidth = GlobalMemCapaW - RowBufLenW;
 
-  localparam int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
-  localparam int unsigned PrechargeCost = 2;  // Cycles
-  localparam int unsigned ActivationCost = 1;  // Cycles
+  parameter int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
+  parameter int unsigned PrechargeCost = 2;  // Cycles
+  parameter int unsigned ActivationCost = 1;  // Cycles
 
   // Log2 of the boundary that cannot be crossed by bursts.
-  localparam int unsigned BurstAddrLSBs = 12;
+  parameter int unsigned BurstAddrLSBs = 12;
 
 
   /////////////////
   // AXI signals //
   /////////////////
 
-  localparam int unsigned IDWidth = 2;
-  localparam int unsigned NumIds = 1 << IDWidth;
+  parameter int unsigned IDWidth = 2;
+  parameter int unsigned NumIds = 1 << IDWidth;
 
   // Address field widths
-  localparam int unsigned AxAddrWidth = GlobalMemCapaW;
-  localparam int unsigned AxLenWidth = 8;
-  localparam int unsigned AxSizeWidth = 3;
-  localparam int unsigned AxBurstWidth = 2;
-  localparam int unsigned AxLockWidth = 2;
-  localparam int unsigned AxCacheWidth = 4;
-  localparam int unsigned AxProtWidth = 4;
-  localparam int unsigned AxQoSWidth = 4;
-  localparam int unsigned AxRegionWidth = 4;
-  localparam int unsigned AwUserWidth = 0;
-  localparam int unsigned ArUserWidth = 0;
+  parameter int unsigned AxAddrWidth = GlobalMemCapaW;
+  parameter int unsigned AxLenWidth = 8;
+  parameter int unsigned AxSizeWidth = 3;
+  parameter int unsigned AxBurstWidth = 2;
+  parameter int unsigned AxLockWidth = 2;
+  parameter int unsigned AxCacheWidth = 4;
+  parameter int unsigned AxProtWidth = 4;
+  parameter int unsigned AxQoSWidth = 4;
+  parameter int unsigned AxRegionWidth = 4;
+  parameter int unsigned AwUserWidth = 0;
+  parameter int unsigned ArUserWidth = 0;
 
   // Data & response field widths
-  localparam int unsigned XLastWidth = 1;
+  parameter int unsigned XLastWidth = 1;
   // XReespWidth should be increased to 10 when testing, to have wider patterns to compare.
-  localparam int unsigned XRespWidth = 10; // TODO
-  localparam int unsigned WUserWidth = 0;
-  localparam int unsigned RUserWidth = 0;
-  localparam int unsigned BUserWidth = 0;
+  parameter int unsigned XRespWidth = 3;
+  parameter int unsigned WUserWidth = 0;
+  parameter int unsigned RUserWidth = 0;
+  parameter int unsigned BUserWidth = 0;
 
   // Burst size constants
 
   // Maximal value of any burst_size field, must be positive.
-  localparam int unsigned MaxBurstSizeField = 2;
+  parameter int unsigned MaxBurstSizeField = 2;
 
   // Effective max burst size (in number of elements)
-  localparam int unsigned MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
-  localparam int unsigned MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
+  parameter int unsigned MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
+  parameter int unsigned MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
 
-  localparam int unsigned WStrbWidth = MaxBurstEffSizeBytes;
+  parameter int unsigned WStrbWidth = MaxBurstEffSizeBytes;
 
 
   // Burst length constants
 
   // Maximal allowed burst length field value, must be positive.
-  localparam int unsigned MaxBurstLenField = 2;
+  parameter int unsigned MaxBurstLenField = 2;
 
   // Effective max burst length (in number of elements)
-  localparam int unsigned MaxBurstEffLen = 1 << MaxBurstLenField;
+  parameter int unsigned MaxBurstEffLen = 1 << MaxBurstLenField;
 
 
   ////////////////////////////
@@ -90,22 +90,22 @@ package simmem_pkg;
   ////////////////////////////
 
   // Capacities in extended cells (number of outstanding bursts).
-  localparam int unsigned WRspBankCapa = 8;
-  localparam int unsigned RDataBankCapa = 4;
+  parameter int unsigned WRspBankCapa = 8;
+  parameter int unsigned RDataBankCapa = 4;
 
-  localparam int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
-  localparam int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
+  parameter int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
+  parameter int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
 
   // Internal identifier types.
   typedef logic [WRspBankAddrW-1:0] write_iid_t;
   typedef logic [RDataBankAddrW-1:0] read_iid_t;
 
   // Delay calculator slot constants definition.
-  localparam int unsigned NumWSlots = 6;
-  localparam int unsigned NumRSlots = 3;
+  parameter int unsigned NumWSlots = 6;
+  parameter int unsigned NumRSlots = 3;
 
   // Maximal bit width on which to encode a delay.(measured in clock cycles).
-  localparam int unsigned DelayW = 6;  // bits
+  parameter int unsigned DelayW = 6;  // bits
 
 
   ///////////////////////////////////

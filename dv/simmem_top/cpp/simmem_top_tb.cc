@@ -7,11 +7,12 @@
 //  * Write response ordering.
 //
 // The testbench is divided into 3 parts:
-//  * Definition of the SimmemTestbench class, which is the interface with the design under test.
-//  * Definition of a RealMem class, which emulates a simple and instantaneous real memory
-//  controller, which immediately responds to requests.
-//  * Definition of a manual and a randomized testbench. The randomized testbench randomly applies
-//  inputs and observe output delays and contents.
+//  * Definition of the SimmemTestbench class, which is the interface with the
+//  design under test.
+//  * Definition of a RealMem class, which emulates a simple and instantaneous
+//  real memory controller, which immediately responds to requests.
+//  * Definition of a manual and a randomized testbench. The randomized
+//  testbench randomly applies inputs and observe output delays and contents.
 
 #include "Vsimmem_top.h"
 #include "simmem_axi_structures.h"
@@ -35,10 +36,7 @@ const int kTraceLevel = 6;
 const int kWBurstLen = 1;
 const int kRBurstLen = 2;
 
-typedef enum {
-  MANUAL_TEST,
-  RANDOMIZED_TEST
-} test_strategy_e;
+typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
 typedef Vsimmem_top Module;
@@ -69,9 +67,7 @@ class SimmemTestbench {
    */
   SimmemTestbench(bool record_trace = true,
                   const std::string &trace_filename = "sim.fst")
-      : tick_count_(0l),
-        record_trace_(record_trace),
-        module_(new Module) {
+      : tick_count_(0l), record_trace_(record_trace), module_(new Module) {
     if (record_trace) {
       trace_ = new VerilatedFstC;
       module_->trace(trace_, kTraceLevel);
@@ -549,15 +545,14 @@ class RealMemoryController {
   rdata_queue_map_t rdata_out_queues;
 };
 
-
 /**
- * This function allows the user to manually play with the SimmemTestbench object to interact
- * with the simulated memory controller at a quite low and controlled level.
+ * This function allows the user to manually play with the SimmemTestbench
+ * object to interact with the simulated memory controller at a quite low and
+ * controlled level.
  *
  * @param tb A pointer the the already contructed SimmemTestbench object.
  */
 void manual_testbench(SimmemTestbench *tb) {
-
   // Example of a manual testbench
 
   tb->simmem_reset();
@@ -601,12 +596,13 @@ void manual_testbench(SimmemTestbench *tb) {
  * This function implements a more complete, randomized and automatic testbench.
  *
  * @param tb A pointer the the already contructed SimmemTestbench object.
- * @param num_identifiers The number of AXI identifiers to involve. Must be at lest 1, and lower than NumIds.
+ * @param num_identifiers The number of AXI identifiers to involve. Must be at
+ * lest 1, and lower than NumIds.
  * @param seed The seed for the randomized test.
  * @param num_cycles The number of simulated clock cycles.
  */
 void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
-                          unsigned int seed, size_t num_cycles=400) {
+                          unsigned int seed, size_t num_cycles = 400) {
   srand(seed);
 
   // The identifiers.
@@ -618,7 +614,8 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   // Instantiate a real memory controller emulator.
   RealMemoryController realmem(ids);
 
-  // These structures will store the input and output data, for comparison and delay measurement purposes.
+  // These structures will store the input and output data, for comparison and
+  // delay measurement purposes.
   waddr_time_queue_map_t waddr_in_queues;
   waddr_time_queue_map_t waddr_out_queues;
   raddr_time_queue_map_t raddr_in_queues;

@@ -11,7 +11,7 @@
 // Write address request //
 ///////////////////////////
 
-  // TODO: Implement region
+// TODO: Implement region
 struct WriteAddress {
   // Shift offsets and widths in the packed representation
   static const uint64_t id_off, id_w;
