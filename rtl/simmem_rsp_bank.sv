@@ -114,9 +114,11 @@ module simmem_rsp_bank #(
   // * XBurstLenWidth is the bit width to encode up to MaxBurstLenField in binary format. This is
   //   useful, as any RAM cell can contain or reserve 0, 1, ... or MaxBurstLenField burst data. It
   //   is used to encode lengths.
-  localparam int unsigned XBurstLenWidth = $clog2 (MaxBurstLenField + 1),  // derived parameter
-  localparam int unsigned BurstLenWidth =
-      MaxBurstLenField == 1 ? 1 : $clog2 (MaxBurstLenField),  // derived parameter
+  localparam int unsigned XBurstLenWidth = RspBankType == simmem_pkg::WRSP_BANK ?
+      1 : $clog2 (simmem_pkgMaxBurstLenField + 1),  // derived parameter
+  localparam int unsigned BurstLenWidth = RspBankType == simmem_pkg::WRSP_BANK ?
+      1 : (simmem_pkgMaxBurstLenField == 1 ? 1 : $clog2 (simmem_pkgMaxBurstLenField)
+      ),// derived parameter
   localparam int unsigned BankAddrWidth = $clog2 (TotCapa),  // derived parameter
   localparam int unsigned DataWidth = $bits (DataType),  // derived parameter
   localparam int unsigned PayloadRamDepth = TotCapa * MaxBurstEffLen  // derived parameter
