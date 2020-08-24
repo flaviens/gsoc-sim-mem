@@ -9,69 +9,71 @@
 
 #include <stdint.h>
 
-// TODO Harmonize with simmem_pkg
+  // The capacity of the global memory
+  const uint64_t GlobalMemCapaW = 19;
+  const uint64_t GlobalMemCapa = 1 << GlobalMemCapaW;  // Bytes.
 
-// TODO: Change the const names to fit with the C++ coding style
+  // The log2 of the width of a bank row.
+  const uint64_t RowBufLenW = 10;
+  // The number of MSBs that uniquely define a bank row in an address.
+  const uint64_t RowIdWidth = GlobalMemCapaW - RowBufLenW;
 
-const uint64_t GlobalMemCapaW = 19;
+  const uint64_t RowHitCost = 10;  // Cycles (must be at least 3)
+  const uint64_t PrechargeCost = 50;  // Cycles
+  const uint64_t ActivationCost = 45;  // Cycles
 
-const uint64_t IDWidth = 2;
-const uint64_t NumIds = 1 << IDWidth;
-
-// Address field widths
-const uint64_t AxAddrWidth = GlobalMemCapaW;
-const uint64_t AxLenWidth = 8;
-const uint64_t AxSizeWidth = 3;
-const uint64_t AxBurstWidth = 2;
-const uint64_t AxLockWidth = 2;
-const uint64_t AxCacheWidth = 4;
-const uint64_t AxProtWidth = 4;
-const uint64_t AxQoSWidth = 4;
-const uint64_t AxRegionWidth = 4;
-const uint64_t AwUserWidth = 0;
-const uint64_t ArUserWidth = 0;
-
-const uint64_t XLastWidth = 1;
-// TODO: Set XRespWidth to 3 when all tests are passed
-const uint64_t XRespWidth = 10;
-const uint64_t WUserWidth = 0;
-const uint64_t RUserWidth = 0;
-const uint64_t BUserWidth = 0;
-
-const uint64_t WStrbWidth = MaxBurstEffSizeBytes;
-
-// Burst length constants
-
-// Maximal allowed burst length field value, must be positive.
-const uint64_t MaxBurstLenField = 2;
-
-// Effective max burst length (in number of elements)
-const uint64_t MaxBurstEffLen = 1 << MaxBurstLenField;
+  // Log2 of the boundary that cannot be crossed by bursts.
+  const uint64_t BurstAddrLSBs = 12;
 
 
-////////////////////////////
-// Dimensions for modules //
-////////////////////////////
+  /////////////////
+  // AXI signals //
+  /////////////////
 
-// Capacities in extended cells (number of outstanding bursts).
-const uint64_t WRspBankCapa = 32;
-const uint64_t RDataBankCapa = 16;
+  const uint64_t IDWidth = 2;
+  const uint64_t NumIds = 1 << IDWidth;
 
-const uint64_t WRspBankAddrW = $clog2(WRspBankCapa);
-const uint64_t RDataBankAddrW = $clog2(RDataBankCapa);
+  // Address field widths
+  const uint64_t AxAddrWidth = GlobalMemCapaW;
+  const uint64_t AxLenWidth = 8;
+  const uint64_t AxSizeWidth = 3;
+  const uint64_t AxBurstWidth = 2;
+  const uint64_t AxLockWidth = 2;
+  const uint64_t AxCacheWidth = 4;
+  const uint64_t AxProtWidth = 4;
+  const uint64_t AxQoSWidth = 4;
+  const uint64_t AxRegionWidth = 4;
+  const uint64_t AwUserWidth = 0;
+  const uint64_t ArUserWidth = 0;
 
-////////////////////////////
-// Dimensions for modules //
-////////////////////////////
+  // Data & response field widths
+  const uint64_t XLastWidth = 1;
+  // XReespWidth should be increased to 10 when testing, to have wider patterns to compare.
+  const uint64_t XRespWidth = 10; // TODO
+  const uint64_t WUserWidth = 0;
+  const uint64_t RUserWidth = 0;
+  const uint64_t BUserWidth = 0;
 
-const uint64_t WRspBankCapa = 32;
-const uint64_t RDataBankCapa = 16;
+  // Burst size constants
 
-///////////////////////
-// Auxiliary signals //
-///////////////////////
+  // Maximal value of any burst_size field, must be positive.
+  const uint64_t MaxBurstSizeField = 2;
 
-const unsigned int PackedW = 64;
-const unsigned int MaxPendingWData = WRspBankCapa * MaxBurstEffLen / 2;
+  // Effective max burst size (in number of elements)
+  const uint64_t MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
+  const uint64_t MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
+
+  const uint64_t WStrbWidth = MaxBurstEffSizeBytes;
+
+
+  // Burst length constants
+
+  // Maximal allowed burst length field value, must be positive.
+  const uint64_t MaxBurstLenField = 2;
+
+  // Effective max burst length (in number of elements)
+  const uint64_t MaxBurstEffLen = 1 << MaxBurstLenField;
+
+  const uint64_t PackedW = 64;
 
 #endif  // SIMMEM_DV_AXI_DIMENSIONS

@@ -28,9 +28,9 @@ package simmem_pkg;
   // The number of MSBs that uniquely define a bank row in an address.
   localparam int unsigned RowIdWidth = GlobalMemCapaW - RowBufLenW;
 
-  localparam int unsigned RowHitCost = 10;  // Cycles (must be at least 3)
-  localparam int unsigned PrechargeCost = 50;  // Cycles
-  localparam int unsigned ActivationCost = 45;  // Cycles
+  localparam int unsigned RowHitCost = 4;  // Cycles (must be at least 3)
+  localparam int unsigned PrechargeCost = 2;  // Cycles
+  localparam int unsigned ActivationCost = 1;  // Cycles
 
   // Log2 of the boundary that cannot be crossed by bursts.
   localparam int unsigned BurstAddrLSBs = 12;
@@ -41,7 +41,7 @@ package simmem_pkg;
   /////////////////
 
   localparam int unsigned IDWidth = 2;
-  localparam int unsigned NumIds = 2 ** IDWidth;
+  localparam int unsigned NumIds = 1 << IDWidth;
 
   // Address field widths
   localparam int unsigned AxAddrWidth = GlobalMemCapaW;
@@ -63,7 +63,6 @@ package simmem_pkg;
   localparam int unsigned WUserWidth = 0;
   localparam int unsigned RUserWidth = 0;
   localparam int unsigned BUserWidth = 0;
-
 
   // Burst size constants
 
@@ -91,8 +90,8 @@ package simmem_pkg;
   ////////////////////////////
 
   // Capacities in extended cells (number of outstanding bursts).
-  localparam int unsigned WRspBankCapa = 32;
-  localparam int unsigned RDataBankCapa = 16;
+  localparam int unsigned WRspBankCapa = 8;
+  localparam int unsigned RDataBankCapa = 4;
 
   localparam int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
   localparam int unsigned RDataBankAddrW = $clog2(RDataBankCapa);

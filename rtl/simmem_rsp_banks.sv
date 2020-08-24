@@ -69,7 +69,7 @@ module simmem_rsp_banks (
       .rst_ni                (rst_ni),
       .rsv_req_id_onehot_i   (wrsv_req_id_onehot_i),
       .rsv_iid_o             (wrsv_iid_o),
-      .rsv_burst_len_i       (1),  // Only 1 wrsp per burst
+      .rsv_burst_len_i       (0),  // Only 1 wrsp per burst
       .rsv_valid_i           (wrsv_valid_i),
       .rsv_ready_o           (wrsv_ready_o),
       .release_en_i          (w_release_en_i),

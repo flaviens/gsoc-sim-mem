@@ -17,8 +17,6 @@
 // WARNING: The simulated memory controller module does not enforce ordering
 // between read and write data of same AXI id.
 
-// TODO: Warning with wdata counter overflow.
-
 const bool kIterationVerbose = false;
 const bool kTransactionVerbose = true;
 
@@ -246,10 +244,10 @@ class SimmemTestbench {
   /**
    * Applies a valid write response the real memory controller.
    *
-   * @param wresp the input write response
+   * @param wrsp the input write response
    */
-  void simmem_realmem_wrsp_apply(WriteResponse wresp) {
-    module_->wrsp_i = wresp.to_packed();
+  void simmem_realmem_wrsp_apply(WriteResponse wrsp) {
+    module_->wrsp_i = wrsp.to_packed();
 
     module_->wrsp_in_valid_i = 1;
   }
@@ -411,7 +409,7 @@ class RealMemoryController {
     WriteResponse newrsp;
     newrsp.id = waddr.id;
     newrsp.rsp =  // Copy the low order rsp of the incoming waddr in
-                  // the corresponding wresp
+                  // the corresponding wrsp
         (waddr.to_packed() >> WriteAddress::id_w) &
         ~((1L << (PackedW - 1)) >> (PackedW - WriteResponse::rsp_w));
 
@@ -491,7 +489,7 @@ class RealMemoryController {
    *
    * @return the write response.
    */
-  WriteResponse get_next_wresp() {
+  WriteResponse get_next_wrsp() {
     wrsp_queue_map_t::iterator it;
     for (it = wrsp_out_queues.begin(); it != wrsp_out_queues.end(); it++) {
       if (it->second.size()) {
@@ -520,7 +518,7 @@ class RealMemoryController {
   /**
    * Pops the next write response. Assumes there is one ready.
    */
-  void pop_next_wresp() {
+  void pop_next_wrsp() {
     wrsp_queue_map_t::iterator it;
     for (it = wrsp_out_queues.begin(); it != wrsp_out_queues.end(); it++) {
       if (it->second.size()) {
@@ -552,7 +550,7 @@ class RealMemoryController {
   // ///////////////////////////////////
 
   // /**
-  //  * Notifies the real memory controller emulator that a wresp of a certain
+  //  * Notifies the real memory controller emulator that a wrsp of a certain
   //  AXI
   //  * identifier has been received. This allows new write data to be supplied.
   //  *
@@ -564,7 +562,7 @@ class RealMemoryController {
   // }
 
   // /**
-  //  * Notifies the real memory controller emulator that a wresp of a certain
+  //  * Notifies the real memory controller emulator that a wrsp of a certain
   //  AXI
   //  * identifier has been received. This allows new write data to be supplied.
   //  *
@@ -580,7 +578,7 @@ class RealMemoryController {
   // Not releasable until enabled using releasable_wrsp_cnts
   wrsp_queue_map_t wrsp_out_queues;
   wids_cnt_t
-      releasable_wrsp_cnts;  // Counts how many wresp can be released to far
+      releasable_wrsp_cnts;  // Counts how many wrsp can be released to far
   wids_cnt_queue_t wids_expecting_data;
   rdata_queue_map_t rdata_out_queues;
 
@@ -631,7 +629,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                           unsigned int seed) {
   srand(seed);
 
-  size_t nb_iterations = 1000;
+  size_t nb_iterations = 400;
 
   std::vector<uint64_t> ids;
 
@@ -725,14 +723,14 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   WriteData requester_current_wdata;
   requester_current_wdata.from_packed(rand());
 
-  WriteResponse requester_current_wresp;  // Output wresp to the requester
+  WriteResponse requester_current_wrsp;  // Output wrsp to the requester
   ReadData requester_current_rdata;       // Output rdata to the requester
 
   /////////////////////
   // Realmem signals //
   /////////////////////
 
-  WriteResponse realmem_current_wresp;  // Input wresp from the realmem
+  WriteResponse realmem_current_wrsp;  // Input wrsp from the realmem
   ReadData realmem_current_rdata;       // Input rdata from the realmem
 
   WriteAddress realmem_current_waddr;  // Output to the realmem
@@ -812,8 +810,8 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
     //////////////////////////////////////////////////
 
     if (realmem_apply_wrsp_input) {
-      // Apply the next available wresp from the real memory controller
-      tb->simmem_realmem_wrsp_apply(realmem.get_next_wresp());
+      // Apply the next available wrsp from the real memory controller
+      tb->simmem_realmem_wrsp_apply(realmem.get_next_wrsp());
     }
     if (realmem_apply_rdata_input) {
       // Apply the next available rdata from the real memory controller
@@ -904,29 +902,29 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       // Renew the input data if the input handshake has been successful
       requester_current_wdata.from_packed(rand());
     }
-    // wresp handshake
+    // wrsp handshake
     if (realmem_apply_wrsp_input && tb->simmem_realmem_wrsp_check()) {
       // If the input handshake between the realmem and the simmem has been
       // successful, then accept the input.
 
-      realmem_current_wresp = realmem.get_next_wresp();
-      realmem.pop_next_wresp();
+      realmem_current_wrsp = realmem.get_next_wrsp();
+      realmem.pop_next_wrsp();
 
-      wrsp_in_queues[realmem_current_wresp.id].push(
-          std::pair<size_t, WriteResponse>(curr_itern, realmem_current_wresp));
+      wrsp_in_queues[realmem_current_wrsp.id].push(
+          std::pair<size_t, WriteResponse>(curr_itern, realmem_current_wrsp));
       if (kTransactionVerbose) {
         if (!iteration_announced) {
           iteration_announced = true;
           std::cout << std::endl
                     << "Step " << std::dec << curr_itern << std::endl;
         }
-        std::cout << "Realmem inputted wresp " << std::hex
-                  << realmem_current_wresp.to_packed() << std::endl;
+        std::cout << "Realmem inputted wrsp " << std::hex
+                  << realmem_current_wrsp.to_packed() << std::endl;
       }
 
       // Renew the input data if the input handshake has been successful
-      realmem_current_wresp.from_packed(rand());
-      realmem_current_wresp.id = ids[rand() % num_identifiers];
+      realmem_current_wrsp.from_packed(rand());
+      realmem_current_wrsp.id = ids[rand() % num_identifiers];
     }
     // rdata handshake
     if (realmem_apply_rdata_input && tb->simmem_realmem_rdata_check()) {
@@ -1022,14 +1020,14 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
                   << realmem_current_wdata.to_packed() << std::endl;
       }
     }
-    // wresp handshake
+    // wrsp handshake
     if (requester_req_wrsp_output &&
-        tb->simmem_requester_wrsp_fetch(requester_current_wresp)) {
+        tb->simmem_requester_wrsp_fetch(requester_current_wrsp)) {
       // If the output handshake between the requester and the simmem has been
       // successful, then accept the output.
-      wrsp_out_queues[ids[requester_current_wresp.id]].push(
+      wrsp_out_queues[ids[requester_current_wrsp.id]].push(
           std::pair<size_t, WriteResponse>(curr_itern,
-                                           requester_current_wresp));
+                                           requester_current_wrsp));
 
       if (kTransactionVerbose) {
         if (!iteration_announced) {
@@ -1037,8 +1035,8 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
           std::cout << std::endl
                     << "Step " << std::dec << curr_itern << std::endl;
         }
-        std::cout << "Requester received wresp " << std::hex
-                  << requester_current_wresp.to_packed() << std::endl;
+        std::cout << "Requester received wrsp " << std::hex
+                  << requester_current_wrsp.to_packed() << std::endl;
       }
     }
     // rdata handshake
@@ -1136,7 +1134,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       wrsp_out_queues[curr_id].pop();
       std::cout << "Delay: " << std::dec << out_time - in_time << std::hex
                 << " (waddr: " << in_req.to_packed()
-                << ", wresp: " << out_res.to_packed()
+                << ", wrsp: " << out_res.to_packed()
                 << ", payload: " << (out_res.to_packed() >> IDWidth) << ")."
                 << std::endl;
     }
