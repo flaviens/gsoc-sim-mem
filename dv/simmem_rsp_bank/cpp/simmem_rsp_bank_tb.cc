@@ -2,6 +2,16 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
+// This testbench offers partial testing of the simumated memory controller response banks:
+//  * Response integrity.
+//  * Response ordering per AXI identifier.
+//
+// The testbench is divided into 2 parts:
+//  * Definition of the WriteRspBankTestbench class, which is the interface with the design under test.
+//  * Definition of a simple, a randomized with a single ID and a  testbench. The randomized testbench randomly applies
+//    inputs and observe output delays and contents.
+
+
 #include "Vsimmem_rsp_bank.h"
 #include "verilated.h"
 #include <cassert>
@@ -22,12 +32,8 @@ const int kTraceLevel = 6;
 const int kRspWidth = 11;  // Whole response width
 const int kIdWidth = 2;
 
-typedef enum {
-  SEQUENTIAL_TEST,
-  SINGLE_ID_TEST,
-  MULTIPLE_ID_TEST
-} test_strategy_e;
-const test_strategy_e kTestStrategy = MULTIPLE_ID_TEST;
+typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
+const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
 typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
@@ -36,8 +42,8 @@ typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 class WriteRspBankTestbench {
  public:
   /**
-   * @param trailing_clock_cycles number of ticks to perform after all the
-   * requests have been performed
+   * @param trailing_clock_cycles number of ticks to perform after all the requests have been
+   * performed
    * @param record_trace set to false to skip trace recording
    */
   WriteRspBankTestbench(vluint32_t trailing_clock_cycles = 0,
@@ -107,8 +113,8 @@ class WriteRspBankTestbench {
   }
 
   /**
-   * Sets the reservation request signal to one and the reservation request
-   * identifier to the right value.
+   * Sets the reservation request signal to one and the reservation request identifier to the right
+   * value.
    *
    * @param axi_id the AXI identifier to reserve
    */
@@ -129,8 +135,7 @@ class WriteRspBankTestbench {
    * Applies valid input data.
    *
    * @param identifier the AXI identifier of the incoming data
-   * @param rsp the rest (rsp) of the incoming
-   * data
+   * @param rsp the rest (rsp) of the incoming data
    *
    * @return the data as seen by the design under test instance
    */
@@ -151,8 +156,7 @@ class WriteRspBankTestbench {
   uint32_t simmem_reservation_get_address(void) { return module_->rsv_iid_o; }
 
   /**
-   * Checks whether the input data has been accepted by checking the ready
-   * output signal.
+   * Checks whether the input data has been accepted by checking the ready output signal.
    */
   bool simmem_input_data_check(void) {
     module_->eval();
@@ -188,8 +192,7 @@ class WriteRspBankTestbench {
   void simmem_output_data_request(void) { module_->out_rsp_ready_i = 1; }
 
   /**
-   * Tries to fetch output data. Requires the ready signal to be one at the DUT
-   * output.
+   * Tries to fetch output data. Requires the ready signal to be one at the DUT output.
    *
    * @param out_data the output data from the DUT
    *
@@ -209,8 +212,8 @@ class WriteRspBankTestbench {
   void simmem_output_data_stop(void) { module_->out_rsp_ready_i = 0; }
 
   /**
-   * Informs the testbench that all the requests have been performed and
-   * therefore that the trailing cycles phase should start.
+   * Informs the testbench that all the requests have been performed and therefore that the trailing
+   * cycles phase should start.
    */
   void simmem_requests_complete(void) { tick_count_ = 0; }
 
@@ -242,12 +245,12 @@ class WriteRspBankTestbench {
 };
 
 /**
- * Performs a basic test as a temporally disjoint sequence of reservation, data
- * input and data output.
+ * Performs a basic test as a temporally disjoint sequence of reservation, data input and data
+ * output.
  *
  * @param tb a pointer to a fresh testbench instance
  */
-void sequential_test(WriteRspBankTestbench *tb) {
+void manual_test(WriteRspBankTestbench *tb) {
   tb->simmem_reset();
 
   // Apply reservation requests for 4 ticks
@@ -280,132 +283,18 @@ void sequential_test(WriteRspBankTestbench *tb) {
 }
 
 /**
- * Performs a complete test for a single AXI identifier. Reservation, input and
- * output requests, as well as the data rsp (except for the AXI
- * identifier) are randomized.
+ * Performs a complete test for multiple AXI identifiers. Reservation, input and output requests, as
+ * well as the data rsp (except for the AXI identifier) are randomized.
  *
  * @param tb a pointer to a fresh testbench instance
- * @param seed the seed used for the random request generation
- *
- * @return the number of mismatches between the expected and acquired outputs
- */
-size_t single_id_test(WriteRspBankTestbench *tb, unsigned int seed) {
-  srand(seed);
-
-  uint32_t current_input_id = 4;
-  size_t nb_iterations = 1000;
-
-  // Generate inputs
-  std::queue<uint32_t> input_queue;
-  std::queue<uint32_t> output_queue;
-
-  bool reserve;
-  bool apply_input;
-  bool request_output_data;
-
-  uint32_t current_content =
-      (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
-  uint32_t current_input;
-  uint32_t current_output;
-
-  tb->simmem_reset();
-  // Sets the input signal from releaser such that the releaser allows all
-  // output signals
-  tb->simmem_output_data_allow();
-
-  for (size_t i = 0; i < nb_iterations; i++) {
-    // Randomize the boolean signals deciding which interactions will take place
-    // in this cycle
-    reserve = (bool)(rand() & 1);
-    apply_input = (bool)(rand() & 1);
-    request_output_data = (bool)(rand() & 1);
-
-    if (reserve) {
-      // Signal a reservation request
-      tb->simmem_reservation_start(current_input_id);
-    }
-    if (apply_input) {
-      current_input =
-          tb->simmem_input_data_apply(current_input_id, current_content);
-    }
-    if (request_output_data) {
-      tb->simmem_output_data_request();
-    }
-
-    // Only perform the evaluation once all the inputs have been applied
-    if (tb->simmem_input_data_check()) {
-      input_queue.push(current_input);
-      current_content =
-          (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
-    }
-    if (request_output_data) {
-      if (tb->simmem_output_data_fetch(current_output)) {
-        output_queue.push(current_output);
-      }
-    }
-
-    tb->simmem_tick();
-
-    // Reset all signals after tick (they may be set again before the next DUT
-    // evaluation during the beginning of the next iteration)
-
-    if (reserve) {
-      tb->simmem_reservation_stop();
-    }
-    if (apply_input) {
-      tb->simmem_input_data_stop();
-    }
-    if (request_output_data) {
-      tb->simmem_output_data_stop();
-    }
-  }
-
-  tb->simmem_requests_complete();
-  while (!tb->simmem_is_done()) {
-    tb->simmem_tick();
-  }
-
-  // Check the input and output queues for mismatches
-  size_t nb_mismatches = 0;
-  while (!input_queue.empty() && !output_queue.empty()) {
-    uint32_t cur_in_pyld = input_queue.front() >> kIdWidth;
-    uint32_t cur_out_pyld = output_queue.front() >> kIdWidth;
-
-    cur_in_pyld = cur_in_pyld & ~((1 << 31) >> (31 - kRspWidth + kIdWidth));
-    cur_out_pyld = cur_out_pyld & ~((1 << 31) >> (31 - kRspWidth + kIdWidth));
-
-    input_queue.pop();
-    output_queue.pop();
-
-    if (kPairsVerbose) {
-      std::cout << std::hex << current_input << " - " << current_output
-                << std::endl;
-    }
-    nb_mismatches += (size_t)(current_input != current_output);
-  }
-  if (kPairsVerbose) {
-    std::cout << std::endl
-              << "Mismatches: " << std::dec << nb_mismatches << std::endl
-              << std::endl;
-  }
-
-  return nb_mismatches;
-}
-
-/**
- * Performs a complete test for multiple AXI identifiers. Reservation, input and
- * output requests, as well as the data rsp (except for the AXI
- * identifier) are randomized.
- *
- * @param tb a pointer to a fresh testbench instance
- * @param num_identifiers the number of AXI identifiers to use in the test, must
- * be included between 1 and 2**kIdWidth
+ * @param num_identifiers the number of AXI identifiers to use in the test, must be included between
+ * 1 and 2**kIdWidth
  * @param seed the seed used for the random request generation
  *
  * @return the number of mismatches between the expected and acquired outputs
  */
 
-size_t multiple_ids_test(WriteRspBankTestbench *tb, size_t num_identifiers,
+size_t randomized_test(WriteRspBankTestbench *tb, size_t num_identifiers,
                          unsigned int seed) {
   srand(seed);
 
@@ -440,15 +329,13 @@ size_t multiple_ids_test(WriteRspBankTestbench *tb, size_t num_identifiers,
   uint32_t current_output;
 
   tb->simmem_reset();
-  // Sets the input signal from releaser such that the releaser allows all
-  // output signals
+  // Sets the input signal from releaser such that the releaser allows all output signals
   tb->simmem_output_data_allow();
 
   for (size_t i = 0; i < nb_iterations; i++) {
     iteration_announced = false;
 
-    // Randomize the boolean signals deciding which interactions will take place
-    // in this cycle
+    // Randomize the boolean signals deciding which interactions will take place in this cycle
     reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
@@ -482,8 +369,7 @@ size_t multiple_ids_test(WriteRspBankTestbench *tb, size_t num_identifiers,
       current_reservation_id = identifiers[rand() % num_identifiers];
     }
     if (tb->simmem_input_data_check()) {
-      // If the input handshake has been successful, then add the input into the
-      // corresponding queue
+      // If the input handshake has been successful, then add the input into the corresponding queue
 
       input_queues[current_input_id].push(current_input);
       if (kTransactionsVerbose) {
@@ -501,8 +387,7 @@ size_t multiple_ids_test(WriteRspBankTestbench *tb, size_t num_identifiers,
           (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
     }
     if (request_output_data) {
-      // If the output handshake has been successful, then add the output to the
-      // corresponding queue
+      // If the output handshake has been successful, then add the output to the corresponding queue
       if (tb->simmem_output_data_fetch(current_output)) {
         output_queues[identifiers[(current_output &
                                    tb->simmem_get_identifier_mask())]]
@@ -523,8 +408,8 @@ size_t multiple_ids_test(WriteRspBankTestbench *tb, size_t num_identifiers,
 
     tb->simmem_tick();
 
-    // Reset all signals after tick (they may be set again before the next DUT
-    // evaluation during the beginning of the next iteration)
+    // Reset all signals after tick (they may be set again before the next DUT evaluation during the
+    // beginning of the next iteration)
 
     if (reserve) {
       tb->simmem_reservation_stop();
@@ -582,13 +467,11 @@ int main(int argc, char **argv, char **env) {
         new WriteRspBankTestbench(100, true, "rsp_bank.fst");
 
     // Perform one test for the given seed
-    if (kTestStrategy == SEQUENTIAL_TEST) {
-      sequential_test(tb);
+    if (kTestStrategy == MANUAL_TEST) {
+      manual_test(tb);
       break;
-    } else if (kTestStrategy == SINGLE_ID_TEST) {
-      local_nb_mismatches = single_id_test(tb, seed);
-    } else {
-      local_nb_mismatches = multiple_ids_test(tb, 4, seed);
+    } else if (kTestStrategy == RANDOMIZED_TEST) {
+      local_nb_mismatches = randomized_test(tb, 4, seed);
     }
 
     total_nb_mismatches += local_nb_mismatches;
