@@ -8,9 +8,8 @@
 //
 // The testbench is divided into 2 parts:
 //  * Definition of the WriteRspBankTestbench class, which is the interface with the design under test.
-//  * Definition of a simple, a randomized with a single ID and a  testbench. The randomized testbench randomly applies
-//    inputs and observe output delays and contents.
-
+//  * Definition of a manual and a randomized testbench. The randomized
+//  testbench randomly applies inputs and observe output delays and contents.
 
 #include "Vsimmem_rsp_bank.h"
 #include "verilated.h"
@@ -23,15 +22,20 @@
 #include <vector>
 #include <verilated_fst_c.h>
 
-const bool kIterationVerbose = false;
+// Choose whether to display all the transactions
 const bool kTransactionsVerbose = false;
+// Choose whether to display all (input,output) pairs in the end of each execution.
 const bool kPairsVerbose = false;
 
-const int kResetLength = 5;
+// Length of the reset signal.
+const int kResetLength = 5; // Cycles
+// Depth of the trace.
 const int kTraceLevel = 6;
-const int kRspWidth = 11;  // Whole response width
-const int kIdWidth = 2;
 
+const int kRspWidth = 11;  // Whole response width
+const int kIdWidth = 2; // AXI identifier width
+
+// Testbench choice.
 typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
@@ -79,15 +83,10 @@ class WriteRspBankTestbench {
   /**
    * Performs one or multiple clock cycles.
    *
-   * @param nb_ticks the number of ticks to perform at once
+   * @param num_ticks the number of ticks to perform at once
    */
-  void simmem_tick(int nb_ticls = 1) {
-    for (size_t i = 0; i < nb_ticls; i++) {
-      if (kIterationVerbose) {
-        std::cout << "Running iteration " << std::dec << tick_count_
-                  << std::endl;
-      }
-
+  void simmem_tick(int num_ticks = 1) {
+    for (size_t i = 0; i < num_ticks; i++) {
       tick_count_++;
 
       module_->clk_i = 0;
@@ -283,74 +282,78 @@ void manual_test(WriteRspBankTestbench *tb) {
 }
 
 /**
- * Performs a complete test for multiple AXI identifiers. Reservation, input and output requests, as
- * well as the data rsp (except for the AXI identifier) are randomized.
+ * This function implements a more complete, randomized and automatic testbench.
  *
- * @param tb a pointer to a fresh testbench instance
- * @param num_identifiers the number of AXI identifiers to use in the test, must be included between
- * 1 and 2**kIdWidth
- * @param seed the seed used for the random request generation
- *
- * @return the number of mismatches between the expected and acquired outputs
+ * @param tb A pointer the the already contructed SimmemTestbench object.
+ * @param num_ids The number of AXI identifiers to involve. Must be at
+ * lest 1, and lower than NumIds.
+ * @param seed The seed for the randomized test.
+ * @param num_cycles The number of simulated clock cycles.
  */
-
-size_t randomized_test(WriteRspBankTestbench *tb, size_t num_identifiers,
-                         unsigned int seed) {
+size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
+                         unsigned int seed, size_t num_cycles = 400) {
   srand(seed);
 
-  size_t nb_iterations = 1000;
-
-  std::vector<uint32_t> identifiers;
-
-  for (size_t i = 0; i < num_identifiers; i++) {
-    identifiers.push_back(i);
+  // The AXI identifiers. During the testbench, we will always use the [0,..,num_ids) ids.
+  std::vector<uint32_t> ids;
+  for (size_t i = 0; i < num_ids; i++) {
+    ids.push_back(i);
   }
 
+  // These structures will store the input and output data, for comparison purposes.
   queue_map_t input_queues;
   queue_map_t output_queues;
 
-  for (size_t i = 0; i < num_identifiers; i++) {
+  for (size_t i = 0; i < num_ids; i++) {
     input_queues.insert(std::pair<uint32_t, std::queue<uint32_t>>(
-        identifiers[i], std::queue<uint32_t>()));
+        ids[i], std::queue<uint32_t>()));
     output_queues.insert(std::pair<uint32_t, std::queue<uint32_t>>(
-        identifiers[i], std::queue<uint32_t>()));
+        ids[i], std::queue<uint32_t>()));
   }
 
+  // Signal whether some input is applied to the simmem.
   bool reserve;
   bool apply_input;
   bool request_output_data;
-  bool iteration_announced;  // Variable only used for display
 
-  uint32_t current_input_id = identifiers[rand() % num_identifiers];
+  bool iteration_announced;  // Variable only used for display purposes.
+
+  // Initialization of the next messages that will be supplied.
+  uint32_t current_input_id = ids[rand() % num_ids];
   uint32_t current_content =
       (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
-  uint32_t current_reservation_id = identifiers[rand() % num_identifiers];
+  uint32_t current_reservation_id = ids[rand() % num_ids];
   uint32_t current_input;
   uint32_t current_output;
 
+  //////////////////////
+  // Simulation start //
+  //////////////////////
+
   tb->simmem_reset();
-  // Sets the input signal from releaser such that the releaser allows all output signals
+
+  // The ready signal is always 1 for the simmem output.
   tb->simmem_output_data_allow();
 
-  for (size_t i = 0; i < nb_iterations; i++) {
+  for (size_t i = 0; i < num_iterations; i++) {
     iteration_announced = false;
 
-    // Randomize the boolean signals deciding which interactions will take place in this cycle
+    // Randomize the boolean signals deciding which interactions will happen in this cycle.
     reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
     request_output_data = (bool)(rand() & 1);
 
     if (reserve) {
-      // Signal a reservation request
+      // Apply the reservation request.
       tb->simmem_reservation_start(current_reservation_id);
     }
     if (apply_input) {
-      // Apply a given input
+      // Apply the input response.
       current_input =
           tb->simmem_input_data_apply(current_input_id, current_content);
     }
     if (request_output_data) {
-      // Try to fetch an output if the handshake is successful
+      // Fetch an output if the handshake is successful.
       tb->simmem_output_data_request();
     }
 
@@ -365,12 +368,11 @@ size_t randomized_test(WriteRspBankTestbench *tb, size_t num_identifiers,
                   << tb->simmem_reservation_get_address() << std::endl;
       }
 
-      // Renew the reservation identifier if the reservation has been successful
-      current_reservation_id = identifiers[rand() % num_identifiers];
+      // Renew the reservation identifier if the reservation is successful.
+      current_reservation_id = ids[rand() % num_ids];
     }
     if (tb->simmem_input_data_check()) {
-      // If the input handshake has been successful, then add the input into the corresponding queue
-
+      // If the input handshake is successful, then add the input into the corresponding queue.
       input_queues[current_input_id].push(current_input);
       if (kTransactionsVerbose) {
         if (!iteration_announced) {
@@ -381,15 +383,15 @@ size_t randomized_test(WriteRspBankTestbench *tb, size_t num_identifiers,
                   << current_input << std::endl;
       }
 
-      // Renew the input data if the input handshake has been successful
-      current_input_id = identifiers[rand() % num_identifiers];
+      // Renew the input data if the input handshake is successful
+      current_input_id = ids[rand() % num_ids];
       current_content =
           (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
     }
     if (request_output_data) {
-      // If the output handshake has been successful, then add the output to the corresponding queue
+      // If the output handshake is successful, then add the output to the corresponding queue
       if (tb->simmem_output_data_fetch(current_output)) {
-        output_queues[identifiers[(current_output &
+        output_queues[ids[(current_output &
                                    tb->simmem_get_identifier_mask())]]
             .push(current_output);
 
@@ -410,7 +412,6 @@ size_t randomized_test(WriteRspBankTestbench *tb, size_t num_identifiers,
 
     // Reset all signals after tick (they may be set again before the next DUT evaluation during the
     // beginning of the next iteration)
-
     if (reserve) {
       tb->simmem_reservation_stop();
     }
@@ -427,13 +428,12 @@ size_t randomized_test(WriteRspBankTestbench *tb, size_t num_identifiers,
     tb->simmem_tick();
   }
 
-  // Check the input and output queues for mismatches
-  size_t nb_mismatches = 0;
-  for (size_t i = 0; i < num_identifiers; i++) {
+  // Check the input and output queues for mismatches.
+  size_t num_mismatches = 0;
+  for (size_t i = 0; i < num_ids; i++) {
     if (kPairsVerbose) {
       std::cout << std::dec << "--- ID: " << i << " ---" << std::endl;
     }
-
     while (!input_queues[i].empty() && !output_queues[i].empty()) {
       current_input = input_queues[i].front();
       current_output = output_queues[i].front();
@@ -444,11 +444,10 @@ size_t randomized_test(WriteRspBankTestbench *tb, size_t num_identifiers,
         std::cout << std::hex << current_input << " - " << current_output
                   << std::endl;
       }
-      nb_mismatches += (size_t)(current_input != current_output);
+      num_mismatches += (size_t)(current_input != current_output);
     }
   }
-
-  return nb_mismatches;
+  return num_mismatches;
 }
 
 int main(int argc, char **argv, char **env) {
@@ -456,11 +455,11 @@ int main(int argc, char **argv, char **env) {
   Verilated::traceEverOn(true);
 
   // Counts the number of mismatches during the whole test
-  size_t total_nb_mismatches = 0;
+  size_t total_num_mismatches = 0;
 
   for (unsigned int seed = 0; seed < 100; seed++) {
     // Counts the number of mismatches during the loop iteration
-    size_t local_nb_mismatches;
+    size_t local_num_mismatches;
 
     // Instantiate the DUT instance
     WriteRspBankTestbench *tb =
@@ -471,12 +470,12 @@ int main(int argc, char **argv, char **env) {
       manual_test(tb);
       break;
     } else if (kTestStrategy == RANDOMIZED_TEST) {
-      local_nb_mismatches = randomized_test(tb, 4, seed);
+      local_num_mismatches = randomized_testbench(tb, 4, seed);
     }
 
-    total_nb_mismatches += local_nb_mismatches;
+    total_num_mismatches += local_num_mismatches;
     std::cout << "Mismatches for seed " << std::dec << seed << ": "
-              << local_nb_mismatches << std::hex << std::endl;
+              << local_num_mismatches << std::hex << std::endl;
     delete tb;
   }
 

@@ -26,16 +26,19 @@
 #include <vector>
 #include <verilated_fst_c.h>
 
-const bool kIterationVerbose = false;
+// Choose whether to display all the transactions
 const bool kTransactionVerbose = true;
 
-const int kResetLength = 5;
+// Length of the reset signal.
+const int kResetLength = 5; // Cycles
+// Depth of the trace.
 const int kTraceLevel = 6;
 
 // Constant burst lengths supplied to the DUT
 const int kWBurstLen = 1;
 const int kRBurstLen = 2;
 
+// Testbench choice.
 typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
@@ -88,14 +91,10 @@ class SimmemTestbench {
   /**
    * Performs one or multiple clock cycles.
    *
-   * @param nb_ticks the number of ticks to perform at once
+   * @param num_ticks the number of ticks to perform at once
    */
-  void simmem_tick(int nbTicks = 1) {
-    for (size_t i = 0; i < nbTicks; i++) {
-      if (kIterationVerbose) {
-        std::cout << "Running iteration " << tick_count_ << std::endl;
-      }
-
+  void simmem_tick(int num_ticks = 1) {
+    for (size_t i = 0; i < num_ticks; i++) {
       tick_count_++;
 
       module_->clk_i = 0;
@@ -596,18 +595,18 @@ void manual_testbench(SimmemTestbench *tb) {
  * This function implements a more complete, randomized and automatic testbench.
  *
  * @param tb A pointer the the already contructed SimmemTestbench object.
- * @param num_identifiers The number of AXI identifiers to involve. Must be at
+ * @param num_ids The number of AXI identifiers to involve. Must be at
  * lest 1, and lower than NumIds.
  * @param seed The seed for the randomized test.
  * @param num_cycles The number of simulated clock cycles.
  */
-void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
+void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
                           unsigned int seed, size_t num_cycles = 400) {
   srand(seed);
 
-  // The identifiers.
+  // The AXI identifiers. During the testbench, we will always use the [0,..,num_ids) ids.
   std::vector<uint64_t> ids;
-  for (size_t i = 0; i < num_identifiers; i++) {
+  for (size_t i = 0; i < num_ids; i++) {
     ids.push_back(i);
   }
 
@@ -625,7 +624,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   wrsp_time_queue_map_t wrsp_in_queues;
   wrsp_time_queue_map_t wrsp_out_queues;
 
-  for (size_t i = 0; i < num_identifiers; i++) {
+  for (size_t i = 0; i < num_ids; i++) {
     waddr_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddress>>>(
             ids[i], std::queue<std::pair<size_t, WriteAddress>>()));
@@ -671,11 +670,12 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   ///////////////////////
   // Requester signals //
   ///////////////////////
+  // Initialization of the next messages that will be supplied.
 
   // Input waddr from the requester
   WriteAddress requester_current_waddr;
   requester_current_waddr.from_packed(rand());
-  requester_current_waddr.id = ids[rand() % num_identifiers];
+  requester_current_waddr.id = ids[rand() % num_ids];
   requester_current_waddr.burst_len = kWBurstLen;
   requester_current_waddr.burst_type = BURST_INCR;
   requester_current_waddr.burst_size = 2;
@@ -683,7 +683,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   // Input raddr from the requester
   ReadAddress requester_current_raddr;
   requester_current_raddr.from_packed(rand());
-  requester_current_raddr.id = ids[rand() % num_identifiers];
+  requester_current_raddr.id = ids[rand() % num_ids];
   requester_current_raddr.burst_len = kRBurstLen;
   requester_current_raddr.burst_type = BURST_INCR;
   requester_current_raddr.burst_size = 2;
@@ -823,7 +823,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
       // Renew the input data if the input handshake has been successful
       requester_current_waddr.from_packed(rand());
-      requester_current_waddr.id = ids[rand() % num_identifiers];
+      requester_current_waddr.id = ids[rand() % num_ids];
       requester_current_waddr.burst_len = kWBurstLen;
       requester_current_waddr.burst_size = 2;
       requester_current_waddr.burst_type = BURST_INCR;
@@ -847,7 +847,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       }
       // Renew the input data if the input handshake has been successful
       requester_current_raddr.from_packed(rand());
-      requester_current_raddr.id = ids[rand() % num_identifiers];
+      requester_current_raddr.id = ids[rand() % num_ids];
       requester_current_raddr.burst_len = kRBurstLen;
       requester_current_raddr.burst_size = 2;
       requester_current_raddr.burst_type = BURST_INCR;
@@ -887,7 +887,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       }
       // Renew the input data if the input handshake has been successful
       realmem_current_wrsp.from_packed(rand());
-      realmem_current_wrsp.id = ids[rand() % num_identifiers];
+      realmem_current_wrsp.id = ids[rand() % num_ids];
     }
     // rdata handshake
     if (realmem_apply_rdata_input && tb->simmem_realmem_rdata_check()) {
@@ -908,7 +908,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
       }
       // Renew the input data if the input handshake has been successful
       realmem_current_rdata.from_packed(rand());
-      realmem_current_rdata.id = ids[rand() % num_identifiers];
+      realmem_current_rdata.id = ids[rand() % num_ids];
     }
 
     ///////////////////////////////////////
@@ -1063,7 +1063,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
   WriteAddress in_req;
   WriteResponse out_res;
 
-  for (size_t curr_id = 0; curr_id < num_identifiers; curr_id++) {
+  for (size_t curr_id = 0; curr_id < num_ids; curr_id++) {
     std::cout << "\n--- AXI ID " << std::dec << curr_id << " ---" << std::endl;
 
     while (!waddr_in_queues[curr_id].empty() &&
@@ -1076,6 +1076,8 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_identifiers,
 
       waddr_in_queues[curr_id].pop();
       wrsp_out_queues[curr_id].pop();
+      // Displays the delay for the sent and received message for each write address request.
+      // The payload field helps identifying the message in the waveforms.
       std::cout << "Delay: " << std::dec << out_time - in_time << std::hex
                 << " (waddr: " << in_req.to_packed()
                 << ", wrsp: " << out_res.to_packed()
@@ -1094,7 +1096,7 @@ int main(int argc, char **argv, char **env) {
   if (kTestStrategy == MANUAL_TEST) {
     manual_testbench(tb);
   } else if (kTestStrategy == RANDOMIZED_TEST) {
-    randomized_testbench(tb, 1, 2);
+    randomized_testbench(tb, 1, 0);
   }
 
   delete tb;

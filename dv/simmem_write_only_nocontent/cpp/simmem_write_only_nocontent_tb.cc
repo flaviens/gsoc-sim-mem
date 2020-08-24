@@ -309,14 +309,14 @@ void simple_testbench(SimmemWriteOnlyNoBurstTestbench *tb) {
 }
 
 void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
-                          size_t num_identifiers, unsigned int seed) {
+                          size_t num_ids, unsigned int seed) {
   srand(seed);
 
   size_t nb_iterations = 1000;
 
   std::vector<uint64_t> identifiers;
 
-  for (size_t i = 0; i < num_identifiers; i++) {
+  for (size_t i = 0; i < num_ids; i++) {
     identifiers.push_back(i);
   }
 
@@ -327,7 +327,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
   wrsp_time_queue_map_t wrsp_in_queues;
   wrsp_time_queue_map_t wrsp_out_queues;
 
-  for (size_t i = 0; i < num_identifiers; i++) {
+  for (size_t i = 0; i < num_ids; i++) {
     waddr_in_queues.insert(
         std::pair<uint64_t, std::queue<std::pair<size_t, WriteAddress>>>(
             identifiers[i], std::queue<std::pair<size_t, WriteAddress>>()));
@@ -351,7 +351,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
   WriteAddress requester_current_input;  // Input from the requester
   requester_current_input.from_packed(rand());
-  requester_current_input.id = identifiers[rand() % num_identifiers];
+  requester_current_input.id = identifiers[rand() % num_ids];
   WriteResponse requester_current_output;  // Output to the requester
 
   WriteResponse realmem_current_input;  // Input from the realmem
@@ -410,7 +410,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
       // Renew the input data if the input handshake has been successful
       requester_current_input.from_packed(rand());
-      requester_current_input.id = identifiers[rand() % num_identifiers];
+      requester_current_input.id = identifiers[rand() % num_ids];
     }
     if (realmem_apply_wrsp_input_data && tb->simmem_realmem_wrsp_check()) {
       // If the input handshake between the realmem and the simmem has been
@@ -433,7 +433,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
 
       // Renew the input data if the input handshake has been successful
       realmem_current_input.from_packed(rand());
-      realmem_current_input.id = identifiers[rand() % num_identifiers];
+      realmem_current_input.id = identifiers[rand() % num_ids];
     }
 
     // Output handshakes
@@ -505,7 +505,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
   WriteAddress in_req;
   WriteResponse out_res;
 
-  for (size_t curr_id = 0; curr_id < num_identifiers; curr_id++) {
+  for (size_t curr_id = 0; curr_id < num_ids; curr_id++) {
     std::cout << "\n--- AXI ID " << std::dec << curr_id << " ---" << std::endl;
 
     while (!waddr_in_queues[curr_id].empty() &&
