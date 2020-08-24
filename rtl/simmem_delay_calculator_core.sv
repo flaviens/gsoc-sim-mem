@@ -72,8 +72,6 @@
 // (genvar i_rk...` loops.
 //
 
-// TODO Do not store the whole row start address.
-// TODO Add a "burst_fixed" field to the slots.
 // TODO Format document
 
 module simmem_delay_calculator_core #(
@@ -150,14 +148,8 @@ module simmem_delay_calculator_core #(
   // The NumCostCats constant determines how many disjoint reductions will be needed: for each
   // (rank, category) pair, an optimal entry is calculated. Therefore, it does not count the
   // COST_NO_CANDIDATE category.
-  localparam int NumCostCats = 3;
-  localparam int NumCostCatsW = $clog2(NumCostCats);
-
-  // RowBufferMappingMask is 1111..11111000..000, of total width GlobalMemCapaW. Two
-  // addresses map on the same row iff, masked, they are equal.
-  localparam logic [GlobalMemCapaW-1:0] RowBufferMappingMask = {
-    {(GlobalMemCapaW - RowBufLenW) {1'b1}}, {RowBufLenW{1'b0}}
-  };
+  localparam int unsigned NumCostCats = 3;
+  localparam int unsigned NumCostCatsW = $clog2(NumCostCats);
 
   /**
   * Determines and compresses the cost of a request, depending on the requested address and the
@@ -170,9 +162,9 @@ module simmem_delay_calculator_core #(
   */
   function automatic mem_cost_category_e det_cost_cat(
       logic [GlobalMemCapaW-1:0] address, logic is_row_open,
-      logic [GlobalMemCapaW-1:0] open_row_buf_ident);
-    if (is_row_open && (address & RowBufferMappingMask) == (
-        open_row_buf_ident & RowBufferMappingMask)) begin
+      logic [RowIdWidth-1:0] open_row_buf_ident);
+    if (is_row_open && address[GlobalMemCapaW-1:RowBufLenW] ==
+        open_row_buf_ident) begin
       return C_CAS;
     end else if (!is_row_open) begin
       return C_ACT_CAS;
@@ -734,8 +726,8 @@ module simmem_delay_calculator_core #(
 
   // Determines the start address of the open row. This is useful for request cost calculation. If
   // no row is open in the rank, then this value is irrelevant.
-  logic [GlobalMemCapaW-1:0] row_buf_ident_d[NumRanks];
-  logic [GlobalMemCapaW-1:0] row_buf_ident_q[NumRanks];
+  logic [RowIdWidth-1:0] row_buf_ident_d[NumRanks];
+  logic [RowIdWidth-1:0] row_buf_ident_q[NumRanks];
 
   // Decreasing counter that determines the number of cycles in which the rank will be able to take
   // a new request.
@@ -926,7 +918,7 @@ module simmem_delay_calculator_core #(
         end
 
         // Update the row start address.
-        row_buf_ident_d[i_rk] = {opti_rbuf[i_rk], {RowBufLenW{1'b0}}};
+        row_buf_ident_d[i_rk] = opti_rbuf[i_rk];
       end
     end
 
