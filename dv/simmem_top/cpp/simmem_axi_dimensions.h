@@ -31,9 +31,6 @@ const uint64_t AxRegionWidth = 4;
 const uint64_t AwUserWidth = 0;
 const uint64_t ArUserWidth = 0;
 
-// Data & response field widths
-const uint64_t MaxBurstEffSizeBytes = 4;
-const uint64_t MaxBurstEffSizeBits = MaxBurstEffSizeBytes << 3;
 const uint64_t XLastWidth = 1;
 // TODO: Set XRespWidth to 3 when all tests are passed
 const uint64_t XRespWidth = 10;
@@ -43,8 +40,25 @@ const uint64_t BUserWidth = 0;
 
 const uint64_t WStrbWidth = MaxBurstEffSizeBytes;
 
-const unsigned int MaxBurstEffLen = 8;
-const unsigned int MaxBurstEffLen = 4;
+// Burst length constants
+
+// Maximal allowed burst length field value, must be positive.
+const uint64_t MaxBurstLenField = 2;
+
+// Effective max burst length (in number of elements)
+const uint64_t MaxBurstEffLen = 1 << MaxBurstLenField;
+
+
+////////////////////////////
+// Dimensions for modules //
+////////////////////////////
+
+// Capacities in extended cells (number of outstanding bursts).
+const uint64_t WRspBankCapa = 32;
+const uint64_t RDataBankCapa = 16;
+
+const uint64_t WRspBankAddrW = $clog2(WRspBankCapa);
+const uint64_t RDataBankAddrW = $clog2(RDataBankCapa);
 
 ////////////////////////////
 // Dimensions for modules //

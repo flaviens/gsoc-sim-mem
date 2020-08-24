@@ -68,7 +68,7 @@ module simmem_top (
   end : rsv_req_id_to_onehot
 
   // Reserved IID (RAM address)
-  logic [WRspBankCapa-1:0] wrsv_iid;
+  logic [WRspBankAddrW-1:0] wrsv_iid;
   logic [RDataBankAddrW-1:0] rrsv_iid;
 
   // Reservation handshakes on the response banks

@@ -8,39 +8,41 @@ module simmem_rsp_banks (
     input logic rst_ni,
 
     // Reservation interface AXI identifier for which the reseration request is being done.
-    input  logic [simmem_pkg::NumIds-1:0] wrsv_req_id_onehot_i,
-    input  logic [simmem_pkg::NumIds-1:0] rrsv_req_id_onehot_i,
+    input  logic [                  simmem_pkg::NumIds-1:0] wrsv_req_id_onehot_i,
+    input  logic [                  simmem_pkg::NumIds-1:0] rrsv_req_id_onehot_i,
     // Information about currently reserved address. Will be stored by other modules as an internal
     // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [      WRspBankCapa-1:0] wrsv_iid_o,
-    output logic [    RDataBankAddrW-1:0] rrsv_iid_o,
+    output logic [           simmem_pkg::WRspBankAddrW-1:0] wrsv_iid_o,
+    output logic [          simmem_pkg::RDataBankAddrW-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [    MaxBurstLenField:0] rrsv_burst_len_i,
+    input  logic [$clog2(simmem_pkg::MaxBurstLenField)-1:0] rrsv_burst_len_i,
+
     // Reservation handshake signals
-    input  logic                          wrsv_valid_i,
-    output logic                          wrsv_ready_o,
-    input  logic                          rrsv_valid_i,
-    output logic                          rrsv_ready_o,
+    input  logic wrsv_valid_i,
+    output logic wrsv_ready_o,
+    input  logic rrsv_valid_i,
+    output logic rrsv_ready_o,
 
     // Interface with the releaser Multi-hot signal that enables the release for given internal
     // addresses (i.e., RAM addresses).
-    input  logic [ WRspBankCapa-1:0] w_release_en_i,
-    input  logic [RDataBankCapa-1:0] r_release_en_i,
+    input  logic [ simmem_pkg::WRspBankCapa-1:0] w_release_en_i,
+    input  logic [simmem_pkg::RDataBankCapa-1:0] r_release_en_i,
     // Signals which address has been released, if any. One-hot signal. Is set to one for each
     // released response in a burst.
-    output logic [ WRspBankCapa-1:0] w_released_addr_onehot_o,
-    output logic [RDataBankCapa-1:0] r_released_addr_onehot_o,
+    output logic [ simmem_pkg::WRspBankCapa-1:0] w_released_addr_onehot_o,
+    output logic [simmem_pkg::RDataBankCapa-1:0] r_released_addr_onehot_o,
 
     // Interface with the real memory controller AXI response excluding handshake
     input  simmem_pkg::wrsp_t  wrsp_i,
     output simmem_pkg::wrsp_t  wrsp_o,
     input  simmem_pkg::rdata_t rdata_i,
     output simmem_pkg::rdata_t rdata_o,
+
     // Response acquisition handshake signal
-    input  logic               w_in_rsp_valid_i,
-    output logic               w_in_rsp_ready_o,
-    input  logic               r_in_data_valid_i,
-    output logic               r_in_data_ready_o,
+    input  logic w_in_rsp_valid_i,
+    output logic w_in_rsp_ready_o,
+    input  logic r_in_data_valid_i,
+    output logic r_in_data_ready_o,
 
     // Interface with the requester
     input  logic w_out_rsp_ready_i,
@@ -67,7 +69,7 @@ module simmem_rsp_banks (
       .rst_ni                (rst_ni),
       .rsv_req_id_onehot_i   (wrsv_req_id_onehot_i),
       .rsv_iid_o             (wrsv_iid_o),
-      .rsv_burst_len_i       (1), // Only 1 wrsp per burst
+      .rsv_burst_len_i       (1),  // Only 1 wrsp per burst
       .rsv_valid_i           (wrsv_valid_i),
       .rsv_ready_o           (wrsv_ready_o),
       .release_en_i          (w_release_en_i),

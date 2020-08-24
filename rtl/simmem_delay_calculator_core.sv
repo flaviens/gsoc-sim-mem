@@ -12,7 +12,7 @@
 //  * mem_pending: 1'b1 if the request has been submitted to the corresponding rank, which has not
 //    responded yet.
 //  * mem_done: 1'b0 iff the request has not been completed yet. A request identifier that exceeds
-//    the burst length of the current slot's burst has its mem_done bit immediately set to 1'b1. 
+//    the burst length of the current slot's burst has its mem_done bit immediately set to 1'b1.
 //
 // Write slot management:
 // * When a write address request is accepted, along with a certain "immediate" number
@@ -245,6 +245,7 @@ module simmem_delay_calculator_core #(
     logic [MaxBurstEffLen-1:0] mem_done;
     logic [MaxBurstEffLen-1:0] mem_pending;
     logic [MaxBurstEffLen-1:0] data_v;  // Data valid
+    logic burst_fixed;
     logic [AxSizeWidth-1:0] burst_size;
     logic [AxAddrWidth-1:0] addr;
     write_iid_t iid;  // Internal identifier (address in the response bank's RAM)
@@ -254,6 +255,7 @@ module simmem_delay_calculator_core #(
   typedef struct packed {
     logic [MaxBurstEffLen-1:0] mem_done;
     logic [MaxBurstEffLen-1:0] mem_pending;
+    logic burst_fixed;
     logic [AxSizeWidth-1:0] burst_size;
     logic [AxAddrWidth-1:0] addr;
     read_iid_t iid;  // Internal identifier (address in the response bank's RAM)
@@ -306,7 +308,7 @@ module simmem_delay_calculator_core #(
   // Determine the next candidate read data per slot
   logic [MaxBurstEffLen-1:0] slt_nxt_data_cat_onehot[NumRanks][NumCostCats][NumRSlots];
   logic [MaxBurstEffLen-1:0] slt_nxt_data_onehot[NumRanks][NumRSlots];
-  
+
   for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : det_rdata_outer
     for (genvar i_cat = 0; i_cat < NumCostCats; i_cat = i_cat + 1) begin : det_rdata_cat
       for (genvar i_slt = 0; i_slt < NumRSlots; i_slt = i_slt + 1) begin : det_rdata
@@ -392,7 +394,7 @@ module simmem_delay_calculator_core #(
   // Main age matrix (main_age_matrix_d/main_age_matrix_q):
   //
   // *   D D D D D D R R R R R
-  // *  
+  // *
   // * D   x x x x x x x x x x
   // * D     x x x x x x x x x
   // * D       x x x x x x x x
@@ -403,7 +405,7 @@ module simmem_delay_calculator_core #(
   // * R                 x x x
   // * R                   x x
   // * R                     x
-  // * R                      
+  // * R
   //
   // Write slot age matrix (wslt_main_age_matrix_d/wslt_main_age_matrix_q):
   //
@@ -417,7 +419,7 @@ module simmem_delay_calculator_core #(
   //
   // Age matrix splitting: The main age matrix cannot be split in several disjoint sub-matrices to
   //  take advantage of the partition to different ranks, because this partition is made dynamically
-  //  and changes during runtime, depending on the LSBs of entries' addresses.   
+  //  and changes during runtime, depending on the LSBs of entries' addresses.
   //
   // Auxiliary signal:
   //  * {main|wslt}_new_entry: Indicates whether an entry of the matrix has just been added as a
@@ -506,7 +508,7 @@ module simmem_delay_calculator_core #(
 
   // Intermediate signal to determine whether an age matrix entry matches the conditions.
   logic [MaxBurstEffLen-1:0] slt_rd_matches_cond[NumRanks][NumCostCats][NumRSlots];
-  
+
   // An entry matches the conditions, for a given (rank, cost category) pair, if all of the
   // following conditions are verified:
   //  * Its current cost category corresponds to the given cost category.
@@ -546,7 +548,7 @@ module simmem_delay_calculator_core #(
         ~|(main_age_matrix[i] & matches_cond[i_rk][i_cat]);
       end
     end
-    
+
     // if/else_if sequence Reduce among categories: take the lowest cost category
     always_comb begin
       if (|oldest_entry_of_category[i_rk][C_CAS]) begin
@@ -559,7 +561,7 @@ module simmem_delay_calculator_core #(
         opti_cost_cat[i_rk] = COST_NO_CANDIDATE;
       end
     end
-    
+
     // Equivalently to the always_comb statement above: assign opti_cost_cat[i_rk] =
     // ({NumCostCatsW{|oldest_entry_of_category[i_rk][C_CAS]}} & C_CAS) |
     // ({NumCostCatsW{~|oldest_entry_of_category[i_rk][C_CAS] &
@@ -587,7 +589,7 @@ module simmem_delay_calculator_core #(
   logic [RowIdWidth-1:0] opti_rbuf[NumRanks];
 
   for (genvar i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin : opti_rbuf_rk
-    // The row buffer identifier is obtained bit by bit. 
+    // The row buffer identifier is obtained bit by bit.
     for (genvar i_rbb = RowBufLenW; i_rbb < GlobalMemCapaW; i_rbb = i_rbb + 1) begin : opti_rbuf_rbb
       // For write entries
       for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : opti_rbuf_wslt
@@ -673,8 +675,14 @@ module simmem_delay_calculator_core #(
       if (i_bit == 0) begin
         assign slt_waddr_lsbs[i_slt][0] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
       end else begin
-        assign slt_waddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_waddr_lsbs[i_slt][i_bit - 1] +
-            BurstAddrLSBs'(get_effective_burst_size(wslt_q[i_slt].burst_size)));
+        always_comb begin
+          if (wslt_q[i_slt].burst_fixed) begin
+            assign slt_waddr_lsbs[i_slt][i_bit] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+          end else begin
+            assign slt_waddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_waddr_lsbs[i_slt][i_bit - 1] +
+                BurstAddrLSBs'(get_effective_burst_size(AxSizeWidth'(wslt_q[i_slt].burst_size))));
+          end
+        end
       end
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
@@ -683,7 +691,7 @@ module simmem_delay_calculator_core #(
           wslt_q[i_slt].addr[GlobalMemCapaW - 1:BurstAddrLSBs],
           slt_waddr_lsbs[i_slt][i_bit]
         };
-      end : gen_waddrs
+    end : gen_waddrs
   end : gen_waddrs_perslt
 
   // Read data entries address.
@@ -692,8 +700,14 @@ module simmem_delay_calculator_core #(
       if (i_bit == 0) begin
         assign slt_raddr_lsbs[i_slt][0] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
       end else begin
-        assign slt_raddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_raddr_lsbs[i_slt][i_bit - 1] +
-            BurstAddrLSBs'(get_effective_burst_size(rslt_q[i_slt].burst_size)));
+        always_comb begin
+          if (rslt_q[i_slt].burst_fixed) begin
+            assign slt_raddr_lsbs[i_slt][i_bit] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+          end else begin
+            assign slt_raddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_raddr_lsbs[i_slt][i_bit - 1] +
+                BurstAddrLSBs'(get_effective_burst_size(AxSizeWidth'(rslt_q[i_slt].burst_size))));
+          end
+        end
       end
 
       // Concatenate the MSBs of the base address with the LSBs of each entry to form the whole
@@ -799,7 +813,7 @@ module simmem_delay_calculator_core #(
 
         // Update the write slot age matrix.
         wslt_new_entry[i_slt] = 1'b1;
-        
+
         // Fill the write data entries.
         for (int unsigned i_bit = 0; i_bit < MaxBurstEffLen; i_bit = i_bit + 1) begin
           // The first wdata_immediate_cnt_i data_v bits are set to 1'b1, as they are occupied by
@@ -809,7 +823,7 @@ module simmem_delay_calculator_core #(
           // write data to come in. The rest of the data_v bits (between the two possibly empty
           // ranges of ones) are set to zero, awaiting further write data requests.
           wslt_d[i_slt].data_v[i_bit] =
-              (AxLenWidth'(i_bit) >= get_effective_burst_len(waddr_i.burst_len)) || (i_bit < get_effective_burst_len(wdata_immediate_cnt_i));
+              (i_bit >= get_effective_burst_len(AxLenWidth'(waddr_i.burst_len))) || (i_bit < get_effective_burst_len(AxLenWidth'(wdata_immediate_cnt_i)));
           // The age matrix has to be updated for each immediate write data, with the same age
           // relative to the entries external to the slot.
           main_new_entry[i_slt * MaxBurstEffLen+i_bit] = i_bit < wdata_immediate_cnt_i;
@@ -818,7 +832,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          wslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= get_effective_burst_len(waddr_i.burst_len);
+          wslt_d[i_slt].mem_done[i_bit] = i_bit >= get_effective_burst_len(AxLenWidth'(waddr_i.burst_len));
         end
       end
     end
@@ -874,7 +888,7 @@ module simmem_delay_calculator_core #(
           // never be treated further, and the slot is considered complete when all the mem_done
           // bits are set to one). The rest of the mem_done bits are set to zero, and will be set to
           // one later when a transaction is complete.
-          rslt_d[i_slt].mem_done[i_bit] = AxLenWidth'(i_bit) >= get_effective_burst_len(raddr_i.burst_len);
+          rslt_d[i_slt].mem_done[i_bit] = i_bit >= get_effective_burst_len(AxLenWidth'(raddr_i.burst_len));
         end
 
         main_new_entry[MAgeMRSltStart + i_slt] = 1'b1;
@@ -892,7 +906,7 @@ module simmem_delay_calculator_core #(
     // If the rank counter is not zero, then simply decrement it.
     for (int unsigned i_rk = 0; i_rk < NumRanks; i_rk = i_rk + 1) begin
       if (rank_delay_cnt_q[i_rk] != 0) begin
-        // A row is now open in the corresponding rank. 
+        // A row is now open in the corresponding rank.
         is_row_open_d[i_rk] = 1'b1;
 
         rank_delay_cnt_d[i_rk] = rank_delay_cnt_q[i_rk] - 1;
@@ -981,7 +995,7 @@ module simmem_delay_calculator_core #(
       // If all the memory requests of a burst have been satisfied, then free the slot.
       wslt_d[i_slt].v &= ~&wslt_q[i_slt].mem_done;
       for (int unsigned i_iid = 0; i_iid < WRspBankCapa; i_iid = i_iid + 1) begin
-        // If all the memory requests of a burst have been satisfied, then notify the output. 
+        // If all the memory requests of a burst have been satisfied, then notify the output.
         if (wslt_q[i_slt].v && &wslt_q[i_slt].mem_done) begin
           wrsp_release_en_mhot_d[i_iid] |= wslt_q[i_slt].iid == WRspBankAddrW'(i_iid);
           // Set mem_done to zero when all requests in the burst have complete.
@@ -996,9 +1010,9 @@ module simmem_delay_calculator_core #(
       rslt_d[i_slt].v &= ~&rslt_q[i_slt].mem_done;
       for (int unsigned i_iid = 0; i_iid < RDataBankCapa; i_iid = i_iid + 1) begin
         // For each individual read data, enable its release as soon as it has been marked for
-        // release. 
+        // release.
         for (int unsigned i_bit = 0; i_bit < MaxBurstEffLen; i_bit = i_bit + 1) begin
-          if (rslt_q[i_slt].v && (rslt_q[i_slt].mem_pending[i_bit] && rslt_d[i_slt].mem_done[i_bit] && 
+          if (rslt_q[i_slt].v && (rslt_q[i_slt].mem_pending[i_bit] && rslt_d[i_slt].mem_done[i_bit] &&
               rslt_q[i_slt].iid == RDataBankAddrW'(i_iid))) begin
             rdata_release_en_cnts_d[i_iid] += 1;
           end

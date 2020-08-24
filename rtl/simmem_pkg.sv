@@ -90,6 +90,7 @@ package simmem_pkg;
   // Dimensions for modules //
   ////////////////////////////
 
+  // Capacities in extended cells (number of outstanding bursts).
   localparam int unsigned WRspBankCapa = 32;
   localparam int unsigned RDataBankCapa = 16;
 
@@ -201,7 +202,7 @@ package simmem_pkg;
     * @return the number of elements in the burst
     */
   function automatic logic [MaxBurstLenField:0] get_effective_burst_len(
-      logic [$clog2(MaxBurstLenField)-1:0] burst_len_field);
+      logic [AxLenWidth-1:0] burst_len_field);
     return 1 << burst_len_field;
   endfunction : get_effective_burst_len
 
@@ -212,7 +213,7 @@ package simmem_pkg;
     * @return the size of the elements in the burst
     */
   function automatic logic [MaxBurstSizeField:0] get_effective_burst_size(
-      logic [$clog2(MaxBurstSizeField)-1:0] burst_size_field);
+      logic [AxSizeWidth-1:0] burst_size_field);
     return 1 << burst_size_field;
   endfunction : get_effective_burst_size
 
