@@ -15,7 +15,7 @@
 
 const bool kIterationVerbose = false;
 const bool kTransactionsVerbose = false;
-const bool kPairsVerbose = true; // TODO
+const bool kPairsVerbose = false;
 
 const int kResetLength = 5;
 const int kTraceLevel = 6;
@@ -27,11 +27,10 @@ typedef enum {
   SINGLE_ID_TEST,
   MULTIPLE_ID_TEST
 } test_strategy_e;
+const test_strategy_e kTestStrategy = MULTIPLE_ID_TEST;
 
 typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
-
-const int kTestStrategy = MULTIPLE_ID_TEST;
 
 // This class implements elementary operations for the testbench
 class WriteRspBankTestbench {

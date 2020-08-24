@@ -11,6 +11,7 @@
 // Write address request //
 ///////////////////////////
 
+  // TODO: Implement region
 struct WriteAddress {
   // Shift offsets and widths in the packed representation
   static const uint64_t id_off, id_w;
@@ -22,7 +23,7 @@ struct WriteAddress {
   static const uint64_t mem_type_off, mem_type_w;
   static const uint64_t prot_off, prot_w;
   static const uint64_t qos_off, qos_w;
-  // TODO: Implement region
+  static const uint64_t region_off, region_w;
 
   uint64_t id;
   uint64_t addr;
@@ -33,6 +34,7 @@ struct WriteAddress {
   uint64_t mem_type;
   uint64_t prot;
   uint64_t qos;
+  uint64_t region;
 
   uint64_t to_packed();
   void from_packed(uint64_t packed_val);
@@ -71,7 +73,7 @@ struct ReadAddress {
   static const uint64_t mem_type_off, mem_type_w;
   static const uint64_t prot_off, prot_w;
   static const uint64_t qos_off, qos_w;
-  // TODO: Implement region
+  static const uint64_t region_off, region_w;
 
   uint64_t id;
   uint64_t addr;
@@ -82,6 +84,7 @@ struct ReadAddress {
   uint64_t mem_type;
   uint64_t prot;
   uint64_t qos;
+  uint64_t region;
 
   uint64_t to_packed();
   void from_packed(uint64_t packed_val);

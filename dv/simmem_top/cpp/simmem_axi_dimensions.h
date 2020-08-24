@@ -18,9 +18,9 @@
   // The number of MSBs that uniquely define a bank row in an address.
   const uint64_t RowIdWidth = GlobalMemCapaW - RowBufLenW;
 
-  const uint64_t RowHitCost = 10;  // Cycles (must be at least 3)
-  const uint64_t PrechargeCost = 50;  // Cycles
-  const uint64_t ActivationCost = 45;  // Cycles
+  const uint64_t RowHitCost = 4;  // Cycles (must be at least 3)
+  const uint64_t PrechargeCost = 2;  // Cycles
+  const uint64_t ActivationCost = 1;  // Cycles
 
   // Log2 of the boundary that cannot be crossed by bursts.
   const uint64_t BurstAddrLSBs = 12;

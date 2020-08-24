@@ -1,5 +1,6 @@
-// Copyright lowRISC contributors. Licensed under the Apache License, Version 2.0, see LICENSE for
-// details. SPDX-License-Identifier: Apache-2.0
+// Copyright lowRISC contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
 
 // The delay calculator core is responsible for snooping the traffic from the requester and deducing
 // the enable signals for the message banks. Wrapped in the delay calculator module, it can assume
@@ -71,8 +72,6 @@
 // candidate requests are split per rank. Additionally, relevant blocks are surrounded by `for
 // (genvar i_rk...` loops.
 //
-
-// TODO Format document
 
 module simmem_delay_calculator_core #(
     // NumRanks must be a power of two, used for address interleaving.

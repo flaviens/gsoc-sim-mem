@@ -14,6 +14,7 @@ const uint64_t WriteAddress::lock_type_w = AxLockWidth;
 const uint64_t WriteAddress::mem_type_w = AxCacheWidth;
 const uint64_t WriteAddress::prot_w = AxProtWidth;
 const uint64_t WriteAddress::qos_w = AxQoSWidth;
+const uint64_t WriteAddress::region_w = AxRegionWidth;
 
 const uint64_t ReadAddress::id_w = IDWidth;
 const uint64_t ReadAddress::addr_w = AxAddrWidth;
@@ -24,6 +25,7 @@ const uint64_t ReadAddress::lock_type_w = AxLockWidth;
 const uint64_t ReadAddress::mem_type_w = AxCacheWidth;
 const uint64_t ReadAddress::prot_w = AxProtWidth;
 const uint64_t ReadAddress::qos_w = AxQoSWidth;
+const uint64_t ReadAddress::region_w = AxQoSWidth;
 
 const uint64_t WriteResponse::id_w = IDWidth;
 const uint64_t WriteResponse::rsp_w = XRespWidth;
@@ -55,6 +57,8 @@ const uint64_t WriteAddress::prot_off =
     WriteAddress::mem_type_off + WriteAddress::mem_type_w;
 const uint64_t WriteAddress::qos_off =
     WriteAddress::prot_off + WriteAddress::prot_w;
+const uint64_t WriteAddress::region_off =
+    WriteAddress::qos_off + WriteAddress::qos_w;
 
 const uint64_t ReadAddress::id_off = 0UL;
 const uint64_t ReadAddress::addr_off = ReadAddress::id_off + ReadAddress::id_w;
@@ -72,6 +76,8 @@ const uint64_t ReadAddress::prot_off =
     ReadAddress::mem_type_off + ReadAddress::mem_type_w;
 const uint64_t ReadAddress::qos_off =
     ReadAddress::prot_off + ReadAddress::prot_w;
+const uint64_t ReadAddress::region_off =
+    ReadAddress::qos_off + ReadAddress::qos_w;
 
 const uint64_t WriteResponse::id_off = 0UL;
 const uint64_t WriteResponse::rsp_off =
@@ -141,6 +147,7 @@ void WriteAddress::from_packed(uint64_t packed) {
   mem_type = single_from_packed(packed, mem_type_w, mem_type_off);
   prot = single_from_packed(packed, prot_w, prot_off);
   qos = single_from_packed(packed, qos_w, qos_off);
+  region = single_from_packed(packed, region_w, region_off);
 }
 
 uint64_t WriteAddress::to_packed() {
@@ -155,6 +162,7 @@ uint64_t WriteAddress::to_packed() {
   single_to_packed(packed, mem_type, mem_type_w, mem_type_off);
   single_to_packed(packed, prot, prot_w, prot_off);
   single_to_packed(packed, qos, qos_w, qos_off);
+  single_to_packed(packed, region, region_w, region_off);
 
   return packed;
 }
@@ -173,6 +181,7 @@ void ReadAddress::from_packed(uint64_t packed) {
   mem_type = single_from_packed(packed, mem_type_w, mem_type_off);
   prot = single_from_packed(packed, prot_w, prot_off);
   qos = single_from_packed(packed, qos_w, qos_off);
+  qos = single_from_packed(packed, region_w, region_off);
 }
 
 uint64_t ReadAddress::to_packed() {
@@ -187,6 +196,7 @@ uint64_t ReadAddress::to_packed() {
   single_to_packed(packed, mem_type, mem_type_w, mem_type_off);
   single_to_packed(packed, prot, prot_w, prot_off);
   single_to_packed(packed, qos, qos_w, qos_off);
+  single_to_packed(packed, qos, region_w, region_off);
 
   return packed;
 }
