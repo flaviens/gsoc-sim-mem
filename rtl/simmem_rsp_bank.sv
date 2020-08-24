@@ -20,7 +20,7 @@
 //    output possible.
 //
 // Linked list implementation: Each linked list is supported by four pointers, which, outside of
-//   corner cases, can be described as follows: 
+//   corner cases, can be described as follows:
 //  * Reservation head (rsv_heads_q): Points to the last reserved address.
 //  * Response head (rsp_heads): Points to the next RAM address where a payload of the corresponding
 //    AXI identifier will be stored.
@@ -77,7 +77,7 @@
 //
 //  Example of addresses and full addresses for MaxBurstEffLen=4:
 //
-//  *  +---------Pyld RAM---------+ 
+//  *  +---------Pyld RAM---------+
 //  *  | Burst id 0, data 0.      |  Addr: 0, full addr: 0.
 //  *  +--------------------------+
 //  *  | Burst id 0, data 1.      |  Addr: 0, full addr: 1.
@@ -173,7 +173,7 @@ module simmem_rsp_bank #(
 
   //  In this part, the linked list related pointers are declared and updated.
   //
-  //  Response heads: 
+  //  Response heads:
   //    * rsp_heads_d, rsp_heads_q: Next response head, except if the response head will be updated
   //      from RAM.
   //    * rsp_heads: The actual current response head, after potential update from RAM.
@@ -691,7 +691,7 @@ module simmem_rsp_bank #(
 
   // Metadata output is requested when there is output to be released (to potentially update the
   // corresponding pre_tails from RAM) or input data coming (to potentially update the corresponding
-  // response head pointer from RAM). 
+  // response head pointer from RAM).
   always_comb begin
     meta_ram_out_req = 1'b0;
     for (int unsigned i_id = 0; i_id < NumIds; i_id = i_id + 1) begin
@@ -896,7 +896,7 @@ module simmem_rsp_bank #(
   //    * Output preparation: if the considered AXI identifier is the next AXI identifier to
   //      release, then assign the payload RAM output to the pre_tail or the tail pointer.
   //    * Input handshake: if the considered AXI identifier is the next AXI identifier to release,
-  //      then: 
+  //      then:
   //      - Update the linked list lengths.
   //      - Update the pointers, including corner cases.
   //      - Assign the payload RAM input address.
@@ -1042,7 +1042,7 @@ module simmem_rsp_bank #(
 
               // Also update pre_tail with rsv_head, it was blocked behind rsp_head. Note that
               // rsp_len_after_out != 0, hence rsv_len_q == 0. Further we have rsv_heads_q ==
-              // rsp_heads.  
+              // rsp_heads.
               if (rsp_len_after_out[i_id] == 1) begin
                 pgbk_pt_with_rsv[i_id] = 1'b1;
               end
