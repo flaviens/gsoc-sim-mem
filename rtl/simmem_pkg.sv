@@ -58,8 +58,8 @@ package simmem_pkg;
 
   // Data & response field widths
   parameter int unsigned XLastWidth = 1;
-  // XReespWidth should be increased to 10 when testing, to have wider patterns to compare.
-  parameter int unsigned XRespWidth = 3;
+  // XRespWidth should be increased to 10 when testing, to have wider patterns to compare.
+  parameter int unsigned XRespWidth = 2;
   parameter int unsigned WUserWidth = 0;
   parameter int unsigned RUserWidth = 0;
   parameter int unsigned BUserWidth = 0;
@@ -195,7 +195,7 @@ package simmem_pkg;
   //////////////////////
 
   /**
-    * Determines the effective burst length from the burst length field
+    * Determines the effective burst length from the burst length field.
     *
     * @param burst_len_field the burst_length field of the AXI signal
     * @return the number of elements in the burst
@@ -206,7 +206,7 @@ package simmem_pkg;
   endfunction : get_effective_burst_len
 
   /**
-    * Determines the effective burst size from the burst size field
+    * Determines the effective burst size from the burst size field.
     *
     * @param burst_len_field the burst_size field of the AXI signal
     * @return the size of the elements in the burst
