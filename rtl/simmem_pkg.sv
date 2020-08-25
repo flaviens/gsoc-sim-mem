@@ -131,6 +131,7 @@ package simmem_pkg;
   typedef struct packed {
     // logic [AwUserWidth-1:0] user_signal;
     logic [AxQoSWidth-1:0] qos;
+    logic [AxRegionWidth-1:0] region;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxCacheWidth-1:0] memory_type;
     logic [AxLockWidth-1:0] lock_type;
@@ -144,6 +145,7 @@ package simmem_pkg;
   typedef struct packed {
     // logic [ArUserWidth-1:0] user_signal;
     logic [AxQoSWidth-1:0] qos;
+    logic [AxRegionWidth-1:0] region;
     logic [AxProtWidth-1:0] protection_type;
     logic [AxCacheWidth-1:0] memory_type;
     logic [AxLockWidth-1:0] lock_type;
