@@ -59,7 +59,7 @@ package simmem_pkg;
   // Data & response field widths
   parameter int unsigned XLastWidth = 1;
   // XRespWidth should be increased to 10 when testing, to have wider patterns to compare.
-  parameter int unsigned XRespWidth = 2;
+  parameter int unsigned XRespWidth = 10; // TODO
   parameter int unsigned WUserWidth = 0;
   parameter int unsigned RUserWidth = 0;
   parameter int unsigned BUserWidth = 0;
@@ -70,7 +70,7 @@ package simmem_pkg;
   parameter int unsigned MaxBurstSizeField = 2;
 
   // Effective max burst size (in number of elements)
-  parameter int unsigned MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
+  parameter int unsigned MaxBurstEffSizeBytes = 1 <<MaxBurstSizeField;
   parameter int unsigned MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
 
   parameter int unsigned WStrbWidth = MaxBurstEffSizeBytes;
@@ -90,7 +90,7 @@ package simmem_pkg;
   ////////////////////////////
 
   // Capacities in extended cells (number of outstanding bursts).
-  parameter int unsigned WRspBankCapa = 8;
+  parameter int unsigned WRspBankCapa = 16;
   parameter int unsigned RDataBankCapa = 4;
 
   parameter int unsigned WRspBankAddrW = $clog2(WRspBankCapa);

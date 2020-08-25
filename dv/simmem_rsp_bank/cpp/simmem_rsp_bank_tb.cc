@@ -25,7 +25,7 @@
 // Choose whether to display all the transactions
 const bool kTransactionsVerbose = false;
 // Choose whether to display all (input,output) pairs in the end of each execution.
-const bool kPairsVerbose = false;
+const bool kPairsVerbose = true;
 
 // Length of the reset signal.
 const int kResetLength = 5; // Cycles
@@ -46,15 +46,11 @@ typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 class WriteRspBankTestbench {
  public:
   /**
-   * @param trailing_clock_cycles number of ticks to perform after all the requests have been
-   * performed
    * @param record_trace set to false to skip trace recording
    */
-  WriteRspBankTestbench(vluint32_t trailing_clock_cycles = 0,
-                         bool record_trace = true,
+  WriteRspBankTestbench(bool record_trace = true,
                          const std::string &trace_filename = "sim.fst")
       : tick_count_(0l),
-        trailing_clock_cycles_(trailing_clock_cycles),
         record_trace_(record_trace),
         module_(new Module) {
     if (record_trace) {
@@ -66,8 +62,6 @@ class WriteRspBankTestbench {
     // Puts ones at the fields' places
     id_mask_ = ~((1 << 31) >> (31 - kIdWidth));
     content_mask_ = ~((1 << 31) >> (31 - kRspWidth + kIdWidth)) & ~id_mask_;
-
-    module_->delay_calc_ready_i = 1;
   }
 
   ~WriteRspBankTestbench(void) { simmem_close_trace(); }
@@ -210,20 +204,6 @@ class WriteRspBankTestbench {
    */
   void simmem_output_data_stop(void) { module_->out_rsp_ready_i = 0; }
 
-  /**
-   * Informs the testbench that all the requests have been performed and therefore that the trailing
-   * cycles phase should start.
-   */
-  void simmem_requests_complete(void) { tick_count_ = 0; }
-
-  /**
-   * Checks whether the testbench completed the trailing cycles phase.
-   */
-  bool simmem_is_done(void) {
-    return (
-        Verilated::gotFinish() ||
-        (trailing_clock_cycles_ && (tick_count_ >= trailing_clock_cycles_)));
-  }
 
   /**
    * Getters.
@@ -233,7 +213,6 @@ class WriteRspBankTestbench {
 
  private:
   vluint32_t tick_count_;
-  vluint32_t trailing_clock_cycles_;
   bool record_trace_;
   std::unique_ptr<Module> module_;
 
@@ -275,10 +254,7 @@ void manual_test(WriteRspBankTestbench *tb) {
   tb->simmem_tick(10);
   tb->simmem_output_data_stop();
 
-  tb->simmem_requests_complete();
-  while (!tb->simmem_is_done()) {
-    tb->simmem_tick();
-  }
+  tb->simmem_tick(100);
 }
 
 /**
@@ -291,7 +267,7 @@ void manual_test(WriteRspBankTestbench *tb) {
  * @param num_cycles The number of simulated clock cycles.
  */
 size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
-                         unsigned int seed, size_t num_cycles = 400) {
+                         unsigned int seed, size_t num_cycles = 1000) {
   srand(seed);
 
   // The AXI identifiers. During the testbench, we will always use the [0,..,num_ids) ids.
@@ -335,7 +311,7 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
   // The ready signal is always 1 for the simmem output.
   tb->simmem_output_data_allow();
 
-  for (size_t i = 0; i < num_iterations; i++) {
+  for (size_t i = 0; i < num_cycles; i++) {
     iteration_announced = false;
 
     // Randomize the boolean signals deciding which interactions will happen in this cycle.
@@ -423,10 +399,7 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
     }
   }
 
-  tb->simmem_requests_complete();
-  while (!tb->simmem_is_done()) {
-    tb->simmem_tick();
-  }
+  tb->simmem_tick(100);
 
   // Check the input and output queues for mismatches.
   size_t num_mismatches = 0;
@@ -457,13 +430,13 @@ int main(int argc, char **argv, char **env) {
   // Counts the number of mismatches during the whole test
   size_t total_num_mismatches = 0;
 
-  for (unsigned int seed = 0; seed < 100; seed++) {
+  for (unsigned int seed = 0; seed < 1; seed++) {
     // Counts the number of mismatches during the loop iteration
     size_t local_num_mismatches;
 
     // Instantiate the DUT instance
     WriteRspBankTestbench *tb =
-        new WriteRspBankTestbench(100, true, "rsp_bank.fst");
+        new WriteRspBankTestbench(true, "rsp_bank.fst");
 
     // Perform one test for the given seed
     if (kTestStrategy == MANUAL_TEST) {
