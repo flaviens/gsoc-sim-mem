@@ -249,7 +249,7 @@ For each extended RAM cells, additional memory is dedicated to maintaining the e
 
 The following relationship always holds:
 
-burst\_len \ge rsv\_cnt + rsp\_cnt
+burst\_len >= rsv\_cnt + rsp\_cnt
 
 Additionally, the number of released responses in a burst is given by:
 
