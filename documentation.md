@@ -74,10 +74,9 @@ The top-level flow happens as follows:
    - The delay calculator and the response banks are notified when an address request happens.
    - The delay calculator stores metadata for its delay computation.
    - The response banks reserve space for the corresponding responses that will subsequently come back from the real memory controller.
-2. When the corresponding responses comes back from the real memory controller, they are stored by the message banks.
+2. When the corresponding responses comes back from the real memory controller, they are stored by the response banks.
 3. When the delay enables the release of some response and all the previous responses of the same AXI are released, the response banks transmit the response to the requester.
 4. When all the responses corresponding to a given address request have been transmitted to the requester, the response banks free the allocated memory for reuse.
-5.
 
 <figure class="image">
   <img src="https://i.imgur.com/pbbpy0Y.png">
@@ -192,9 +191,16 @@ Two distinct tail pointers are required to dynamically manage the two following 
   <img src="https://i.imgur.com/Y7XwICc.png">
   <figcaption>Fig: Linked list representation. t: tail, pt: pre_tail, rsp: response head, rsv: reservation head. Arrows between extended cells represent the linked list structure (cells must not have consecutive addresses)</figcaption>
 </figure>
- 
- 
+
+
 #### Lengths
+
+Linked lists are not fully defined by the four pointer and metadata RAMs only.
+For example, if all four pointers point to the same address, it can be any of:
+
+- All pointers are positioned here by default: for example, a reservation has never happend yet on this linked list.
+- The cell is reserved, but the 
+
 
 In addition to the pointers, lengths of sub-segments of linked lists are stored to maintain the state of each linked lists, which is not fully defined by the four pointer and metadata RAMs only:
 
@@ -209,6 +215,9 @@ In addition to the pointers, lengths of sub-segments of linked lists are stored 
 Additionally, another length is combinatorically inferred:
 
 - _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data.This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
+
+As the burst support came chronologically later than the rest of the implementation (see next paragraph), the lengths may be completely substituted by the use of the extended cell state.
+More details in the _Future work_ section.
 
 #### Extended cell state
 
@@ -241,7 +250,7 @@ The offset may be taken from the _pre_tail_ instead of the _tail_ in the cases d
 
 #### Linked list detailed operation
 
-A pointer _pA_ is said to be _piggybacked with_ another pointer _pB_ when we impose that _pA_ takes the same value as _pB_.
+A pointer _pA_ is said to be _piggybacked with_ another pointer _pB_ when we impose that _pA_ and _pB_ have equal value, determined by the evolution of _pB_.
 Typically, this happens when _pA_ needs to be updated but has to stay behind or equal to _pB_.
 
 <figure class="image">
@@ -443,12 +452,8 @@ Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, whi
 
 The main age matrix side is the concatenation of two types of entries:
 
-<<<<<<< HEAD
-
 - # The $NumWSlots * MaxBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
 - The $NumWSlots * MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code, for the element identifier in the burst.
-  > > > > > > > b3a4e0088a49849c34ceb9257f9e89316461ac0c
-- The $NumRSlots$ read data slots / read address requests.
 
 We have considered the fact that all read elementary burst entries in the same burst share the same age.
 
@@ -577,7 +582,7 @@ To implement finer-grained costs, more cost categories may be necessary, making 
 
 #### Scheduling strategy
 
-The implemented scheduling strategy is a mainstream and representative strategy.
+The implemented scheduling strategy is a well-known and representative strategy.
 The delay calculator has been designed in a way that the scheduling strategy can reasonably easily be extended: the request ages are explicitly maintained; the outstanding entries are stored and accessible concurrently.
 This provides support for more complex scheduling strategies implementations.
 
@@ -588,5 +593,10 @@ This provides support for more complex scheduling strategies implementations.
 So far, we have used 3 counters (_rsp_cnt_, _rsv_cnt_ and _burst_len_) per extended cell to maintain the burst state.
 This is the most efficient as long as the ratio of AXI identifiers over the number of extended cells is quite large (>= 1).
 To support much smaller ratios, which typically means, to support larger numbers of outstanding requests, the _rsp_cnt_ and _rsv_cnt_ counters may be implemented per linked list instead of per extended cell.
+
+#### Replacement of linked list lengths
+
+So far, we have used lengths for sub-parts of the response banks. This can be substituted by the use of the burst counters only. This may be incompatible with the previous future work proposal.
+
 
 > View on GitHub: https://github.com/lowRISC/gsoc-sim-mem
