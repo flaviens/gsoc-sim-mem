@@ -64,7 +64,10 @@ package simmem_pkg;
   parameter int unsigned RUserWidth = 0;
   parameter int unsigned BUserWidth = 0;
 
-  // Burst size constants
+
+  ////////////////////////////
+  // Dimensions for modules //
+  ////////////////////////////
 
   // Maximal value of any burst_size field, must be positive.
   parameter int unsigned MaxBurstSizeField = 2;
@@ -75,19 +78,12 @@ package simmem_pkg;
 
   parameter int unsigned WStrbWidth = MaxBurstEffSizeBytes;
 
-
-  // Burst length constants
-
   // Maximal allowed burst length field value, must be positive.
   parameter int unsigned MaxBurstLenField = 2;
 
   // Effective max burst length (in number of elements)
   parameter int unsigned MaxBurstEffLen = 1 << MaxBurstLenField;
 
-
-  ////////////////////////////
-  // Dimensions for modules //
-  ////////////////////////////
 
   // Capacities in extended cells (number of outstanding bursts).
   parameter int unsigned WRspBankCapa = 16;
