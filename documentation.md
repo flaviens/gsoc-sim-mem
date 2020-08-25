@@ -1,13 +1,5 @@
 # Simulated memory controller
 
-Copyright lowRISC contributors.
-Licensed under the Apache License, Version 2.0, see [LICENSE](https://github.com/lowRISC/gsoc-sim-mem/blob/master/LICENSE) for details.
-SPDX-License-Identifier: Apache-2.0
-
-## Table of Contents
-
-[TOC]
-
 ## Outline
 
 This project has been initiated as a [Google Summer of Code](https::/summerofcode.withgoogle.com) 2020 project at lowRISC CIC.
@@ -24,6 +16,10 @@ This project aims at responding to this demand.
 
 The simulated memory controller, compatible with [AMBA AXI4 Protocol Specification](https://developer.arm.com/architectures/system-architectures/amba/amba-4), allows the user to slow down the interaction with the main memory and configure it with realistic delays.
 No changes are required neither in the real memory controller, nor in the CPU.
+
+## Table of Contents
+
+[TOC]
 
 ## Overview
 
@@ -249,15 +245,15 @@ For each extended RAM cells, additional memory is dedicated to maintaining the e
 
 The following relationship always holds:
 
-burst\_len >= rsv\_cnt + rsp\_cnt
+_burst\_len >= rsv\_cnt + rsp\_cnt_
 
 Additionally, the number of released responses in a burst is given by:
 
-burst\_len - rsv\_cnt - rsp\_cnt
+_burst\_len - rsv\_cnt - rsp\_cnt_
 
 And the number of already released responses in a burst is given by:
 
-burst\_len - rsv\_cnt
+_burst\_len - rsv\_cnt_
 
 An extended cell is said to be valid (_ram_v_) (in a terminology like a cache line for instance) if _rsv_cnt_ is non-zero or _rsp_cnt_ is non-zero.
 
