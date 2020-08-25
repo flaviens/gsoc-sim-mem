@@ -248,7 +248,7 @@ For each extended RAM cells, additional memory is dedicated to maintaining the e
 - _burst_len_: Stores the burst length of the address request corresponding to this extended RAM cell.
 
 The following relationship always holds:
-$$burst\_len \ge rsv\_cnt + rsp\_cnt$$
+<img src="https://render.githubusercontent.com/render/math?math=burst\_len \ge rsv\_cnt + rsp\_cnt">
 
 Additionally, the number of released responses in a burst is given by:
 $$burst\_len - rsv\_cnt - rsp\_cnt$$
@@ -470,9 +470,9 @@ Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, whi
 
 The main age matrix side is the concatenation of two types of entries:
 
-- The $NumWSlots * MaxBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
- - The $NumRSlots$ read data slots / read address requests.
- 
+- The <img src="https://render.githubusercontent.com/render/math?math=NumWSlots * MaxBurstEffLen = -1"> elementary write burst entries, addressed as (slotId << log2(MaxBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+ - The _NumRSlots_ read data slots / read address requests.
+
 We have considered the fact that all read elementary burst entries in the same burst share the same age.
 
 ### Finding optimal entries
