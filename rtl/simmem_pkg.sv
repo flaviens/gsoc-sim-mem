@@ -16,11 +16,11 @@
 package simmem_pkg;
 
   ///////////////////////
-  // System parameters //
+  // Simmem parameters //
   ///////////////////////
 
   // The capacity of the global memory
-  parameter int unsigned GlobalMemCapaW = 19;
+  parameter int unsigned GlobalMemCapaW = 19; // Width
   parameter int unsigned GlobalMemCapa = 1 << GlobalMemCapaW;  // Bytes.
 
   // The log2 of the width of a bank row.
@@ -35,6 +35,39 @@ package simmem_pkg;
   // Log2 of the boundary that cannot be crossed by bursts.
   parameter int unsigned BurstAddrLSBs = 12;
 
+  // Maximal value of any burst_size field, must be positive.
+  parameter int unsigned MaxBurstSizeField = 2;
+
+  // Effective max burst size (in number of elements)
+  parameter int unsigned MaxBurstEffSizeBytes = 1 <<MaxBurstSizeField;
+  parameter int unsigned MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
+
+  parameter int unsigned WStrbWidth = MaxBurstEffSizeBytes;
+
+  // Maximal allowed burst length field value, must be positive.
+  parameter int unsigned MaxBurstLenField = 2;
+
+  // Effective max burst length (in number of elements)
+  parameter int unsigned MaxBurstEffLen = 1 << MaxBurstLenField;
+
+
+  // Capacities in extended cells (number of outstanding bursts).
+  parameter int unsigned WRspBankCapa = 8;
+  parameter int unsigned RDataBankCapa = 6;
+
+  parameter int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
+  parameter int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
+
+  // Internal identifier types.
+  typedef logic [WRspBankAddrW-1:0] write_iid_t;
+  typedef logic [RDataBankAddrW-1:0] read_iid_t;
+
+  // Delay calculator slot constants definition.
+  parameter int unsigned NumWSlots = WRspBankCapa;
+  parameter int unsigned NumRSlots = RDataBankCapa;
+
+  // Maximal bit width on which to encode a delay.(measured in clock cycles).
+  parameter int unsigned DelayW = $clog2(RowHitCost + PrechargeCost + ActivationCost);  // bits
 
   /////////////////
   // AXI signals //
@@ -59,49 +92,10 @@ package simmem_pkg;
   // Data & response field widths
   parameter int unsigned XLastWidth = 1;
   // XRespWidth should be increased to 10 when testing, to have wider patterns to compare.
-  parameter int unsigned XRespWidth = 10; // TODO
+  parameter int unsigned XRespWidth = 2;
   parameter int unsigned WUserWidth = 0;
   parameter int unsigned RUserWidth = 0;
   parameter int unsigned BUserWidth = 0;
-
-
-  ////////////////////////////
-  // Dimensions for modules //
-  ////////////////////////////
-
-  // Maximal value of any burst_size field, must be positive.
-  parameter int unsigned MaxBurstSizeField = 2;
-
-  // Effective max burst size (in number of elements)
-  parameter int unsigned MaxBurstEffSizeBytes = 1 <<MaxBurstSizeField;
-  parameter int unsigned MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
-
-  parameter int unsigned WStrbWidth = MaxBurstEffSizeBytes;
-
-  // Maximal allowed burst length field value, must be positive.
-  parameter int unsigned MaxBurstLenField = 2;
-
-  // Effective max burst length (in number of elements)
-  parameter int unsigned MaxBurstEffLen = 1 << MaxBurstLenField;
-
-
-  // Capacities in extended cells (number of outstanding bursts).
-  parameter int unsigned WRspBankCapa = 16;
-  parameter int unsigned RDataBankCapa = 4;
-
-  parameter int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
-  parameter int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
-
-  // Internal identifier types.
-  typedef logic [WRspBankAddrW-1:0] write_iid_t;
-  typedef logic [RDataBankAddrW-1:0] read_iid_t;
-
-  // Delay calculator slot constants definition.
-  parameter int unsigned NumWSlots = 6;
-  parameter int unsigned NumRSlots = 3;
-
-  // Maximal bit width on which to encode a delay.(measured in clock cycles).
-  parameter int unsigned DelayW = 6;  // bits
 
 
   ///////////////////////////////////

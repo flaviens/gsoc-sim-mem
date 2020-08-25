@@ -21,12 +21,63 @@ No changes are required neither in the real memory controller, nor in the CPU.
 
 [TOC]
 
+## How to use
+
+### Integration
+
+The simulated memory controller is a self-contained module, meant to be interposed between an AXI master and an AXI slave port.
+The Verilog wrapper (_simmem_top_wrapper.v_) permits its integration in [Xilinx Vivado®](https://www.xilinx.com/products/design-tools/vivado.html).
+The simulated memory controller has four ports:
+
+- clk_i: the clock input.
+- rst_ni: the reset input.
+  The reset signal is treated active low.
+- s: the AXI slave port, to connect to the slave port (_i.e._, to the requester).
+- m: the AXI master port, to connect to the slave port (_i.e._, to the real memory controller).
+
+### Parameters
+
+They are of two kinds of parameters.
+First, some parameters determine the AXI field dimensions:
+- They are grouped in the _AXI signals_ section of _rtl/simmem_pkg.sv_.
+- Some AXI field dimensions are additionally re-defined in the Verilog wrapper.
+- Some AXI field dimensions are additionally defined in _dv/simmem_top/cpp/simmem_axi_dimensions.h_.
+All the fields in these three documents must match.
+
+Second, parameters related to the simulated memory controller itself, defined in the _Simmem_ parameters_ section of _rtl/simmem_pkg.sv_:
+
+- **GlobalMemCapaW**: The width of the main memory capacity.
+- **MaxBurstSizeField**: The maximum allowed burst size field value.
+  A lower value reduces the simmem complexity.
+- **MaxBurstLenField**: The maximum allowed burst length field value.
+  A lower value reduces the simmem complexity.
+- **WRspBankCapa**: The number of extended cells in the write response bank.
+  A lower value reduces the simmem complexity but decreases the number of outstanding write address requests.
+- **RDataBankCapa**: The number of extended cells in the read data bank.
+  A lower value reduces the simmem complexity but decreases the number of outstanding read address requests.
+- **NumWSlots**: The number of write slots in the delay calculator.
+  A lower value reduces the simmem complexity but decreases the number of outstanding write address requests.
+- **NumRSlots**: The number of read slots in the delay calculator.
+  A lower value reduces the simmem complexity but decreases the number of outstanding read address requests.
+- Related to memory banks:
+  - **RowBufLenW**: The width of the capacity of a bank row (e.g., 10 for banks with 1024-byte rows).
+  - **RowHitCost**: The cost (in clock cycles) of a (row hit)[https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html].
+  - **PrechargeCost**: The cost (in clock cycles) of a (row precharge)[https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html].
+  - **ActivationCost**: The cost (in clock cycles) of a (row activation)[https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html].
+  - **DelayW** The bit width of the maximal delay.
+
+### Remarks
+
+- The simmem is always ready to take write data.
+- The maximal number of outstanding write address requests is the minimum of _WRspBankCapa_ and _NumWSlots_, and similar for read data.
+  Therefore, a natural choice is _NumWSlots_= _WRspBankCapa_ and _NumRSlots_= _RDataBankCapa_.
+
 ## Overview
 
 The simulated memory controller module is inserted between the _requester_ (typically the CPU) and the (real) _memory controller_.
 
 <figure class="image">
-  <img src="https://i.imgur.com/d8Mdtiu.png">
+  <img src="https://i.imgur.com/d8Mdtiu.png" alt="Overview">
   <figcaption>Fig: Simulated memory controller overview</figcaption>
 </figure>
 
@@ -57,7 +108,7 @@ The delay calculator identifies address requests by internal identifiers (_iids_
 Precisely, write responses and read data use separate iid spaces: each response to an address request is therefore identified by the pair (read/write, iid), although the first entry of the pair is always implicit.
 
 <figure class="image">
-  <img src="https://i.imgur.com/ri0Ej2o.png">
+  <img src="https://i.imgur.com/ri0Ej2o.png" alt="Toplevel microarchitecture">
   <figcaption>Fig: Simulated memory controller overview</figcaption>
 </figure>
 
@@ -75,7 +126,7 @@ The top-level flow happens as follows:
 4. When all the responses corresponding to a given address request have been transmitted to the requester, the response banks free the allocated memory for reuse.
 
 <figure class="image">
-  <img src="https://i.imgur.com/pbbpy0Y.png">
+  <img src="https://i.imgur.com/pbbpy0Y.png" alt="Toplevel flow">
   <figcaption>Fig: Simulated memory controller top-level flow</figcaption>
 </figure>
 
@@ -95,7 +146,7 @@ Each response bank has a FIFO interface with reservations, and stores messages i
 FIFOs are implemented as linked lists to make best use of the RAM space.
 
 <figure class="image">
-  <img src="https://i.imgur.com/BpU4aZz.png">
+  <img src="https://i.imgur.com/BpU4aZz.png" alt="FIFO interface">
   <figcaption>Fig: Response bank top-level interface. The figure is simplfied, as the FIFOs don't have fixed space allocation in the actual design. More details below.</figcaption>
 </figure>
 
@@ -125,7 +176,7 @@ Their content is therefore maintained identical, but they may be read at differe
 Using RAMs is efficient as it does not require a massive number of flip-flops to store data, but incurs one cycle latency for the output.
 
 <figure class="image">
-  <img src="https://i.imgur.com/mH3dPLo.png">
+  <img src="https://i.imgur.com/mH3dPLo.png" alt="Response bank RAMs">
   <figcaption>Fig: Response banks RAMs</figcaption>
 </figure>
 
@@ -137,7 +188,7 @@ Two options have been explored to store burst responses, while keeping a single 
 2. _In-depth burst storage_: Storing all the responses corresponding to the same burst in consecutive physical RAM cells.
 
 <figure class="image">
-  <img src="https://i.imgur.com/1yWktlc.png">
+  <img src="https://i.imgur.com/1yWktlc.png" alt="In-width storage">
   <figcaption>Fig: In-width burst storage (not chosen as implementation), for a burst length of 4</figcaption>
 </figure>
 
@@ -154,12 +205,12 @@ We additionally introduce two address spaces:
 - _full address_: refers to the full address of an elementary cell in the payload RAM.
 
 <figure class="image">
-  <img src="https://i.imgur.com/VzySGSn.png">
+  <img src="https://i.imgur.com/VzySGSn.png" alt="In-depth storage">
   <figcaption>Fig: In-depth burst storage, for a burst length of 4</figcaption>
 </figure>
 
 <figure class="image">
-  <img src="https://i.imgur.com/fzaWZ6v.png">
+  <img src="https://i.imgur.com/fzaWZ6v.png" alt="In-depth storage addressing">
   <figcaption>Fig: In-depth burst storage addressing</figcaption>
 </figure>
 
@@ -199,7 +250,7 @@ Therefore, two distinct tail pointers are required to dynamically manage the two
   - pre_tail if the list contains no responses.
 
 <figure class="image">
-  <img src="https://i.imgur.com/Y7XwICc.png">
+  <img src="https://i.imgur.com/Y7XwICc.png" alt="Linked list representation">
   <figcaption>Fig: Linked list representation. t: tail, pt: pre_tail, rsp: response head, rsv: reservation head. Arrows between extended cells represent the linked list structure (cells must not have consecutive addresses)</figcaption>
 </figure>
 
@@ -218,13 +269,13 @@ In addition to the pointers, lengths of sub-segments of linked lists are stored 
 - _rsp_len_: Holds the number of active extended cells.
 
 <figure class="image">
-  <img src="https://i.imgur.com/gj5IPNo.png">
+  <img src="https://i.imgur.com/gj5IPNo.png" alt="Linked list lengths">
   <figcaption>Fig: Example of rsv_len and rsp_len</figcaption>
 </figure>
 
 Additionally, another length is combinatorically inferred:
 
-- _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data.
+- _rsp_len_after_out_: Determines the next _rsp_len_ value, considering the release of responses but not the acquisition of new data.
   This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
 
 As the burst support came chronologically later than the rest of the implementation (see next paragraph), the lengths may be completely substituted by the use of the extended cell state.
@@ -271,8 +322,8 @@ A pointer _pA_ is said to be _piggybacked with_ another pointer _pB_ when we imp
 Typically, this happens when _pA_ needs to be updated but has to stay behind or equal to _pB_.
 
 <figure class="image">
-  <img src="https://i.imgur.com/qmJwLMn.png">
-  <figcaption>Fig: Piggybacking example, for pA piggybacked with pB </figcaption>
+  <img src="https://i.imgur.com/qmJwLMn.png" alt="Piggbacking illustration">
+  <figcaption>Fig: Piggybacking illustration, for pA piggybacked with pB </figcaption>
 </figure>
 
 This part depicts the linked list operation on different events: reservation, response acquisition and response transmission.
@@ -377,7 +428,7 @@ The wrapper's role is related to the write data requests ordering relatively to 
 To count the write data awaited or received in advance, the wrapper maintains a signed counter, incremented when write data is observed in advance, and when a write address is observed, it is decreased by the corresponding burst length.
 
 <figure class="image">
-  <img src="https://i.imgur.com/H1FLUsu.png">
+  <img src="https://i.imgur.com/H1FLUsu.png" alt="Delay calculator wrapper">
   <figcaption>Fig: Delay calculator wrapper. The blue arrow is taken if the delay calculator core currently expects write data for a previous write address request. Else, the black arrow is taken. Additionally, the red arrow gives the number of write data for the potentially incoming write address request</figcaption>
 </figure>
 
@@ -441,7 +492,7 @@ In the case of read data, the corresponding counter is decremented.
 In the case of write responses, the corresponding flip-flop is unset.
 
 <figure class="image">
-  <img src="https://i.imgur.com/zbh9VpO.png">
+  <img src="https://i.imgur.com/zbh9VpO.png" alt="Delay calculator slots">
   <figcaption>Fig: Delay calculator core: slots and release signals</figcaption>
 </figure>
 
@@ -461,7 +512,7 @@ Only the top-right part above the diagonal is stored.
 Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, which indicates whether each write slot is valid and able to host new write data entries, which is the case iff there is at least one unset bit in the corresponding _data_v_ signal.
 
 <figure class="image">
-  <img src="https://i.imgur.com/zRb7Ptp.png">
+  <img src="https://i.imgur.com/zRb7Ptp.png" alt="Age matrix">
   <figcaption>Fig: Generic age matrix: the blue cells are stored in flip-flops</figcaption>
 </figure>
 
@@ -512,8 +563,8 @@ The allocated free slot fields takes the following values:
   The latter bits are set, because an unset bit in the _mem_done_ array represents an entry which must be eventually completed.
 
 <figure class="image">
-  <img src="https://i.imgur.com/eUkYbI9.png">
-  <figcaption>Fig: Read slot state just after acceptance of a new write address of burst length 2 and 1 immediate wdata (write data arrived not after the write address request)</figcaption>
+  <img src="https://i.imgur.com/eUkYbI9.png" alt="Write slot state">
+  <figcaption>Fig: Write slot state just after acceptance of a new write address of burst length 2 and 1 immediate wdata (write data arrived not after the write address request)</figcaption>
 </figure>
 
 ##### Read requests
@@ -571,7 +622,7 @@ The per-entry address is therefore calculated with the slot address as a base, t
 The wrap modulo operation is implicitly performed when the adders overflow.
 
 <figure class="image">
-  <img src="https://i.imgur.com/H8IVMBk.png">
+  <img src="https://i.imgur.com/H8IVMBk.png" alt="Slot entry address calculation">
   <figcaption>Fig: Individual burst entry address dynamic calculation</figcaption>
 </figure>
 
