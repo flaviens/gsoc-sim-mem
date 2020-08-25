@@ -87,11 +87,11 @@ The top-level flow happens as follows:
 
 ### High-level design
 
-The _simmem_resp_banks_ module is made of two distinct _simmem_resp_bank_ modules:
+The _simmem_resp_banks_ module is made of two distinct instantiations of the same _simmem_resp_bank_ module:
 
 - The write response bank, responsible for storing write responses.
 - The read data bank, responsible for storing read data.
-As read data can come back as burst data, this bank has to additionally support bursts, which is the essential difference with the write response bank.
+  As read data can come back as burst data, this bank has to additionally support bursts, which is the essential difference with the write response bank.
 
 The two banks act independently.
 
@@ -100,24 +100,31 @@ FIFOs are implemented as linked lists to make best use of the RAM space.
 
 <figure class="image">
   <img src="https://i.imgur.com/BpU4aZz.png">
-  <figcaption>Fig: Response bank top-level interface</figcaption>
+  <figcaption>Fig: Response bank top-level interface. The figure is simplfied, as the FIFOs don't have fixed space allocation in the actual design. More details below.</figcaption>
 </figure>
 
 ### Reservations
 
 The reservation mechanism built in the response banks provides simultaneously two features:
 
-1. It ensures that the responses to an address request will have space to be stored as soon as they are produced.This prevents inflated delays between request address acceptation and its response in the case of congestion in the response banks.This also prevents any deadlock situation.
-2. It provides internal identifiers, as soon as the address requests are made.This allows the delay calculator to immediately label the request metadata, for immediate processing.As the real memory controller may require multiple cycles to provide a response to an address request, producing an internal identifier as early as possible is a necessary feature.
+1. It ensures that the responses to an address request will have space to be stored as soon as they are produced.
+   This prevents inflated delays between request address acceptance and its response in the case of congestion in the response banks.
+   This also prevents any deadlock situation.
+2. It provides internal identifiers, as soon as the address requests are made.
+   This allows the delay calculator to immediately label the request metadata (address, burst length and size), for immediate processing.
+   As the real memory controller may require multiple cycles to provide a response to an address request, it is necessary that the internal identifier, produced at RAM space allocation time, is performed as early as possible.
 
 ### RAMs
 
 Each response bank uses three dual-port RAM banks:
 
-- _i_payload_ram_, responsible for storing the responses before they are transmitted to the requester.As there is one linked list per AXI identifier, the AXI identifier is not stored in the RAM, but deduced from its linked list identifier when it is released.
+- _i_payload_ram_, responsible for storing the responses before they are transmitted to the requester.
+  As there is one linked list per AXI identifier, the AXI identifier is not stored in the RAM, but deduced from its linked list identifier when it is released.
 - _i_meta_ram_out_tail_ and _i_meta_ram_out_head_, responsible for storing the linked list states: for each linked list element, they store the pointer to the next element in the payload RAM.
+These are called _metadata RAMs_.
 
-Two RAM banks are used to hold pointer to next elements, as three ports are needed (which is explained by the linked list implementation below).Their content is therefore maintained identical, but they may be read at different addresses simultaneously.
+Two RAM banks are used to hold pointer to next elements, as three ports are needed (which is explained by the linked list implementation below).
+Their content is therefore maintained identical, but they may be read at different addresses simultaneously.
 
 Using RAMs is efficient as it does not require a massive number of flip-flops to store data, but incurs one cycle latency for the output.
 
@@ -140,11 +147,14 @@ Two options have been explored to store burst responses, while keeping a single 
 
 The burst support has been implemented _in-depth_, because the block RAMs are typically narrow and deep, and do not always propose write masks, which makes in-width storage difficult.
 
-The _MaxBurstLen_ (maximum burst length for reads, and 1 for write responses) consecutive RAM cells dedicated to the same burst are referred to as _extended RAM cells_.On a high level, extended RAM cells are the elementary data structures in linked lists.BY opposition to extended RAM cells, the actual physical RAM cells are called _elementary RAM cells_.
+The _MaxBurstLen_ (maximum burst length for reads, and 1 for write responses) consecutive RAM cells dedicated to the same burst are referred to as _extended RAM cells_.
+On a high level, extended RAM cells are the elementary data structures in linked lists.
+By opposition to extended RAM cells, the actual physical RAM cells are called _elementary RAM cells_.
 
 We additionally introduce two address spaces:
 
-- _address_: refers to the address of the extended cells, viewing them as elementary storage elements.This matches with addresses as defined by the metadata RAM.
+- _address_: refers to the address of the extended cells, viewing them as elementary storage elements.
+  This matches with addresses as defined by the metadata RAM.
 - _full address_: refers to the full address of an elementary cell in the payload RAM.
 
 <figure class="image">
@@ -174,15 +184,20 @@ Linked lists are logical structures maintained by the _i_meta_ram_out_tail_ and 
 - Pre*tail (\_pre_tails*): Points to the second-to-last cell hosting or awaiting a response in the linked list.
 - Tail (_tails_): Points to the oldest cell hosting or awaiting a response in the linked list.
 
-The order of the pointers must always be respected.They can be equal but never overtake each other, in the order defined by the linked list.
+The order of the pointers must always be respected.
+They can be equal but never overtake each other, in the order defined by the linked list.
 
-Two distinct tail pointers are required to dynamically manage the two following cases:
+One challenge when implementing the response banks is the one-cycle latency to produce the  output.
+Therefore, two distinct tail pointers are required to dynamically manage the two following cases, to achieve maximum bandwidth:
 
-- The pre_tail address is given as input to the payload RAM if there is a successful output handshake and the value at the output has an AXI id corresponding to the AXI id of the considered linked list.It must point to:
+- The pre_tail address is given as input to the payload RAM if there is a successful output handshake.
+  It must point to:
   - The second-to-last element of the linked list if the list contains two reponses or more,
   - The last element of the linked list if the list contains just one response,
   - rsp_head if the list contains no responses.
-- The tail address is given as input to the payload RAM in all other cases.This case disjunction prevents an output data from being output twice, and prevents any bandwidth drop at the output.It must point to:
+- The tail address is given as input to the payload RAM in all other cases.
+  This case disjunction prevents an output data from being output twice, and prevents any bandwidth drop at the output.
+  It must point to:
 
   - The last element of the linked list if the list contains one response or more,
   - pre_tail if the list contains no responses.
@@ -192,17 +207,16 @@ Two distinct tail pointers are required to dynamically manage the two following 
   <figcaption>Fig: Linked list representation. t: tail, pt: pre_tail, rsp: response head, rsv: reservation head. Arrows between extended cells represent the linked list structure (cells must not have consecutive addresses)</figcaption>
 </figure>
 
-
 #### Lengths
 
 Linked lists are not fully defined by the four pointer and metadata RAMs only.
 For example, if all four pointers point to the same address, it can be any of:
 
 - All pointers are positioned here by default: for example, a reservation has never happend yet on this linked list.
-- The cell is reserved, but the 
+- The extended cell is reserved, but there is no free extended cell to place the reservation pointer, and this cell is not occupied.
+- The extended cell is reserved, but there is no free extended cell to place the reservation pointer, and this cell is occupied.
 
-
-In addition to the pointers, lengths of sub-segments of linked lists are stored to maintain the state of each linked lists, which is not fully defined by the four pointer and metadata RAMs only:
+In addition to the pointers, lengths of sub-segments of linked lists are stored to maintain the state of each linked lists, which is therefore not fully defined by the four pointer and metadata RAMs only:
 
 - _rsv_len_: Holds the number of extended cells that have been reserved but have not received any response yet.
 - _rsp_len_: Holds the number of active extended cells.
@@ -214,7 +228,8 @@ In addition to the pointers, lengths of sub-segments of linked lists are stored 
 
 Additionally, another length is combinatorically inferred:
 
-- _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data.This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
+- _rsp_len_after_out_: Determines what will be _rsp_len_, considering the release of responses but not the acquisition of new data.
+  This signal is helpful in many regular and corner cases as it helps to manage the latency cycle at the output.
 
 As the burst support came chronologically later than the rest of the implementation (see next paragraph), the lengths may be completely substituted by the use of the extended cell state.
 More details in the _Future work_ section.
@@ -225,8 +240,11 @@ More details in the _Future work_ section.
 
 For each extended RAM cells, additional memory is dedicated to maintaining the extended RAM cell state:
 
-- _rsv_cnt_: Counts the number of responses that are still awaited in the burst.When reserving an extended cell, this counter is set to the address request burst length.The counter is decremented every time a burst response is transmitted from this extended RAM cell to the requester.
-- _rsp_cnt_: Counts the number of responses that are currently stored in the extended cell.The counter is incremented every time a response is acquired and decremented every time a response is released.
+- _rsv_cnt_: Counts the number of responses that are still awaited in the burst.
+  When reserving an extended cell, this counter is set to the address request burst length.
+  The counter is decremented every time a burst response is transmitted from this extended RAM cell to the requester.
+- _rsp_cnt_: Counts the number of responses that are currently stored in the extended cell.
+  The counter is incremented every time a response is acquired and decremented every time a response is released.
 - _burst_len_: Stores the burst length of the address request corresponding to this extended RAM cell.
 
 The following relationship always holds:
@@ -245,7 +263,7 @@ An extended cell is said to be valid (_ram_v_) (in a terminology like a cache li
 These three elements maintain full information of the extended cell state and give the offset of an elementary RAM cell inside an extended cell:
 
 - The offset for data output is given by $tail\_burst\_len - tail\_rsv\_cnt - tail\_rsv\_cnt$, which corresponds to the number of burst responses already released.
-The offset may be taken from the _pre_tail_ instead of the _tail_ in the cases described further above.
+  The offset may be taken from the _pre_tail_ instead of the _tail_ in the cases described further above.
 - The offset for data input is given by $rsp\_burst\_len - rsp\_rsv\_cnt$, which corresponds to the number of burst responses already acquired (regardless of whether they have been already released).
 
 #### Linked list detailed operation
@@ -269,9 +287,9 @@ On reservation,
 
 - _Reservation head_: The reservation head of the linked list corresponding to the address request's AXI identifier (_rsv_req_id_onehot_i_) is moved to the address of a free extended RAM cell.
 - _Response head_: If the response head used to point to an extended cell which already had received data (implying that is was equal to the reservation pointer), then the response head is piggybacked with the response head.
-This means, that if the reservation head is updated, then the response head is also updated with the same value.
-Else, they both remain untouched.
-Additionally, the response head is piggybacked with the reservation head if the linked list was empty.
+  This means, that if the reservation head is updated, then the response head is also updated with the same value.
+  Else, they both remain untouched.
+  Additionally, the response head is piggybacked with the reservation head if the linked list was empty.
 - _Pre_tail_: The pre_tail is piggybacked with the reservation head on one of the conditions:
   - The linked list was empty.
   - The reservation length was 0 and the response length after possible output (_rsp_len_after_out_) is equal to 1.
@@ -281,7 +299,7 @@ Additionally, the response head is piggybacked with the reservation head if the 
 
 ##### Response acquisition
 
-On response acquisition, if the extended cell is not becoming full (i.e., $rsv\_cnt > 1$), then no pointer or metadata RAM is updated.
+On response acquisition, if the extended cell is not becoming full (_i.e._, $rsv\_cnt > 1$), then no pointer or metadata RAM is updated.
 Only the burst counters are updated.
 If however $rsv\_cnt > 1$, then:
 
@@ -298,14 +316,14 @@ If however $rsv\_cnt > 1$, then:
 
 ##### Response release
 
-On response release, if the extended cell still holds or awaits data (i.e., $tail\_rsv\_cnt > 0 || tail\_rsp\_cnt > 0$), then no pointer or metadata RAM is updated.
+On response release, if the extended cell still holds or awaits data (_i.e._, $tail\_rsv\_cnt > 0 || tail\_rsp\_cnt > 0$), then no pointer or metadata RAM is updated.
 Only the burst counters are updated.
 Else:
 
 - _Reservation head_: Remains untouched.
 - _Response head_: Remains untouched.
-- _Pre_tail_: If the pre_tail is different from (i.e., strictly behind) the response head, then it is updated from the metadata RAM.
-Else, it is piggybacked with the response head.
+- _Pre_tail_: If the pre_tail is different from (_i.e._, strictly behind) the response head, then it is updated from the metadata RAM.
+  Else, it is piggybacked with the response head.
 - _Tail_: Takes the previous value of the pre_tail.
 - _Meta RAMs_: Is read at the address _pre_tails_, to possibly update the pre*tail from the linked list pointers stored in RAM (see the \_Pre_tail* point above).
 - _Payload RAM_: The response is read from the RAM.
@@ -315,9 +333,9 @@ Else, it is piggybacked with the response head.
 As there is one cycle latency between the output response selection and output response supply, some signals need to be stored over this clock cycle to identify which response is currently output:
 
 - _cur_out_id_: Identifies the AXI identifier currently released.
-This helps updating the linked list pointers.
+  This helps updating the linked list pointers.
 - _cur_out_addr_: Identifies the extended cell address currently released.
-This is involved in the release feedback signal to the delay calculator (_released_addr_).
+  This is involved in the release feedback signal to the delay calculator (_released_addr_).
 - _cur_out_valid_: Identifies whether the output was intended in the previous clock cycle.
 
 #### Additional response bank features
@@ -328,8 +346,8 @@ The release enable signal is read twice:
 
 - During the cycle before the corresponding output, to select which signal to read from the RAMs.
 - During the output cycle, to make sure that the release enable signal is still set.
-Else, the output is cancelled.
-The cancellation is done implicitly by unsetting the output ready signal.
+  Else, the output is cancelled.
+  The cancellation is done implicitly by unsetting the output ready signal.
 
 ## Delay calculator
 
@@ -355,7 +373,7 @@ The wrapper's role is related to the write data requests ordering relatively to 
 
 - It ensures that write data requests always reach the _simmem_delay_calculator_core_ module after the corresponding write address request.
 - When a write address request is observed, if the wrapper had seen write data in advance, it sends this count (bounded by the burst length of the observed write address signal) to the core module using the _wdata_immediate_cnt_i_ signal.
-Fundamentally, only the count of write data, and not their content, is relevant for delay calculation.
+  Fundamentally, only the count of write data, and not their content, is relevant for delay calculation.
 
 To count the write data awaited or received in advance, the wrapper maintains a signed counter, incremented when write data is observed in advance, and when a write address is observed, it is decreased by the corresponding burst length.
 
@@ -377,16 +395,16 @@ _Write slots_ are memory structures defined as follows:
 - Valid (_v_): Is set iff the slot is currently occupied.
 - Internal identifier (_iid_): Contains the identifier that will be used to identify the extended cell where to release some response.
 - Address (_addr_): Contains the base address of the address request.
-It is used to estimate the delay caused by the requests contained in the burst.
+  It is used to estimate the delay caused by the requests contained in the burst.
 - Burst size (_burst_size_): Contains the burst size of the address request.
-It is used to calculate the address of the subsequent.
-It may also be used in the future for improved delay estimation.
+  It is used to calculate the address of the subsequent.
+  It may also be used in the future for improved delay estimation.
 - Data valid (_data_v_): Contains one bit per elementary burst request.
-Each bit is unset iff the corresponding elementary burst request is awaited.
+  Each bit is unset iff the corresponding elementary burst request is awaited.
 - Memory pending (_mem_pending_): Contains one bit per elementary burst request.
-Each bit is set iff there is currently a simulated memory operation pending.
+  Each bit is set iff there is currently a simulated memory operation pending.
 - Memory done (_mem_done_): Contains one bit per elementary burst request.
-Each bit is set iff the corresponding simulated memory operation is done, or this is an entry beyond the burst length.
+  Each bit is set iff the corresponding simulated memory operation is done, or this is an entry beyond the burst length.
 
 _Read slots_ are defined identically, except that:
 
@@ -407,16 +425,16 @@ When a simulated memory operation starts, the decrementing counter is set to a v
 Rank states are represented by two additional elements (in addition to the decrementing counter):
 
 - _is_row_open_: Is set iff there is a row stored in the simulated row buffer.
-Currently, this signal is only unset before the first memory request.
+  Currently, this signal is only unset before the first memory request.
 - _row_start_addr_: Stores the identifier of the currently open row, if any.
-The row identifier corresponds to all the most significant bits, that are not used for intra-row addressing.
+  The row identifier corresponds to all the most significant bits, that are not used for intra-row addressing.
 
 #### Release enable structures
 
 Write responses have a release enable structure made of one flip-flop per internal identifier.
 When the flip-flop is set, then the corresponding release eanble signal is propagated to the write response bank, which releases the signal if the requester is ready and if the signal is at the response head of its linked list.
 
-As read data come as a burst, and to allow the progressive release of the data in the burst, small counters are used to maintain the number of read data that can currently be released per internal identifier (i.e., per extended cell).
+As read data come as a burst, and to allow the progressive release of the data in the burst, small counters are used to maintain the number of read data that can currently be released per internal identifier (_i.e._, per extended cell).
 The multi-hot release enable signal, similar to the one used for the write responses but with a possibly different width, has each bit set iff the corresponding counter is non-zero.
 
 When data is effectively released, the response banks notify this event using the _wrsp_released_iid_onehot_ and _rdata_released_iid_onehot_ one-hot signals.
@@ -452,9 +470,9 @@ Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, whi
 
 The main age matrix side is the concatenation of two types of entries:
 
-- # The $NumWSlots * MaxBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
-- The $NumWSlots * MaxWBurstLen$ elementary write burst entries, addressed as (slotId << log2(MaxWBurstLen)) | eid, where eid is a notation, convenient here but not used in the source code, for the element identifier in the burst.
-
+- The $NumWSlots * MaxBurstEffLen$ elementary write burst entries, addressed as (slotId << log2(MaxBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+ - The $NumRSlots$ read data slots / read address requests.
+ 
 We have considered the fact that all read elementary burst entries in the same burst share the same age.
 
 ### Finding optimal entries
@@ -492,7 +510,7 @@ The allocated free slot fields takes the following values:
   - 1 for the last entries, which correspond to entries beyond the burst length.
 - _mem_pending_ takes the value '0, as no simulated memory operation has started for any of these new entries.
 - _mem_done_ is set to zero, except for the last bits, which correspond to entries beyond the burst length.
-The latter bits are set, because an unset bit in the _mem_done_ array represents an entry which must be eventually completed.
+  The latter bits are set, because an unset bit in the _mem_done_ array represents an entry which must be eventually completed.
 
 <figure class="image">
   <img src="https://i.imgur.com/eUkYbI9.png">
@@ -505,7 +523,7 @@ Read request acceptance is identical to write address acceptance, except that:
 
 - Read and write slots are disjoint.
 - The _data_v_ field is absent from read slots.
-Virtually, all the bits would be set to 1 when a read slot is allocated.
+  Virtually, all the bits would be set to 1 when a read slot is allocated.
 
 #### Entry and slot liberation
 
@@ -518,7 +536,7 @@ This lower bound is much lower than typical main memory access delays.
 
 ##### Write requests
 
-As there is a single write response per write address request, the release of the write response corresponding to write slot is enabled when all the entries (i.e., all the write data requests) of the slot are completed: when the _mem_done_ array is full of ones.
+As there is a single write response per write address request, the release of the write response corresponding to write slot is enabled when all the entries (_i.e._, all the write data requests) of the slot are completed: when the _mem_done_ array is full of ones.
 Precisely, when the _mem_done_ array is full of ones,
 
 - The valid bit of the slot is unset.
@@ -597,6 +615,5 @@ To support much smaller ratios, which typically means, to support larger numbers
 #### Replacement of linked list lengths
 
 So far, we have used lengths for sub-parts of the response banks. This can be substituted by the use of the burst counters only. This may be incompatible with the previous future work proposal.
-
 
 > View on GitHub: https://github.com/lowRISC/gsoc-sim-mem
