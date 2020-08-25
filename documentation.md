@@ -248,7 +248,7 @@ For each extended RAM cells, additional memory is dedicated to maintaining the e
 - _burst_len_: Stores the burst length of the address request corresponding to this extended RAM cell.
 
 The following relationship always holds:
-<img src="https://render.githubusercontent.com/render/math?math=burst\_len \ge rsv\_cnt + rsp\_cnt">
+<img src="https://render.githubusercontent.com/render/math?math=burst\_len \ge rsv\_cnt \+ rsp\_cnt">
 
 Additionally, the number of released responses in a burst is given by:
 $$burst\_len - rsv\_cnt - rsp\_cnt$$
