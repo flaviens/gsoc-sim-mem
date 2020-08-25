@@ -61,9 +61,9 @@ Second, parameters related to the simulated memory controller itself, defined in
   A lower value reduces the simmem complexity but decreases the number of outstanding read address requests.
 - Related to memory banks:
   - **RowBufLenW**: The width of the capacity of a bank row (e.g., 10 for banks with 1024-byte rows).
-  - **RowHitCost**: The cost (in clock cycles) of a [row hit]([)https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html).
-  - **PrechargeCost**: The cost (in clock cycles) of a [row precharge]([)https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html).
-  - **ActivationCost**: The cost (in clock cycles) of a [row activation]([)https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html).
+  - **RowHitCost**: The cost (in clock cycles) of a [row hit](https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html).
+  - **PrechargeCost**: The cost (in clock cycles) of a [row precharge](https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html).
+  - **ActivationCost**: The cost (in clock cycles) of a [row activation](https://course.ccs.neu.edu/com3200/parent/NOTES/DDR.html).
   - **DelayW** The bit width of the maximal delay.
 
 ### Remarks
