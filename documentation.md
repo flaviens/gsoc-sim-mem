@@ -403,8 +403,14 @@ The release enable signal is read twice:
 
 ### Scheduling strategy
 
-The delay calculator emulates a memory request scheduler and applies a FR-FCFS scheme (First Ready, First Come First Served) scheduling strategy.
-For each parallel rank, if it is ready to take a new request, among all the memory requests mapping to this rank, consider the subset of those that has a minimal request cost (in terms of latency).
+Memory schedulers are part of memory controllers.
+A memory scheduler schedules memory requests according to a given strategy, which attempts to optimize a combination of parameters, typically memory latency and throughput.
+The optimization opportunity comes from the fact that for distinct AXI identifiers, requests can be treated out of order.
+
+In our model, _interleaving_ refers to the presence of potentially multiple memory units that can treat memory requests concurrently and independently. Each address is uniquely mapped to one rank. As interleaving is not actually supported in the current version of the simulated memory controller, we do not impose which bits in the address field determine the rank assignment.
+
+The delay calculator emulates a memory request scheduler that applies a FR-FCFS (First Ready, First Come First Served) scheduling strategy.
+For each parallel rank, if it is ready to take a new request, among all the memory requests mapping to this rank, it considers the subset of those that has a minimal request cost (in terms of latency).
 Among this subset, take the oldest entry.
 
 It favors write requests over read requests when all things are equal, but this have a very low impact.
@@ -421,15 +427,15 @@ It then emulates a memory request scheduler to estimate the delay of the request
 The _simmem_delay_calculator_ module is a wrapper around the _simmem_delay_calculator_core_ module.
 The wrapper's role is related to the write data requests ordering relatively to write address requests:
 
-- It ensures that write data requests always reach the _simmem_delay_calculator_core_ module after the corresponding write address request.
-- When a write address request is observed, if the wrapper had seen write data in advance, it sends this count (bounded by the burst length of the observed write address signal) to the core module using the _wdata_immediate_cnt_i_ signal.
+- It fulfills the requirement of the _simmem_delay_calculator_core_ module to see the write data requests not before the write address request.
+- When a write address request is observed, if the wrapper had seen write data in advance, it sends the count of already observed write data requests corresponding to the current write address request, to the core module using the _wdata_immediate_cnt_i_ signal.
   Fundamentally, only the count of write data, and not their content, is relevant for delay calculation.
 
 To count the write data awaited or received in advance, the wrapper maintains a signed counter, incremented when write data is observed in advance, and when a write address is observed, it is decreased by the corresponding burst length.
 
 <figure class="image">
   <img src="https://i.imgur.com/H1FLUsu.png" alt="Delay calculator wrapper">
-  <figcaption>Fig: Delay calculator wrapper. The blue arrow is taken if the delay calculator core currently expects write data for a previous write address request. Else, the black arrow is taken. Additionally, the red arrow gives the number of write data for the potentially incoming write address request</figcaption>
+  <figcaption>Fig: Delay calculator wrapper. The blue arrow is taken if the delay calculator core currently expects write data for a previous write address request. Else, the black arrow is taken. Additionally, the red arrow gives the number of write data already counted and corresponding to the incoming write address request</figcaption>
 </figure>
 
 #### Address request slots
@@ -466,11 +472,16 @@ The burst length does not need to be stored explicitly, as the _data_v_ and _mem
 #### Delay estimation
 
 The delay estimation is performed using a decrementing counter (_rank_delay_cnt_) per rank (currently, only one rank is supported).
+
+Memory access delays, for a scheduled memory request, depend on multiple parameters.
 When a simulated memory operation starts, the decrementing counter is set to a value corresponding to the situation:
 
-1. If this is a row hit.
-2. If this is a row miss, and there was no row in the buffer.
-3. If this is a row miss, and there was another row in the buffer.
+1. If this is a row hit: if the memory request maps to a row already open in a row buffer.
+  It is allocated the cost of a _column access strobe_.
+2. If this is a row miss, and there was no row in the row buffer.
+  It is allocated the cost of a _column access strobe_ plus an _activation_ delay.
+3. If this is a row miss, and there was another row in the row buffer.
+  It is allocated the cost of a _column access strobe_ plus an _activation_ delay plus a _precharge_ delay.
 
 Rank states are represented by two additional elements (in addition to the decrementing counter):
 
@@ -482,10 +493,14 @@ Rank states are represented by two additional elements (in addition to the decre
 #### Release enable structures
 
 Write responses have a release enable structure made of one flip-flop per internal identifier.
-When the flip-flop is set, then the corresponding release eanble signal is propagated to the write response bank, which releases the signal if the requester is ready and if the signal is at the response head of its linked list.
+When the flip-flop is set, then the corresponding release eanble signal is propagated to the write response bank, which releases the response as soon as the previous response of same AXI identifier are themselves released.
 
 As read data come as a burst, and to allow the progressive release of the data in the burst, small counters are used to maintain the number of read data that can currently be released per internal identifier (_i.e._, per extended cell).
 The multi-hot release enable signal, similar to the one used for the write responses but with a possibly different width, has each bit set iff the corresponding counter is non-zero.
+
+There is some imprecision which is that read responses in a burst are counted but not identified.
+For example, in a burst with responses (R0, R1, R2, R3) coming back in order from the real memory controller, if at some point of time, the delay calculator scheduled and completed, say R1 and R3, but R0 and R2 are not completed yet, then the actual output of the simulated memory controller will be R0 and R1 (as opposed to the calculated R1 and R3).
+The effect of this tolerance is expected to be negligible in common cases.
 
 When data is effectively released, the response banks notify this event using the _wrsp_released_iid_onehot_ and _rdata_released_iid_onehot_ one-hot signals.
 In the case of read data, the corresponding counter is decremented.
@@ -500,7 +515,7 @@ In the case of write responses, the corresponding flip-flop is unset.
 
 Age management is used in two point of the delay calculator core:
 
-- As many common scheduling strategies consider request relative age at some point, including the currently implemented strategy, the relative age between elementary burst entries must be (at least partially) maintained.
+- As many common scheduling strategies, including the currently implemented one, consider request relative age at some point, the relative age between elementary burst entries must be (at least partially) maintained.
 - The oldest write slots must receive write data information first, as in AXI, write data requests correspond in order with the write address requests: the earlier write data requests correspond to the earlier write address requests.
 
 #### Write slot age matrix
@@ -520,15 +535,15 @@ Each row is then masked with the _free_wslt_for_data_mhot_ multi-hot signal, whi
 
 The main age matrix side is the concatenation of two types of entries:
 
-- The _NumWSlots_ x _MaxBurstEffLen_$ elementary write burst entries, addressed as (slotId << log2(MaxBurstEffLen)) | eid, where eid is a notation, convenient here but not used in the source code.
+- The _NumWSlots_ x _MaxBurstEffLen_$ elementary write burst entries, addressed as `(slotId << log2(MaxBurstEffLen)) | eid`, where eid is a notation, convenient here but not used in the source code.
  - The _NumRSlots_ read data slots / read address requests.
 
 We have considered the fact that all read elementary burst entries in the same burst share the same age.
 
 ### Finding optimal entries
 
-To find optimal the optimal entries to simulate new memory operations, the entries are first grouped by rank.
-All these groups, quotiented by rank, work in parallel without interaction.
+To find the optimal entries to simulate new memory operations, the entries are first grouped by rank.
+All these per-rank groups work in parallel without interaction.
 
 Entries are then regrouped by cost categories (which are representations of memory operation latency on fewer bits), depending on the memory operation address and on the current corresponding rank row buffer state.
 
@@ -577,20 +592,20 @@ Read request acceptance is identical to write address acceptance, except that:
 
 #### Entry and slot liberation
 
-For each write or read slot, for each entry, if the corresponding _mem_pending_ bit is set, then it is swapped with the _mem_done_ bit when the corresponding rank decrementing counter reaches 3.
-This accommodates the propagation delay until the requester, assuming the latter is ready.
-This is referred as _three-cycles-early_ _mem_done_ setting.
+For each entry in each write and read slot, when the corresponding rank decrementing counter reaches 3, if the _mem_pending_ bit is set, it is unset and the _mem_done_ bit is set.
+This accommodates the propagation delay until the requester, assuming the latter is ready and is referred to as _three-cycles-early_ _mem_done_ setting.
+Operating this way, the memory delay counter becomes:
+* 2 when the (potential) _release enable_ information reaches the input of the release_enable flip-flop. It is _potential_ in the sense, that if the freshly completed entry belongs to a write burst that still contains incomplete entries, then no release enable signal is fired.
+* 1 when the _release enable_ information reaches the input of the RAM in the response banks.
+* 0 when the response reaches the requester.
 
-It forces, in particular, all the simulated memory delays to be at least 3 cycles.
+This means, that all simulated memory delays must be at least 3 cycles. Precisely, setting the column access strobe parameter (_RowHitCost_) to at least 3 is necessary and sufficient in the described model.
 This lower bound is much lower than typical main memory access delays.
 
 ##### Write requests
 
-As there is a single write response per write address request, the release of the write response corresponding to write slot is enabled when all the entries (_i.e._, all the write data requests) of the slot are completed: when the _mem_done_ array is full of ones.
-Precisely, when the _mem_done_ array is full of ones,
-
-- The valid bit of the slot is unset.
-- The release enable flip-flop corresponding to the write slot's iid field is unset.
+As there is a single write response per write address request, the release of the write response corresponding to write slot is enabled when all the entries (_i.e._, all the write data requests) of the slot are completed.
+This is the case when and only when the _mem_done_ array is full of ones.
 
 ##### Read data
 
