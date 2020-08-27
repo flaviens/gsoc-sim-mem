@@ -35,7 +35,7 @@ const int kResetLength = 5; // Cycles
 const int kTraceLevel = 6;
 
 // Constant burst lengths supplied to the DUT
-const int kWBurstLen = 1;
+const int kWBurstLen = 3;
 const int kRBurstLen = 2;
 
 // Testbench choice.

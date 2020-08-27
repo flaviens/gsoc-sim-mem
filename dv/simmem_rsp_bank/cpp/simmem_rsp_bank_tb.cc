@@ -7,9 +7,15 @@
 //  * Response ordering per AXI identifier.
 //
 // The testbench is divided into 2 parts:
-//  * Definition of the WriteRspBankTestbench class, which is the interface with the design under test.
-//  * Definition of a manual and a randomized testbench. The randomized
-//  testbench randomly applies inputs and observe output delays and contents.
+//  * Definition of the WriteRspBankTestbench class, which is the interface with the design under
+//    test.
+//  * Definition of a manual and a randomized testbench. The randomized testbench randomly applies
+//    inputs and observe output delays and contents.
+
+// As the reservation and response actions are decorellated, deadlock situations may appear,
+// especially for low ratios NumIds over bank capacity. Those are due to the fact that one input
+// response has an AXI ID which has not been reserved yet, but all cells are already reserved for
+// other IDs. This issue does not appear at the toplevel, where reservations are made realistically.
 
 #include "Vsimmem_rsp_bank.h"
 #include "verilated.h"
@@ -32,8 +38,8 @@ const int kResetLength = 5; // Cycles
 // Depth of the trace.
 const int kTraceLevel = 6;
 
-const int kRspWidth = 11;  // Whole response width
 const int kIdWidth = 2; // AXI identifier width
+const int kRspWidth = 4+kIdWidth;  // Whole response width
 
 // Testbench choice.
 typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;

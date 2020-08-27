@@ -824,7 +824,9 @@ module simmem_rsp_bank #(
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsvd[i_id] = rsp_i.merged_payload.id == i_id && |(rsv_len_q[i_id]);
+    assign is_id_rsvd[i_id] = (rsp_i.merged_payload.id == i_id) &
+        (|(rsv_len_q[i_id]) | ((|rsp_len_q[i_id]) & |(rsp_rsv_cnt_id[i_id])));
+
   end : gen_is_id_reserved
 
   // Input is ready if there is room and data is not flowing out
