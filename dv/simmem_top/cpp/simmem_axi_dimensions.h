@@ -49,9 +49,6 @@ const uint64_t MaxBurstSizeField = 2;
 const uint64_t MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
 const uint64_t WStrbWidth = MaxBurstEffSizeBytes;
 
-// Maximal allowed burst length field value, must be positive.
-const uint64_t MaxBurstLenField = 2;
-
 // Maximal width of a single AXI message.
 const uint64_t PackedW = 64;
 

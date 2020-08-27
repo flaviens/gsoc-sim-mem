@@ -45,6 +45,10 @@ const int kRspWidth = 4+kIdWidth;  // Whole response width
 typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
+// Determines how many tests are performed in the randomized test. Set to 1 to proceed with wave
+// analysis.
+const size_t NUM_RANDOM_TEST_ROUNDS = 100;
+
 typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
 
@@ -138,15 +142,15 @@ class WriteRspBankTestbench {
    *
    * @return the data as seen by the design under test instance
    */
-  uint32_t simmem_input_data_apply(uint32_t identifier, uint32_t rsp) {
+  uint32_t simmem_input_rsp_apply(uint32_t identifier, uint32_t rsp) {
     // Checks if the given values are not too big
     assert(!(rsp >> (kRspWidth - kIdWidth)));
     assert(!(identifier >> kIdWidth));
 
-    uint32_t in_data = rsp << kIdWidth | identifier;
-    module_->rsp_i = in_data;
+    uint32_t in_rsp = rsp << kIdWidth | identifier;
+    module_->rsp_i = in_rsp;
     module_->in_rsp_valid_i = 1;
-    return in_data;
+    return in_rsp;
   }
 
   /**
@@ -157,7 +161,7 @@ class WriteRspBankTestbench {
   /**
    * Checks whether the input data has been accepted by checking the ready output signal.
    */
-  bool simmem_input_data_check(void) {
+  bool simmem_input_rsp_check(void) {
     module_->eval();
     return (bool)(module_->in_rsp_ready_o);
   }
@@ -173,42 +177,42 @@ class WriteRspBankTestbench {
   /**
    * Stops applying data to the DUT instance.
    */
-  void simmem_input_data_stop(void) { module_->in_rsp_valid_i = 0; }
+  void simmem_input_rsp_stop(void) { module_->in_rsp_valid_i = 0; }
 
   /**
    * Allows all the data output from a releaser module standpoint.
    */
-  void simmem_output_data_allow(void) { module_->release_en_i = -1; }
+  void simmem_output_rsp_allow(void) { module_->release_en_i = -1; }
 
   /**
    * Forbids all the data output from a releaser module standpoint.
    */
-  void simmem_output_data_forbid(void) { module_->release_en_i = 0; }
+  void simmem_output_rsp_forbid(void) { module_->release_en_i = 0; }
 
   /**
    * Sets the ready signal to one on the output side.
    */
-  void simmem_output_data_request(void) { module_->out_rsp_ready_i = 1; }
+  void simmem_output_rsp_request(void) { module_->out_rsp_ready_i = 1; }
 
   /**
    * Tries to fetch output data. Requires the ready signal to be one at the DUT output.
    *
-   * @param out_data the output data from the DUT
+   * @param out_rsp the output data from the DUT
    *
    * @return true iff the data is valid
    */
-  bool simmem_output_data_fetch(uint32_t &out_data) {
+  bool simmem_output_rsp_fetch(uint32_t &out_rsp) {
     module_->eval();
     assert(module_->out_rsp_ready_i);
 
-    out_data = (uint32_t)module_->rsp_o;
+    out_rsp = (uint32_t)module_->rsp_o;
     return (bool)(module_->out_rsp_valid_o);
   }
 
   /**
    * Sets the ready signal to zero on the output side.
    */
-  void simmem_output_data_stop(void) { module_->out_rsp_ready_i = 0; }
+  void simmem_output_rsp_stop(void) { module_->out_rsp_ready_i = 0; }
 
 
   /**
@@ -239,26 +243,26 @@ void manual_test(WriteRspBankTestbench *tb) {
 
   // Apply reservation requests for 4 ticks
   tb->simmem_reservation_start(
-      4);  // Start issuing reservation requests for AXI ID 4
+      3);  // Start issuing reservation requests for AXI ID 3
   tb->simmem_tick(4);
   tb->simmem_reservation_stop();  // Stop issuing reservation requests
 
   tb->simmem_tick(4);
 
   // Apply inputs for 6 ticks
-  tb->simmem_input_data_apply(4, 3);
-  tb->simmem_tick(6);
-  tb->simmem_input_data_stop();
+  tb->simmem_input_rsp_apply(3, 2);
+  tb->simmem_tick(7);
+  tb->simmem_input_rsp_stop();
 
   tb->simmem_tick(4);
 
   // Enable data toutput
-  tb->simmem_output_data_allow();
-  tb->simmem_tick(4);
+  tb->simmem_output_rsp_allow();
+  tb->simmem_tick(5);
 
-  tb->simmem_output_data_request();
+  tb->simmem_output_rsp_request();
   tb->simmem_tick(10);
-  tb->simmem_output_data_stop();
+  tb->simmem_output_rsp_stop();
 
   tb->simmem_tick(100);
 }
@@ -296,7 +300,7 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
   // Signal whether some input is applied to the simmem.
   bool reserve;
   bool apply_input;
-  bool request_output_data;
+  bool request_output_rsp;
 
   bool iteration_announced;  // Variable only used for display purposes.
 
@@ -315,7 +319,7 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
   tb->simmem_reset();
 
   // The ready signal is always 1 for the simmem output.
-  tb->simmem_output_data_allow();
+  tb->simmem_output_rsp_allow();
 
   for (size_t i = 0; i < num_cycles; i++) {
     iteration_announced = false;
@@ -323,7 +327,7 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
     // Randomize the boolean signals deciding which interactions will happen in this cycle.
     reserve = (bool)(rand() & 1);
     apply_input = (bool)(rand() & 1);
-    request_output_data = (bool)(rand() & 1);
+    request_output_rsp = (bool)(rand() & 1);
 
     if (reserve) {
       // Apply the reservation request.
@@ -332,11 +336,11 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
     if (apply_input) {
       // Apply the input response.
       current_input =
-          tb->simmem_input_data_apply(current_input_id, current_content);
+          tb->simmem_input_rsp_apply(current_input_id, current_content);
     }
-    if (request_output_data) {
+    if (request_output_rsp) {
       // Fetch an output if the handshake is successful.
-      tb->simmem_output_data_request();
+      tb->simmem_output_rsp_request();
     }
 
     // Only perform the evaluation once all the inputs have been applied
@@ -353,7 +357,7 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
       // Renew the reservation identifier if the reservation is successful.
       current_reservation_id = ids[rand() % num_ids];
     }
-    if (tb->simmem_input_data_check()) {
+    if (tb->simmem_input_rsp_check()) {
       // If the input handshake is successful, then add the input into the corresponding queue.
       input_queues[current_input_id].push(current_input);
       if (kTransactionsVerbose) {
@@ -370,9 +374,9 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
       current_content =
           (uint32_t)((rand() & tb->simmem_get_content_mask()) >> kIdWidth);
     }
-    if (request_output_data) {
+    if (request_output_rsp) {
       // If the output handshake is successful, then add the output to the corresponding queue
-      if (tb->simmem_output_data_fetch(current_output)) {
+      if (tb->simmem_output_rsp_fetch(current_output)) {
         output_queues[ids[(current_output &
                                    tb->simmem_get_identifier_mask())]]
             .push(current_output);
@@ -398,10 +402,10 @@ size_t randomized_testbench(WriteRspBankTestbench *tb, size_t num_ids,
       tb->simmem_reservation_stop();
     }
     if (apply_input) {
-      tb->simmem_input_data_stop();
+      tb->simmem_input_rsp_stop();
     }
-    if (request_output_data) {
-      tb->simmem_output_data_stop();
+    if (request_output_rsp) {
+      tb->simmem_output_rsp_stop();
     }
   }
 
@@ -436,7 +440,7 @@ int main(int argc, char **argv, char **env) {
   // Counts the number of mismatches during the whole test
   size_t total_num_mismatches = 0;
 
-  for (unsigned int seed = 0; seed < 1; seed++) {
+  for (unsigned int seed = 0; seed < NUM_RANDOM_TEST_ROUNDS; seed++) {
     // Counts the number of mismatches during the loop iteration
     size_t local_num_mismatches;
 

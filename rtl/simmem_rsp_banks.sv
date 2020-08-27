@@ -15,7 +15,7 @@ module simmem_rsp_banks (
     output logic [           simmem_pkg::WRspBankAddrW-1:0] wrsv_iid_o,
     output logic [          simmem_pkg::RDataBankAddrW-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [$clog2(simmem_pkg::MaxBurstLenField)-1:0] rrsv_burst_len_i,
+    input  logic [           simmem::MaxBurstLenFieldW-1:0] rrsv_burst_len_i,
 
     // Reservation handshake signals
     input  logic wrsv_valid_i,
@@ -48,15 +48,7 @@ module simmem_rsp_banks (
     input  logic w_out_rsp_ready_i,
     output logic w_out_rsp_valid_o,
     input  logic r_out_data_ready_i,
-    output logic r_out_data_valid_o,
-
-    // Ready signals from the delay calculator
-    input logic w_delay_calc_ready_i,
-    input logic r_delay_calc_ready_i,
-
-    // Ready signals for the delay calculator
-    output logic w_delay_calc_ready_o,
-    output logic r_delay_calc_ready_o
+    output logic r_out_data_valid_o
 );
 
   import simmem_pkg::*;
@@ -79,9 +71,7 @@ module simmem_rsp_banks (
       .in_rsp_valid_i        (w_in_rsp_valid_i),
       .in_rsp_ready_o        (w_in_rsp_ready_o),
       .out_rsp_ready_i       (w_out_rsp_ready_i),
-      .out_rsp_valid_o       (w_out_rsp_valid_o),
-      .delay_calc_ready_i    (w_delay_calc_ready_i),
-      .delay_calc_ready_o    (w_delay_calc_ready_o)
+      .out_rsp_valid_o       (w_out_rsp_valid_o)
   );
 
   simmem_rsp_bank #(
@@ -102,9 +92,7 @@ module simmem_rsp_banks (
       .in_rsp_valid_i        (r_in_data_valid_i),
       .in_rsp_ready_o        (r_in_data_ready_o),
       .out_rsp_ready_i       (r_out_data_ready_i),
-      .out_rsp_valid_o       (r_out_data_valid_o),
-      .delay_calc_ready_i    (r_delay_calc_ready_i),
-      .delay_calc_ready_o    (r_delay_calc_ready_o)
+      .out_rsp_valid_o       (r_out_data_valid_o)
   );
 
 endmodule

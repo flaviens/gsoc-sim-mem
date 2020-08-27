@@ -33,27 +33,32 @@ package simmem_pkg;
   parameter int unsigned ActivationCost = 1;  // Cycles
 
   // Log2 of the boundary that cannot be crossed by bursts.
-  parameter int unsigned BurstAddrLSBs = 12;
+  parameter int unsigned BurstAddrLSBs = 4; // TODO 12
 
   // Maximal value of any burst_size field, must be positive.
   parameter int unsigned MaxBurstSizeField = 2;
 
   // Effective max burst size (in number of elements)
-  parameter int unsigned MaxBurstEffSizeBytes = 1 <<MaxBurstSizeField;
+  parameter int unsigned MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
   parameter int unsigned MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
 
   parameter int unsigned WStrbWidth = MaxBurstEffSizeBytes;
 
   // Maximal allowed burst length field value, must be positive.
-  parameter int unsigned MaxBurstLenField = 2;
+  parameter int unsigned MaxBurstLenField = 3; // Must be of the form 2^n-1
+  parameter int unsigned MaxBurstLenFieldW = $clog2(MaxBurstLenField); // Width
 
   // Effective max burst length (in number of elements)
-  parameter int unsigned MaxBurstEffLen = 1 << MaxBurstLenField;
-
+  parameter int unsigned MaxBurstEffLen = 1 + MaxBurstLenField;
+  parameter int unsigned MaxBurstEffLenW = $clog2(MaxBurstEffLen); // Width
+  // XBurstEffLenW is the smallest width large enough to contain the representation of the
+  //  maximal effective number of elements per burst (as opposed to the maximal burst length field
+  //  value, which is one element smaller). It is useful in counters implementation.
+  localparam int unsigned XBurstEffLenW = $clog2(MaxBurstEffLen + 1);
 
   // Capacities in extended cells (number of outstanding bursts).
-  parameter int unsigned WRspBankCapa = 8;
-  parameter int unsigned RDataBankCapa = 6;
+  parameter int unsigned WRspBankCapa = 24; // TODO Here
+  parameter int unsigned RDataBankCapa = 14; // TODO Here
 
   parameter int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
   parameter int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
@@ -192,9 +197,9 @@ package simmem_pkg;
     * @param burst_len_field the burst_length field of the AXI signal
     * @return the number of elements in the burst
     */
-  function automatic logic [MaxBurstLenField:0] get_effective_burst_len(
+  function automatic logic [XBurstEffLenW-1:0] get_effective_burst_len(
       logic [AxLenWidth-1:0] burst_len_field);
-    return 1 << burst_len_field;
+    return XBurstEffLenW'(burst_len_field) + XBurstEffLenW'(1);
   endfunction : get_effective_burst_len
 
   /**
@@ -203,7 +208,7 @@ package simmem_pkg;
     * @param burst_len_field the burst_size field of the AXI signal
     * @return the size of the elements in the burst
     */
-  function automatic logic [MaxBurstSizeField:0] get_effective_burst_size(
+  function automatic logic [MaxBurstSizeField:0] get_effective_burst_size( // TODO -1 in array bounds
       logic [AxSizeWidth-1:0] burst_size_field);
     return 1 << burst_size_field;
   endfunction : get_effective_burst_size

@@ -93,12 +93,6 @@ module simmem_top (
   logic [WRspBankCapa-1:0] wrsp_released_onehot;
   logic [RDataBankCapa-1:0] rdata_released_onehot;
 
-  // Mutual ready signals (directions are given in the point of view of the response banks
-  logic w_delay_calc_ready_in;  // From the delay calculator
-  logic r_delay_calc_ready_in;  // From the delay calculator
-  logic w_delay_calc_ready_out;  // From the response banks
-  logic r_delay_calc_ready_out;  // From the response banks
-
   // Output hanshake signals for upstream signals (from the requester to the real memory controller).
   assign waddr_in_ready_o = waddr_out_ready_i & wrsv_ready_out;
   assign raddr_in_ready_o = raddr_out_ready_i & rrsv_ready_out;
@@ -120,7 +114,7 @@ module simmem_top (
       .rrsv_req_id_onehot_i    (rrsv_req_id_onehot),
       .wrsv_iid_o              (wrsv_iid),
       .rrsv_iid_o              (rrsv_iid),
-      .rrsv_burst_len_i        (($clog2(simmem_pkg::MaxBurstLenField))'(raddr_i.burst_len)),
+      .rrsv_burst_len_i        (MaxBurstLenFieldW'(raddr_i.burst_len)),
       .wrsv_valid_i            (wrsv_valid_in),
       .wrsv_ready_o            (wrsv_ready_out),
       .rrsv_valid_i            (rrsv_valid_in),
@@ -140,11 +134,7 @@ module simmem_top (
       .w_out_rsp_ready_i       (wrsp_out_ready_i),
       .w_out_rsp_valid_o       (wrsp_out_valid_o),
       .r_out_data_ready_i      (rdata_out_ready_i),
-      .r_out_data_valid_o      (rdata_out_valid_o),
-      .w_delay_calc_ready_i    (w_delay_calc_ready_in),
-      .r_delay_calc_ready_i    (r_delay_calc_ready_in),
-      .w_delay_calc_ready_o    (w_delay_calc_ready_out),
-      .r_delay_calc_ready_o    (r_delay_calc_ready_out)
+      .r_out_data_valid_o      (rdata_out_valid_o)
   );
 
   simmem_delay_calculator i_simmem_delay_calculator (
@@ -163,12 +153,7 @@ module simmem_top (
       .wrsp_release_en_mhot_o     (wrsp_release_en_mhot),
       .rdata_release_en_mhot_o    (rdata_release_en_mhot),
       .wrsp_released_iid_onehot_i (wrsp_released_onehot),
-      .rdata_released_iid_onehot_i(rdata_released_onehot),
-      .wrsp_bank_ready_o          (w_delay_calc_ready_in),
-      .rrsp_bank_ready_o          (r_delay_calc_ready_in),
-      .wrsp_bank_ready_i          (w_delay_calc_ready_out),
-      .rrsp_bank_ready_i          (r_delay_calc_ready_out)
-
+      .rdata_released_iid_onehot_i(rdata_released_onehot)
   );
 
 endmodule

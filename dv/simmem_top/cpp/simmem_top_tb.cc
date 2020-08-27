@@ -1082,7 +1082,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
                 << ", wrsp: " << out_res.to_packed()
                 << ", payload: " << (out_res.to_packed() >> IDWidth) << ")."
                 << std::endl;
-    }
+    } // TODO Add read delays
   }
 }
 
@@ -1095,7 +1095,7 @@ int main(int argc, char **argv, char **env) {
   if (kTestStrategy == MANUAL_TEST) {
     manual_testbench(tb);
   } else if (kTestStrategy == RANDOMIZED_TEST) {
-    randomized_testbench(tb, 1, 0);
+    randomized_testbench(tb, 2, 0, 200);
   }
 
   delete tb;
