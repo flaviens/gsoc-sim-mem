@@ -827,7 +827,6 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
       requester_current_waddr.burst_len = kWBurstLen;
       requester_current_waddr.burst_size = 2;
       requester_current_waddr.burst_type = BURST_INCR;
-      // requester_current_waddr.addr = 0;  // TODO Remove
     }
     // raddr handshake
     if (requester_apply_raddr_input && tb->simmem_requester_raddr_check()) {
