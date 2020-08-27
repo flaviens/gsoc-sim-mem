@@ -782,7 +782,7 @@ module simmem_rsp_bank #( // TODO Here
     for (genvar i_addr = 0; i_addr < TotCapa; i_addr = i_addr + 1) begin : gen_next_addr
       always_comb begin
         // Fundamentally, the next address to release needs to belong to a non-empty AXI identifier
-        // and must be enabled for release
+        // and must be enabled for release.
         nxt_addr_mhot_id[i_id][i_addr] =
             |(rsp_len_after_out[i_id]) && !awaits_data[i_id] && release_en_i[i_addr];
 

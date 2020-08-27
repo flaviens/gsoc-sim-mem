@@ -42,6 +42,9 @@ const int kRBurstLen = 2;
 typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
+// Determines the number of AXI identifiers involved in the randomized testbench.
+const size_t NUM_IDENTIFIERS = 1; // TODO
+
 typedef Vsimmem_top Module;
 
 typedef std::map<uint64_t, std::queue<WriteResponse>> wrsp_queue_map_t;
@@ -727,7 +730,7 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
     // Randomize the boolean signals deciding which interactions will take
     // place in this cycle
     requester_apply_waddr_input = (bool)(rand() & 1);
-    requester_apply_raddr_input = (bool)(rand() & 1);
+    requester_apply_raddr_input = 0;// (bool)(rand() & 1); TODO
     requester_apply_wdata_input = (bool)(rand() & 1);
     // The requester is supposedly always ready to get data, for more accurate
     // delay calculation
@@ -1095,7 +1098,7 @@ int main(int argc, char **argv, char **env) {
   if (kTestStrategy == MANUAL_TEST) {
     manual_testbench(tb);
   } else if (kTestStrategy == RANDOMIZED_TEST) {
-    randomized_testbench(tb, 2, 0, 200);
+    randomized_testbench(tb, NUM_IDENTIFIERS, 0, 1000); // TODO multiple identifiers
   }
 
   delete tb;

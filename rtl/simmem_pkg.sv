@@ -57,8 +57,9 @@ package simmem_pkg;
   localparam int unsigned XBurstEffLenW = $clog2(MaxBurstEffLen + 1);
 
   // Capacities in extended cells (number of outstanding bursts).
-  parameter int unsigned WRspBankCapa = 24; // TODO Here
-  parameter int unsigned RDataBankCapa = 14; // TODO Here
+  // TODO Document that should be large for rsp_bank tests but small in practise.
+  parameter int unsigned WRspBankCapa = 3; // TODO Here
+  parameter int unsigned RDataBankCapa = 2; // TODO Here
 
   parameter int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
   parameter int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
@@ -73,6 +74,7 @@ package simmem_pkg;
 
   // Maximal bit width on which to encode a delay.(measured in clock cycles).
   parameter int unsigned DelayW = $clog2(RowHitCost + PrechargeCost + ActivationCost);  // bits
+
 
   /////////////////
   // AXI signals //
@@ -118,6 +120,7 @@ package simmem_pkg;
     BURST_WRAP = 2,
     BURST_RESERVED = 3
   } burst_type_e;
+
 
   ////////////////////////
   // Packet definitions //
@@ -208,7 +211,7 @@ package simmem_pkg;
     * @param burst_len_field the burst_size field of the AXI signal
     * @return the size of the elements in the burst
     */
-  function automatic logic [MaxBurstSizeField:0] get_effective_burst_size( // TODO -1 in array bounds
+  function automatic logic [MaxBurstSizeField-1:0] get_effective_burst_size( // TODO -1 in array bounds
       logic [AxSizeWidth-1:0] burst_size_field);
     return 1 << burst_size_field;
   endfunction : get_effective_burst_size

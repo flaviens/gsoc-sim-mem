@@ -15,7 +15,7 @@ module simmem_rsp_banks (
     output logic [           simmem_pkg::WRspBankAddrW-1:0] wrsv_iid_o,
     output logic [          simmem_pkg::RDataBankAddrW-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [           simmem::MaxBurstLenFieldW-1:0] rrsv_burst_len_i,
+    input  logic [       simmem_pkg::MaxBurstLenFieldW-1:0] rrsv_burst_len_i,
 
     // Reservation handshake signals
     input  logic wrsv_valid_i,

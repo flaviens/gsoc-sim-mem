@@ -45,9 +45,12 @@ const int kRspWidth = 4+kIdWidth;  // Whole response width
 typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
-// Determines how many tests are performed in the randomized test. Set to 1 to proceed with wave
-// analysis.
-const size_t NUM_RANDOM_TEST_ROUNDS = 100;
+// Determines the number of independent tests are performed in the randomized testbench. Set to 1 to
+// proceed with wave analysis.
+const size_t NUM_RANDOM_TEST_ROUNDS = 1; // TODO 100
+
+// Determines the number of AXI identifiers involved in the randomized testbench.
+const size_t NUM_IDENTIFIERS = 2; // TODO
 
 typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;
@@ -453,7 +456,7 @@ int main(int argc, char **argv, char **env) {
       manual_test(tb);
       break;
     } else if (kTestStrategy == RANDOMIZED_TEST) {
-      local_num_mismatches = randomized_testbench(tb, 4, seed);
+      local_num_mismatches = randomized_testbench(tb, NUM_IDENTIFIERS, seed);
     }
 
     total_num_mismatches += local_num_mismatches;
