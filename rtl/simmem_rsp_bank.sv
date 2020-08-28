@@ -821,7 +821,8 @@ module simmem_rsp_bank #(  // TODO Here
   // Input is ready if there is room and data is not flowing out
   assign in_rsp_ready_o =
       in_rsp_valid_i && |is_id_rsvd;  // AXI 4 allows ready to depend on the valid signal
-  assign rsv_ready_o = |(~ram_v);
+  assign delay_calc_ready_o = |(~ram_v);
+  assign rsv_ready_o = delay_calc_ready_o & delay_calc_ready_i;
 
   /////////////
   // Outputs //

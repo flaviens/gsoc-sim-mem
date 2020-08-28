@@ -8,14 +8,14 @@ module simmem_rsp_banks (
     input logic rst_ni,
 
     // Reservation interface AXI identifier for which the reseration request is being done.
-    input  logic [                  simmem_pkg::NumIds-1:0] wrsv_req_id_onehot_i,
-    input  logic [                  simmem_pkg::NumIds-1:0] rrsv_req_id_onehot_i,
+    input  logic [           simmem_pkg::NumIds-1:0] wrsv_req_id_onehot_i,
+    input  logic [           simmem_pkg::NumIds-1:0] rrsv_req_id_onehot_i,
     // Information about currently reserved address. Will be stored by other modules as an internal
     // identifier to uniquely identify the response (or response burst in case of read data).
-    output logic [           simmem_pkg::WRspBankAddrW-1:0] wrsv_iid_o,
-    output logic [          simmem_pkg::RDataBankAddrW-1:0] rrsv_iid_o,
+    output logic [    simmem_pkg::WRspBankAddrW-1:0] wrsv_iid_o,
+    output logic [   simmem_pkg::RDataBankAddrW-1:0] rrsv_iid_o,
     // The number of data elements to reserve in the RAM cell.
-    input  logic [       simmem_pkg::MaxBurstLenFieldW-1:0] rrsv_burst_len_i,
+    input  logic [simmem_pkg::MaxBurstLenFieldW-1:0] rrsv_burst_len_i,
 
     // Reservation handshake signals
     input  logic wrsv_valid_i,
@@ -48,7 +48,16 @@ module simmem_rsp_banks (
     input  logic w_out_rsp_ready_i,
     output logic w_out_rsp_valid_o,
     input  logic r_out_data_ready_i,
-    output logic r_out_data_valid_o
+    output logic r_out_data_valid_o,
+
+    // Ready signals from the delay calculator
+    input logic w_delay_calc_ready_i,
+    input logic r_delay_calc_ready_i,
+
+    // Ready signals for the delay calculator
+    output logic w_delay_calc_ready_o,
+    output logic r_delay_calc_ready_o
+
 );
 
   import simmem_pkg::*;
@@ -71,7 +80,10 @@ module simmem_rsp_banks (
       .in_rsp_valid_i        (w_in_rsp_valid_i),
       .in_rsp_ready_o        (w_in_rsp_ready_o),
       .out_rsp_ready_i       (w_out_rsp_ready_i),
-      .out_rsp_valid_o       (w_out_rsp_valid_o)
+      .out_rsp_valid_o       (w_out_rsp_valid_o),
+      .delay_calc_ready_i    (w_delay_calc_ready_i),
+      .delay_calc_ready_o    (w_delay_calc_ready_o)
+
   );
 
   simmem_rsp_bank #(
@@ -92,7 +104,9 @@ module simmem_rsp_banks (
       .in_rsp_valid_i        (r_in_data_valid_i),
       .in_rsp_ready_o        (r_in_data_ready_o),
       .out_rsp_ready_i       (r_out_data_ready_i),
-      .out_rsp_valid_o       (r_out_data_valid_o)
+      .out_rsp_valid_o       (r_out_data_valid_o),
+      .delay_calc_ready_i    (r_delay_calc_ready_i),
+      .delay_calc_ready_o    (r_delay_calc_ready_o)
   );
 
 endmodule
