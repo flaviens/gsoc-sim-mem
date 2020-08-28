@@ -138,7 +138,7 @@ void single_to_packed(uint64_t &packed, uint64_t field, uint64_t field_w,
 ///////////////////////////
 
 void WriteAddress::from_packed(uint64_t packed) {
-  id = single_from_packed(packed, id_w, id_off); // TODO The offsets
+  id = single_from_packed(packed, id_w, id_off);
   addr = single_from_packed(packed, addr_w, addr_off);
   burst_len = single_from_packed(packed, burst_len_w, burst_len_off);
   burst_size = single_from_packed(packed, burst_size_w, burst_size_off);

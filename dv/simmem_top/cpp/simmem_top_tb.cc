@@ -13,8 +13,6 @@
 //  * Definition of a manual and a randomized testbench. The randomized testbench randomly applies
 //    inputs and observe output delays and contents.
 
-// TODO Explain that delays are computed in parallel.
-
 #include "Vsimmem_top.h"
 #include "simmem_axi_structures.h"
 #include "verilated.h"
@@ -49,6 +47,12 @@ const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
 // Determines the number of AXI identifiers involved in the randomized testbench.
 const size_t NUM_IDENTIFIERS = 2;
+
+// Determines seed for the randomized testbench.
+const unsigned int SEED = 2;
+
+// Determines the number of steps per randomized testbench.
+const size_t NUM_RANDOM_TEST_STEPS = 1000;
 
 typedef Vsimmem_top Module;
 
@@ -1150,7 +1154,7 @@ int main(int argc, char **argv, char **env) {
   if (kTestStrategy == MANUAL_TEST) {
     manual_testbench(tb);
   } else if (kTestStrategy == RANDOMIZED_TEST) {
-    randomized_testbench(tb, NUM_IDENTIFIERS, 0, 1000);
+    randomized_testbench(tb, NUM_IDENTIFIERS, SEED, NUM_RANDOM_TEST_STEPS);
   }
 
   delete tb;

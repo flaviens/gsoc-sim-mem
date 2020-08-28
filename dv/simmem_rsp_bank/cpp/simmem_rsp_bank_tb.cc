@@ -45,12 +45,15 @@ const int kRspWidth = 4+kIdWidth;  // Whole response width
 typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
-// Determines the number of independent tests are performed in the randomized testbench. Set to 1 to
+// Determines the number of independent testbenches are performed in the randomized testbench. Set to 1 to
 // proceed with wave analysis.
-const size_t NUM_RANDOM_TEST_ROUNDS = 1; // TODO 100
+const size_t NUM_RANDOM_TEST_ROUNDS = 100;
+
+// Determines the number of steps per randomized testbench round.
+const size_t NUM_RANDOM_TEST_STEPS = 1000;
 
 // Determines the number of AXI identifiers involved in the randomized testbench.
-const size_t NUM_IDENTIFIERS = 2; // TODO
+const size_t NUM_IDENTIFIERS = 2;
 
 typedef Vsimmem_rsp_bank Module;
 typedef std::map<uint32_t, std::queue<uint32_t>> queue_map_t;

@@ -104,7 +104,7 @@
 //  *  +--------------------------+
 //
 
-module simmem_rsp_bank #(  // TODO Here
+module simmem_rsp_bank #(
     parameter simmem_pkg::rsp_bank_type_e RspBankType = simmem_pkg::WRSP_BANK,
 
     // Must be simmem_pkg::wrsp_t for WRSP_BANK and simmem_pkg::rdata_t for RDATA_BANK.
@@ -818,8 +818,7 @@ module simmem_rsp_bank #(  // TODO Here
   // Signals indicating if there is reserved space for a given AXI identifier
   logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
-    assign is_id_rsvd[i_id] = (rsp_i.merged_payload.id == i_id) &
-        |(rsv_len_q[i_id]); // TODO Reset as it was
+    assign is_id_rsvd[i_id] = (rsp_i.merged_payload.id == i_id) & |(rsv_len_q[i_id]);
 
   end : gen_is_id_reserved
 

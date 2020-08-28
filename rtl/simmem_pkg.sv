@@ -33,7 +33,7 @@ package simmem_pkg;
   parameter int unsigned ActivationCost = 1;  // Cycles
 
   // Log2 of the boundary that cannot be crossed by bursts.
-  parameter int unsigned BurstAddrLSBs = 4; // TODO 12
+  parameter int unsigned BurstAddrLSBs = 12;
 
   // Maximal value of any burst_size field, must be positive.
   parameter int unsigned MaxBurstSizeField = 2;
@@ -57,9 +57,8 @@ package simmem_pkg;
   localparam int unsigned XBurstEffLenW = $clog2(MaxBurstEffLen + 1);
 
   // Capacities in extended cells (number of outstanding bursts).
-  // TODO Document that should be large for rsp_bank tests but small in practise.
-  parameter int unsigned WRspBankCapa = 3; // TODO Here
-  parameter int unsigned RDataBankCapa = 2; // TODO Here
+  parameter int unsigned WRspBankCapa = 3;
+  parameter int unsigned RDataBankCapa = 2;
 
   parameter int unsigned WRspBankAddrW = $clog2(WRspBankCapa);
   parameter int unsigned RDataBankAddrW = $clog2(RDataBankCapa);
@@ -207,7 +206,7 @@ package simmem_pkg;
     * @param burst_len_field the burst_size field of the AXI signal
     * @return the size of the elements in the burst
     */
-  function automatic logic [MaxBurstSizeField-1:0] get_effective_burst_size( // TODO -1 in array bounds
+  function automatic logic [MaxBurstSizeField-1:0] get_effective_burst_size(
       logic [AxSizeWidth-1:0] burst_size_field);
     return 1 << burst_size_field;
   endfunction : get_effective_burst_size
