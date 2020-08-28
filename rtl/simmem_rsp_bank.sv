@@ -151,7 +151,12 @@ module simmem_rsp_bank #(  // TODO Here
 
     // Interface with the requester
     input  logic out_rsp_ready_i,
-    output logic out_rsp_valid_o
+    output logic out_rsp_valid_o,
+
+    // Ready signal from the delay calculator
+    input  logic delay_calc_ready_i,
+    // Ready signal to the delay calculator
+    output logic delay_calc_ready_o
 );
 
   import simmem_pkg::*;
