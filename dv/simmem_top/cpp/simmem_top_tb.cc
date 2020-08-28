@@ -48,7 +48,7 @@ typedef enum { MANUAL_TEST, RANDOMIZED_TEST } test_strategy_e;
 const test_strategy_e kTestStrategy = RANDOMIZED_TEST;
 
 // Determines the number of AXI identifiers involved in the randomized testbench.
-const size_t NUM_IDENTIFIERS = 1; // TODO
+const size_t NUM_IDENTIFIERS = 2;
 
 typedef Vsimmem_top Module;
 
@@ -738,9 +738,9 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
     ///////////////////////
 
     // Randomize the boolean signals deciding which interactions will take place in this cycle
-    requester_apply_waddr_input = 0;//(bool)(rand() & 1); // TODO
+    requester_apply_waddr_input = (bool)(rand() & 1);
     requester_apply_raddr_input = (bool)(rand() & 1);
-    requester_apply_wdata_input = 0;//(bool)(rand() & 1); // TODO
+    requester_apply_wdata_input = (bool)(rand() & 1);
     // The requester is supposedly always ready to get data, for more accurate delay calculation
     requester_req_wrsp_output = true;
     requester_req_rdata_output = true;
@@ -996,9 +996,10 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
     if (requester_req_rdata_output &&
         tb->simmem_requester_rdata_fetch(requester_current_rdata)) {
       // If the output handshake between the requester and the simmem has been successful, then
-      // accept the output.
+      // accept the output. One cycle is added to the delay, as the data is available to the requester
+      // only after the handshake.
       rdata_out_queues[ids[requester_current_rdata.id]].push(
-          std::pair<size_t, ReadData>(curr_itern, requester_current_rdata));
+          std::pair<size_t, ReadData>(curr_itern+1, requester_current_rdata));
 
       if (kTransactionVerbose) {
         if (!iteration_announced) {
@@ -1105,9 +1106,11 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
 
   // rdata_id_in_burst stores the current position in a read burst, useful to track the boundaries between
   // (fixed-length) read bursts.
-  size_t rdata_id_in_burst = 0;
+  size_t rdata_id_in_burst;
 
   for (size_t curr_id = 0; curr_id < num_ids; curr_id++) {
+    rdata_id_in_burst = 0;
+
     std::cout << "\n--- AXI ID " << std::dec << curr_id << " ---" << std::endl;
 
     while (!raddr_in_queues[curr_id].empty() &&
@@ -1134,10 +1137,6 @@ void randomized_testbench(SimmemTestbench *tb, size_t num_ids,
                 << ")." << std::endl;
     }
   }
-
-
-  // TODO Add read delays
-
 }
 
 
@@ -1151,7 +1150,7 @@ int main(int argc, char **argv, char **env) {
   if (kTestStrategy == MANUAL_TEST) {
     manual_testbench(tb);
   } else if (kTestStrategy == RANDOMIZED_TEST) {
-    randomized_testbench(tb, NUM_IDENTIFIERS, 0, 1000); // TODO multiple identifiers
+    randomized_testbench(tb, NUM_IDENTIFIERS, 0, 1000);
   }
 
   delete tb;
