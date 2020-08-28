@@ -33,7 +33,7 @@ Additionally, the project depends on the `lowrisc:prim_generic:ram_2p` core to g
 
 To run the complete testbench,
 
-**Step 1:** Clone the repository and move to the repository root
+**Step 1:** Clone the repository and move to the repository root:
 
 ```bash
 git clone https://github.com/lowRISC/gsoc-sim-mem.git simmem
@@ -43,13 +43,14 @@ cd simmem
 **Step 2:** Clone the opentitan repository locally.
 
 **Step 3:** Manage the `lowrisc:prim_generic:ram_2p` core dependency with FuseSoC:
+Make sure to be located at the root of the local simmem repository, then execute:
 
 ```bash
 fusesoc init
 fusesoc library add $PATH_TO_OPENTITAN
 ```
 
-Where `$PATH_TO_OPENTITAN` is the path to the local cloned OpenTitan repository. To verify that the operation succeeded, then execute:
+Where `$PATH_TO_OPENTITAN` is the path to the local cloned OpenTitan repository. To verify that the operation succeeded, execute:
 
 ```bash
 fusesoc list-cores | grep lowrisc:prim_generic:ram_2p
@@ -57,7 +58,7 @@ fusesoc list-cores | grep lowrisc:prim_generic:ram_2p
 
 It should now find a matching line.
 
-**Step 4:** Add the simmem core: Execute:
+**Step 4:** Add the simmem core:
 
 ```bash
 fusesoc library add simmem .
