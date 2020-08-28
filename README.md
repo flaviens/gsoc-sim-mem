@@ -25,7 +25,7 @@ Two testbenches are integrated in the repository:
 - A testbench for the whole simulated memory controller, which is discussed here.
 - A testbench for the response banks, as it is a relatively complex design block.
 
-See the [documentation](https://github.com/lowrisc/gsoc-sim-mem/documentation.md) for more information about the testbenches.
+See the [documentation](https://github.com/flaviens/gsoc-sim-mem/documentation.md) for more information about the testbenches.
 
 The required tools are [Verilator](https://www.veripool.org/wiki/verilator) and [FuseSoC](https://github.com/olofk/fusesoc). Additionally, [GTKWave](http://gtkwave.sourceforge.net/) is used for analyzing waveforms.
 
@@ -35,7 +35,7 @@ Additionally, the project depends on the `lowrisc:prim_generic:ram_2p` core to g
 
 To run the complete testbench,
 
-1. Make sure that the `lowrisc:prim_generic:ram_2p` core is known by the local FuseSoC installation:
+**Step 1:** Make sure that the `lowrisc:prim_generic:ram_2p` core is known by the local FuseSoC installation:
 
 ```bash
 fusesoc list-cores | grep lowrisc:prim_generic:ram_2p
@@ -43,14 +43,14 @@ fusesoc list-cores | grep lowrisc:prim_generic:ram_2p
 
 If no matching line is found, then one way to add this core is to clone the [OpenTitan](https://github.com/lowRISC/opentitan) repository, then execute
 
-```bash
+```
 fusesoc library add $PATH_TO_OPENTITAN
 ```
 
 Where `$PATH_TO_OPENTITAN` is the path to the local cloned OpenTitan repository.
 
-2. Add the simmem core:
-   Make sure to be in the simmem repository root and run
+**Step 2:** Add the simmem core:
+Make sure to be in the simmem repository root and run
 
 ```bash
 fusesoc library add simmem .
@@ -63,30 +63,25 @@ The main testbench checks the functionality and performance of the simulated mem
 - Checking the write response ordering according to the corresponding requests.
 - Displaying the actual delays.
 
-1. To compile the design and testbench, execute:
+**Step 1:** To compile the design and testbench, execute:
 
 ```bash
 fusesoc run --target=sim_simmem_top simmem
 ```
 
-2. To generate the waveforms, execute:
+**Step 2:** To generate the waveforms, execute:
 
 ```bash
 ./build/simmem_0.1/sim_simmem_top-verilator/Vsimmem_top --trace
 ```
 
 This runs the testbench again, but this time it generates the `top.fst` wave file.
-The testbench standard output is described in the [documentation](https://github.com/lowrisc/gsoc-sim-mem/documentation.md).
+The testbench standard output is described in the [documentation](https://github.com/flaviens/gsoc-sim-mem/documentation.md).
 
-3. To view the waveforms, execute:
+**Step 3:** To view the waveforms, execute:
 
 ```bash
 gtkwave top.fst
 ```
 
 This opens the waveform GUI for a deeper analysis.
-
-## Useful links
-
-* The project [documentation](https://github.com/lowrisc/gsoc-sim-mem/documentation.md).
-* The [public blog post](https://flaviens.github.io/simmem/) for the Google Summer of Code 2020.
