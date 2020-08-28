@@ -503,7 +503,7 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
   // Time of response entrance and output
   size_t in_time, out_time;
   WriteAddress in_req;
-  WriteResponse out_res;
+  WriteResponse out_rsp;
 
   for (size_t curr_id = 0; curr_id < num_ids; curr_id++) {
     std::cout << "\n--- AXI ID " << std::dec << curr_id << " ---" << std::endl;
@@ -514,13 +514,13 @@ void randomized_testbench(SimmemWriteOnlyNoBurstTestbench *tb,
       out_time = wrsp_out_queues[curr_id].front().first;
 
       in_req = waddr_in_queues[curr_id].front().second;
-      out_res = wrsp_out_queues[curr_id].front().second;
+      out_rsp = wrsp_out_queues[curr_id].front().second;
 
       waddr_in_queues[curr_id].pop();
       wrsp_out_queues[curr_id].pop();
       std::cout << "Delay: " << std::dec << out_time - in_time << std::hex
                 << " (waddr: " << in_req.to_packed()
-                << ", wresp: " << out_res.to_packed() << ")." << std::endl;
+                << ", wresp: " << out_rsp.to_packed() << ")." << std::endl;
     }
   }
 }

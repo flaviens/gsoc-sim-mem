@@ -819,7 +819,7 @@ module simmem_rsp_bank #(  // TODO Here
   logic [NumIds-1:0] is_id_rsvd;
   for (genvar i_id = 0; i_id < NumIds; i_id = i_id + 1) begin : gen_is_id_reserved
     assign is_id_rsvd[i_id] = (rsp_i.merged_payload.id == i_id) & (
-        |(rsv_len_q[i_id]) | ((|rsp_len_q[i_id]) & |(rsp_rsv_cnt_id[i_id])));
+        |(rsv_len_q[i_id]) | ((|rsp_len_q[i_id]) & |(rsp_rsv_cnt_id[i_id]))); // TODO Reset as it was
 
   end : gen_is_id_reserved
 
@@ -1164,16 +1164,14 @@ module simmem_rsp_bank #(  // TODO Here
       .DataBitsPerMask(1),
       .Depth(TotCapa)
   ) i_meta_ram_out_tail (
-      .clk_a_i(clk_i),
-      .clk_b_i(clk_i),
-
+      .clk_a_i  (clk_i),
+      .clk_b_i  (clk_i),
       .a_req_i  (meta_ram_in_req),
       .a_write_i(meta_ram_in_write),
       .a_wmask_i(meta_ram_in_wmask),
       .a_addr_i (meta_ram_in_addr),
       .a_wdata_i(meta_ram_in_content),
       .a_rdata_o(),
-
       .b_req_i  (meta_ram_out_req),
       .b_write_i(meta_ram_out_write),
       .b_wmask_i(meta_ram_out_wmask),
@@ -1188,16 +1186,14 @@ module simmem_rsp_bank #(  // TODO Here
       .DataBitsPerMask(1),
       .Depth(TotCapa)
   ) i_meta_ram_out_rsp_head (
-      .clk_a_i(clk_i),
-      .clk_b_i(clk_i),
-
+      .clk_a_i  (clk_i),
+      .clk_b_i  (clk_i),
       .a_req_i  (meta_ram_in_req),
       .a_write_i(meta_ram_in_write),
       .a_wmask_i(meta_ram_in_wmask),
       .a_addr_i (meta_ram_in_addr),
       .a_wdata_i(meta_ram_in_content),
       .a_rdata_o(),
-
       .b_req_i  (meta_ram_out_req),
       .b_write_i(meta_ram_out_write),
       .b_wmask_i(meta_ram_out_wmask),

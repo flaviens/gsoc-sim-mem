@@ -220,7 +220,6 @@ class WriteRspBankTestbench {
    */
   void simmem_output_rsp_stop(void) { module_->out_rsp_ready_i = 0; }
 
-
   /**
    * Getters.
    */
@@ -231,11 +230,11 @@ class WriteRspBankTestbench {
   vluint32_t tick_count_;
   bool record_trace_;
   std::unique_ptr<Module> module_;
+  VerilatedFstC *trace_;
 
-  // Masks that contain ones in the corresponding fields
+  // Masks that contain ones in the corresponding fields.
   uint32_t id_mask_;
   uint32_t content_mask_;
-  VerilatedFstC *trace_;
 };
 
 /**
