@@ -75,7 +75,6 @@ package simmem_pkg;
   // Maximal bit width on which to encode a delay.(measured in clock cycles).
   parameter int unsigned DelayW = $clog2(RowHitCost + PrechargeCost + ActivationCost);  // bits
 
-
   /////////////////
   // AXI signals //
   /////////////////
@@ -104,7 +103,6 @@ package simmem_pkg;
   parameter int unsigned RUserWidth = 0;
   parameter int unsigned BUserWidth = 0;
 
-
   ///////////////////////////////////
   // End of the parameters section //
   ///////////////////////////////////
@@ -120,7 +118,6 @@ package simmem_pkg;
     BURST_WRAP = 2,
     BURST_RESERVED = 3
   } burst_type_e;
-
 
   ////////////////////////
   // Packet definitions //
@@ -188,7 +185,6 @@ package simmem_pkg;
 
   // For the write response, the union is only a wrapper helping generic response bank implementation
   typedef union packed {wrsp_merged_payload_t merged_payload;} wrsp_t;
-
 
   //////////////////////
   // Helper functions //

@@ -75,6 +75,9 @@ class WriteRspBankTestbench {
     // Puts ones at the fields' places
     id_mask_ = ~((1 << 31) >> (31 - kIdWidth));
     content_mask_ = ~((1 << 31) >> (31 - kRspWidth + kIdWidth)) & ~id_mask_;
+
+    // The delay bank is supposedly always ready to receive address requests.
+    module_->delay_calc_ready_i = 1;
   }
 
   ~WriteRspBankTestbench(void) { simmem_close_trace(); }

@@ -119,7 +119,15 @@ module simmem_delay_calculator_core #(
 
     // Release confirmations sent by the message banks
     input logic [simmem_pkg::WRspBankCapa-1:0] wrsp_released_iid_onehot_i,
-    input logic [ simmem_pkg::RDataBankCapa-1:0] rdata_released_iid_onehot_i
+    input logic [ simmem_pkg::RDataBankCapa-1:0] rdata_released_iid_onehot_i,
+
+    // Ready signals from the response banks
+    input logic wrsp_bank_ready_i,
+    input logic rrsp_bank_ready_i,
+
+    // Ready signals for the response banks
+    output logic wrsp_bank_ready_o,
+    output logic rrsp_bank_ready_o
 );
 
   import simmem_pkg::*;
@@ -192,7 +200,6 @@ module simmem_delay_calculator_core #(
     endcase
   endfunction : decategorize_mem_cost
 
-
   /////////////////////
   // Rank assignment //
   /////////////////////
@@ -211,7 +218,6 @@ module simmem_delay_calculator_core #(
     end
     return address[NumRksW - 1:0];
   endfunction : get_assigned_rk_id
-
 
   ///////////////////////////////////////////
   // Slot constants, types and declaration //
@@ -321,7 +327,6 @@ module simmem_delay_calculator_core #(
     end : det_rdata_reduce
   end : det_rdata_outer
 
-
   //////////////////////////////////
   // Determine the next free slot //
   //////////////////////////////////
@@ -359,9 +364,11 @@ module simmem_delay_calculator_core #(
 
   // The module is ready to accept address requests if there is a free corresponding (write or read)
   // slot.
-  assign waddr_ready_o = |nxt_free_wslt_onehot;
-  assign raddr_ready_o = |nxt_free_rslt_onehot;
+  assign wrsp_bank_ready_o = |nxt_free_wslt_onehot;
+  assign rrsp_bank_ready_o = |nxt_free_rslt_onehot;
 
+  assign waddr_ready_o = wrsp_bank_ready_o & wrsp_bank_ready_i;
+  assign raddr_ready_o = rrsp_bank_ready_o & rrsp_bank_ready_i;
 
   ////////////////////////////////////////////////////////////
   // Age matrix constants, declaration and helper functions //
@@ -598,7 +605,6 @@ module simmem_delay_calculator_core #(
     end : opti_rbuf_rbb
   end : opti_rbuf_rk
 
-
   //////////////////////////////////////////
   // Find next slot where write data fits //
   //////////////////////////////////////////
@@ -634,7 +640,6 @@ module simmem_delay_calculator_core #(
     assign free_wslt_for_data_onehot[i_slt] =
         free_wslt_for_data_mhot[i_slt] & ~|(wslt_age_matrix[i_slt] & free_wslt_for_data_mhot);
   end : gen_wslt_for_in_data_onehot
-
 
   //////////////////////////////////
   // Address calculation in slots //
@@ -702,7 +707,6 @@ module simmem_delay_calculator_core #(
     end : gen_raddrs
   end : gen_raddrs_perslt
 
-
   //////////////////
   // Rank signals //
   //////////////////
@@ -725,7 +729,6 @@ module simmem_delay_calculator_core #(
   logic [DelayW-1:0] rank_delay_cnt_d[NumRanks];
   logic [DelayW-1:0] rank_delay_cnt_q[NumRanks];
 
-
   /////////////
   // Outputs //
   /////////////
@@ -743,7 +746,6 @@ module simmem_delay_calculator_core #(
   for (genvar i_iid = 0; i_iid < RDataBankCapa; i_iid = i_iid + 1) begin : en_rdata_release
     assign rdata_release_en_mhot_o[i_iid] = |rdata_release_en_cnts_q[i_iid];
   end : en_rdata_release
-
 
   ////////////////////////////////////
   // Management combinatorial logic //

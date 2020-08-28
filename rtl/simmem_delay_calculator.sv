@@ -1,6 +1,5 @@
-// Copyright lowRISC contributors.
-// Licensed under the Apache License, Version 2.0, see LICENSE for details.
-// SPDX-License-Identifier: Apache-2.0
+// Copyright lowRISC contributors. Licensed under the Apache License, Version 2.0, see LICENSE for
+// details. SPDX-License-Identifier: Apache-2.0
 
 // The delay calculator is responsible for snooping the traffic from the requester and deducing the
 // enable signals for the message banks. This module is a wrapper for the delay calculator core. It
@@ -27,7 +26,8 @@ module simmem_delay_calculator #(
 
     // Write address request valid from the requester.
     input  logic waddr_valid_i,
-    // Blocks the write address request if there is no write slot in the delay calculator to treat it.
+    // Blocks the write address request if there is no write slot in the delay calculator to treat
+    // it.
     output logic waddr_ready_o,
 
     // Write address request valid from the requester.
@@ -53,8 +53,16 @@ module simmem_delay_calculator #(
 
     // Release confirmations sent by the message banks
     input logic [ simmem_pkg::WRspBankCapa-1:0] wrsp_released_iid_onehot_i,
-    input logic [simmem_pkg::RDataBankCapa-1:0] rdata_released_iid_onehot_i
-  );
+    input logic [simmem_pkg::RDataBankCapa-1:0] rdata_released_iid_onehot_i,
+
+    // Ready signals from the response banks
+    input logic wrsp_bank_ready_i,
+    input logic rrsp_bank_ready_i,
+
+    // Ready signals for the response banks
+    output logic wrsp_bank_ready_o,
+    output logic rrsp_bank_ready_o
+);
 
   import simmem_pkg::*;
 
@@ -87,7 +95,8 @@ module simmem_delay_calculator #(
         // If the core has space for additional data, then transmit the data beat.
         core_wdata_valid_input = 1'b1;
       end
-      // In all cases, when the data beat has been detected by the wrapper, increment the beat counter.
+      // In all cases, when the data beat has been detected by the wrapper, increment the beat
+      // counter.
       wdata_cnt_d = wdata_cnt_d + 1;
     end
 
@@ -99,12 +108,13 @@ module simmem_delay_calculator #(
       if (!wdata_cnt_d[MaxPendingWDataW]) begin
         // If wdata_cnt_d is nonnegative, then consider sending immediate data
         if (AxLenWidth'(wdata_cnt_d) >= waddr_i.burst_len) begin
-          // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived not later than the address, then
-          // transmit all this data with the address request to the delay calculator core.
+          // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived
+          // not later than the address, then transmit all this data with the address request to the
+          // delay calculator core.
           wdata_immediate_cnt = waddr_i.burst_len[MaxBurstLenField - 1:0];
         end else begin
-          // Else, transmit only the already and currently received write data, and set the counter to
-          // zero, as it has been emptied.
+          // Else, transmit only the already and currently received write data, and set the counter
+          // to zero, as it has been emptied.
           wdata_immediate_cnt = wdata_cnt_d[MaxBurstLenField - 1:0];
         end
       end
@@ -128,28 +138,26 @@ module simmem_delay_calculator #(
   simmem_delay_calculator_core #(
       .NumRanks(NumRanks)
   ) i_simmem_delay_calculator_core (
-      .clk_i (clk_i),
-      .rst_ni(rst_ni),
-
-      .waddr_iid_i(waddr_iid_i),
-      .waddr_i    (waddr_i),
-
-      .wdata_immediate_cnt_i(wdata_immediate_cnt),
-      .waddr_valid_i        (waddr_valid_i),
-      .waddr_ready_o        (waddr_ready_o),
-
-      .wdata_valid_i(core_wdata_valid_input),
-
-      .raddr_iid_i  (raddr_iid_i),
-      .raddr_i      (raddr_i),
-      .raddr_valid_i(raddr_valid_i),
-      .raddr_ready_o(raddr_ready_o),
-
-      .wrsp_release_en_mhot_o (wrsp_release_en_mhot_o),
-      .rdata_release_en_mhot_o(rdata_release_en_mhot_o),
-
+      .clk_i                      (clk_i),
+      .rst_ni                     (rst_ni),
+      .waddr_iid_i                (waddr_iid_i),
+      .waddr_i                    (waddr_i),
+      .wdata_immediate_cnt_i      (wdata_immediate_cnt),
+      .waddr_valid_i              (waddr_valid_i),
+      .waddr_ready_o              (waddr_ready_o),
+      .wdata_valid_i              (core_wdata_valid_input),
+      .raddr_iid_i                (raddr_iid_i),
+      .raddr_i                    (raddr_i),
+      .raddr_valid_i              (raddr_valid_i),
+      .raddr_ready_o              (raddr_ready_o),
+      .wrsp_release_en_mhot_o     (wrsp_release_en_mhot_o),
+      .rdata_release_en_mhot_o    (rdata_release_en_mhot_o),
       .wrsp_released_iid_onehot_i (wrsp_released_iid_onehot_i),
-      .rdata_released_iid_onehot_i(rdata_released_iid_onehot_i)
+      .rdata_released_iid_onehot_i(rdata_released_iid_onehot_i),
+      .wrsp_bank_ready_i          (wrsp_bank_ready_i),
+      .rrsp_bank_ready_i          (rrsp_bank_ready_i),
+      .wrsp_bank_ready_o          (wrsp_bank_ready_o),
+      .rrsp_bank_ready_o          (rrsp_bank_ready_o)
   );
 
 endmodule

@@ -5,8 +5,8 @@
 // Linkedlist bank for delays in the simulated memory controller
 
 // The delay bank takes delays as inputs and outputs a multihot signal corresponding to which
-// response can be released by the response bank.
-// It contains one counter per response identifier (corresponding to RAM addresses).
+// response can be released by the response bank. It contains one counter per response identifier
+// (corresponding to RAM addresses).
 
 module simmem_delay_bank (
     input logic clk_i,
@@ -28,7 +28,6 @@ module simmem_delay_bank (
   /////////////////////////////////////////////////////
 
   logic [WRspBankCapa-1:0] newaddresses_to_release_multihot;
-
 
   ///////////////////
   // Entry signals //
@@ -58,15 +57,14 @@ module simmem_delay_bank (
         if (delay_i == 2 || delay_i == 1 || delay_i == 0) begin
           newaddresses_to_release_multihot[curr_entry] = 1'b1;
         end else begin
-          // Minus 2 because the input handshake of this module takes 1 cycle and the output
-          // latency of the memory bank is at least 1 cycle.
+          // Minus 2 because the input handshake of this module takes 1 cycle and the output latency
+          // of the memory bank is at least 1 cycle.
           counters_d[curr_entry] = delay_i - 2;
         end
       end else begin
       end
     end : counter_update_comb
   end : counter_update
-
 
   /////////////////////////////////////
   // Update the release_en_i signals //
@@ -81,7 +79,6 @@ module simmem_delay_bank (
     release_en_d &= ~address_released_onehot_i;
     release_en_d |= newaddresses_to_release_multihot;
   end : update_release_en_signals
-
 
   //////////////////////////////////
   // Sequential signal management //
