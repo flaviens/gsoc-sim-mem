@@ -2,7 +2,14 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 //
-// Simulated memory controller top-level
+// Simulated memory controller top-level module
+
+// This is the top-level module for the simulated memory controller. It has one AXI slave port to
+// connect to the requester (typically the CPU) and one AXI master port to connect to the real
+// memory controller.
+//
+// The top-level module wraps together the delay calculator and the response banks.
+// It may itself be wrapped by a Verilog wrapper Xilinx Vivado® integration for instance.
 
 module simmem_top (
     input logic clk_i,
@@ -10,47 +17,47 @@ module simmem_top (
 
     // AXI slave interface
 
-    input  logic raddr_in_valid_i,
-    output logic raddr_in_ready_o,
-    input simmem_pkg::raddr_t raddr_i,
+    input  logic               raddr_in_valid_i,
+    output logic               raddr_in_ready_o,
+    input  simmem_pkg::raddr_t raddr_i,
 
-    input  logic waddr_in_valid_i,
-    output logic waddr_in_ready_o,
-    input simmem_pkg::waddr_t waddr_i,
+    input  logic               waddr_in_valid_i,
+    output logic               waddr_in_ready_o,
+    input  simmem_pkg::waddr_t waddr_i,
 
-    input  logic wdata_in_valid_i,
-    output logic wdata_in_ready_o,
-    input simmem_pkg::wdata_t wdata_i,
+    input  logic               wdata_in_valid_i,
+    output logic               wdata_in_ready_o,
+    input  simmem_pkg::wdata_t wdata_i,
 
-    input  logic rdata_out_ready_i,
-    output logic rdata_out_valid_o,
+    input  logic               rdata_out_ready_i,
+    output logic               rdata_out_valid_o,
     output simmem_pkg::rdata_t rdata_o,
 
-    input  logic wrsp_out_ready_i,
-    output logic wrsp_out_valid_o,
-    output simmem_pkg::wrsp_t  wrsp_o,
+    input  logic              wrsp_out_ready_i,
+    output logic              wrsp_out_valid_o,
+    output simmem_pkg::wrsp_t wrsp_o,
 
     // AXI master interface
 
-    input  logic waddr_out_ready_i,
-    output logic waddr_out_valid_o,
+    input  logic               waddr_out_ready_i,
+    output logic               waddr_out_valid_o,
     output simmem_pkg::waddr_t waddr_o,
 
-    input  logic raddr_out_ready_i,
-    output logic raddr_out_valid_o,
+    input  logic               raddr_out_ready_i,
+    output logic               raddr_out_valid_o,
     output simmem_pkg::raddr_t raddr_o,
 
-    input  logic wdata_out_ready_i,
-    output logic wdata_out_valid_o,
+    input  logic               wdata_out_ready_i,
+    output logic               wdata_out_valid_o,
     output simmem_pkg::wdata_t wdata_o,
 
-    input  logic rdata_in_valid_i,
-    output logic rdata_in_ready_o,
-    input simmem_pkg::rdata_t rdata_i,
+    input  logic               rdata_in_valid_i,
+    output logic               rdata_in_ready_o,
+    input  simmem_pkg::rdata_t rdata_i,
 
-    input  logic wrsp_in_valid_i,
-    output logic wrsp_in_ready_o,
-    input simmem_pkg::wrsp_t  wrsp_i
+    input  logic              wrsp_in_valid_i,
+    output logic              wrsp_in_ready_o,
+    input  simmem_pkg::wrsp_t wrsp_i
 );
 
   import simmem_pkg::*;

@@ -2,9 +2,10 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-// The delay calculator core is responsible for snooping the traffic from the requester and deducing
-// the enable signals for the message banks. Wrapped in the delay calculator module, it can assume
-// that no write data request arrives before the corresponding write address request.
+// The delay calculator core is responsible for snooping the traffic from the requester with the
+// help of its delay calculator wrapper and deducing the enable signals for the message banks.
+// Wrapped in the delay calculator module, it can assume that no write data request arrives before
+// the corresponding write address request.
 //
 // Overview: The pendin requests are stored in arrays of slots (one array of wslt_t for write
 // requests and one array of rslt_t for read requests). For burst support, each slot supports status
@@ -556,8 +557,7 @@ module simmem_delay_calculator_core #(
     // |oldest_entry_of_category[i_rk][C_ACT_CAS]}} & C_ACT_CAS) |
     // ({NumCostCatsW{~|oldest_entry_of_category[i_rk][C_CAS] &
     // ~|oldest_entry_of_category[i_rk][C_ACT_CAS] &
-    // |oldest_entry_of_category[i_rk][C_PRECH_ACT_CAS]}} &
-    // C_PRECH_ACT_CAS) |
+    // |oldest_entry_of_category[i_rk][C_PRECH_ACT_CAS]}} & C_PRECH_ACT_CAS) |
     // ({NumCostCatsW{~|oldest_entry_of_category[i_rk][C_CAS] &
     // ~|oldest_entry_of_category[i_rk][C_ACT_CAS] &
     // ~|oldest_entry_of_category[i_rk][C_PRECH_ACT_CAS]}} & COST_NO_CANDIDATE);
@@ -731,10 +731,10 @@ module simmem_delay_calculator_core #(
   // Outputs //
   /////////////
 
-  // The output *_release_en_mhot_o signals enable the release of some addresses (aka. iids) by
-  // the response banks. As there is only one output fired per write burst, a single one-hot row of
-  // flip-flops is sufficient for the wrsp_release_en signal. Counters are useful, however, for
-  // read data, which are subject to burst responses.
+  // The output *_release_en_mhot_o signals enable the release of some addresses (aka. iids) by the
+  // response banks. As there is only one output fired per write burst, a single one-hot row of
+  // flip-flops is sufficient for the wrsp_release_en signal. Counters are useful, however, for read
+  // data, which are subject to burst responses.
 
   logic [WRspBankCapa-1:0] wrsp_release_en_mhot_d;
   logic [RDataBankCapa-1:0][MaxBurstLenField-1:0] rdata_release_en_cnts_d;

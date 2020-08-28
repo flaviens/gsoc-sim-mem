@@ -1,7 +1,11 @@
-// Copyright lowRISC contributors. Licensed under the Apache License, Version 2.0, see LICENSE for
-// details. SPDX-License-Identifier: Apache-2.0
+// Copyright lowRISC contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
 //
 // Wrapper for the write response and read data response banks
+
+// This module wraps the two response banks, which act independently. No logic is integrated in this
+// wrapper.
 
 module simmem_rsp_banks (
     input logic clk_i,
