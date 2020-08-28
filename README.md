@@ -41,7 +41,7 @@ To run the complete testbench,
 fusesoc list-cores | grep lowrisc:prim_generic:ram_2p
 ```
 
-If no matching line is found, then one way to add this core is to clone the [OpenTitan](https://github.com/lowRISC/opentitan) repository, then execute
+If no matching line is found, then one way to add this core is to clone the [OpenTitan](https://github.com/lowRISC/opentitan) repository, then execute:
 
 ```
 fusesoc library add $PATH_TO_OPENTITAN
