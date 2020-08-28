@@ -73,6 +73,8 @@
 // (genvar i_rk...` loops.
 //
 
+// TODO Put again the ready signal synchronization.
+
 module simmem_delay_calculator_core #(
     // NumRanks must be a power of two, used for address interleaving.
     parameter int unsigned NumRanks = 1,  // Interleaving is not supported yet.
