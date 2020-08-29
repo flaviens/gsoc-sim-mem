@@ -282,11 +282,94 @@ module simmem_top_wrapper #(
   output m_rready // Read ready
 );
 
-  import simmem_top::waddr_t;
-  import simmem_top::raddr_t;
-  import simmem_top::wdata_t;
-  import simmem_top::rdata_all_fields_t;
-  import simmem_top::wrsp_merged_payload_t;
+  int unsigned IDWidth = 2;
+  int unsigned NumIds = 1 << IDWidth;
+
+  // Address field widths
+  int unsigned AxAddrWidth = GlobalMemCapaW;
+  int unsigned AxLenWidth = 8;
+  int unsigned AxSizeWidth = 3;
+  int unsigned AxBurstWidth = 2;
+  int unsigned AxLockWidth = 2;
+  int unsigned AxCacheWidth = 4;
+  int unsigned AxProtWidth = 4;
+  int unsigned AxQoSWidth = 4;
+  int unsigned AxRegionWidth = 4;
+  int unsigned AwUserWidth = 0;
+  int unsigned ArUserWidth = 0;
+
+  // Data & response field widths
+  int unsigned XLastWidth = 1;
+  // XRespWidth should be increased to 10 when testing, to have wider patterns to compare.
+  int unsigned XRespWidth = 2;
+  int unsigned WUserWidth = 0;
+  int unsigned RUserWidth = 0;
+  int unsigned BUserWidth = 0;
+
+
+  typedef struct packed {
+    // logic [AwUserWidth-1:0] user_signal;
+    logic [AxQoSWidth-1:0] qos;
+    logic [AxRegionWidth-1:0] region;
+    logic [AxProtWidth-1:0] protection_type;
+    logic [AxCacheWidth-1:0] memory_type;
+    logic [AxLockWidth-1:0] lock_type;
+    burst_type_e burst_type;
+    logic [AxSizeWidth-1:0] burst_size;
+    logic [AxLenWidth-1:0] burst_len;
+    logic [AxAddrWidth-1:0] addr;
+    logic [IDWidth-1:0] id;
+  } waddr_t;
+
+  typedef struct packed {
+    // logic [ArUserWidth-1:0] user_signal;
+    logic [AxQoSWidth-1:0] qos;
+    logic [AxRegionWidth-1:0] region;
+    logic [AxProtWidth-1:0] protection_type;
+    logic [AxCacheWidth-1:0] memory_type;
+    logic [AxLockWidth-1:0] lock_type;
+    burst_type_e burst_type;
+    logic [AxSizeWidth-1:0] burst_size;
+    logic [AxLenWidth-1:0] burst_len;
+    logic [AxAddrWidth-1:0] addr;
+    logic [IDWidth-1:0] id;
+  } raddr_t;
+
+  typedef struct packed {
+    // logic [WUserWidth-1:0] user_signal;
+    logic [XLastWidth-1:0] last;
+    logic [WStrbWidth-1:0] strobes;
+    logic [MaxBurstEffSizeBytes-1:0] data;
+  // logic [IDWidth-1:0] id; AXI4 does not allocate identifiers in write data messages
+  } wdata_t;
+
+  typedef struct packed {
+    // logic [RUserWidth-1:0] user_signal;
+    logic [XLastWidth-1:0] last;
+    logic [WStrbWidth-1:0] response;
+    logic [MaxBurstEffSizeBytes-1:0] data;
+    logic [IDWidth-1:0] id;
+  } rdata_all_fields_t;
+
+  typedef struct packed {
+    logic [$bits(rdata_all_fields_t)-IDWidth-1:0] payload;
+    logic [IDWidth-1:0] id;
+  } rdata_merged_payload_t;
+
+  typedef union packed {
+    rdata_all_fields_t all_fields;
+    rdata_merged_payload_t merged_payload;
+  } rdata_t;
+
+  typedef struct packed {
+    // logic [BUserWidth-1:0] user_signal;
+    logic [XRespWidth-1:0] payload;
+    logic [IDWidth-1:0] id;
+  } wrsp_merged_payload_t;
+
+  // For the write response, the union is only a wrapper helping generic response bank implementation
+  typedef union packed {wrsp_merged_payload_t merged_payload;} wrsp_t;
+
 
   waddr_t s_waddr;
   waddr_t m_waddr;
