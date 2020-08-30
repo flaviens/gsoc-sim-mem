@@ -656,8 +656,8 @@ module simmem_delay_calculator_core #(
   logic [GlobalMemCapaW-1:0] slt_raddrs[NumRSlots][MaxBurstEffLen];
 
   // Least significant bits of the addresses.
-  logic [BurstAddrLSBs-1:0] slt_waddr_lsbs[NumWSlots][MaxBurstEffLen];
-  logic [BurstAddrLSBs-1:0] slt_raddr_lsbs[NumRSlots][MaxBurstEffLen];
+  logic slt_waddr_lsbs[NumWSlots][MaxBurstEffLen][BurstAddrLSBs];
+  logic slt_raddr_lsbs[NumRSlots][MaxBurstEffLen][BurstAddrLSBs];
 
   // Write data entries address.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_waddrs_perslt
