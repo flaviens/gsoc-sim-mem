@@ -26,7 +26,7 @@ module simmem_top_wrapper #(
     parameter AxLenWidth = 8,
     parameter AxSizeWidth = 3,
     parameter AxBurstWidth = 2,
-    parameter AxLockWidth = 2,
+    parameter AxLockWidth = 1,
     parameter AxCacheWidth = 4,
     parameter AxProtWidth = 4,
     parameter AxQoSWidth = 4,
