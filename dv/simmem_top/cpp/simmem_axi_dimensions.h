@@ -48,6 +48,7 @@ const uint64_t MaxBurstSizeField = 2;
 
 // Effective max burst size (in number of elements)
 const uint64_t MaxBurstEffSizeBytes = 1 << MaxBurstSizeField;
+const uint64_t MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8;
 const uint64_t WStrbWidth = MaxBurstEffSizeBytes;
 
 // Maximal width of a single AXI message.
