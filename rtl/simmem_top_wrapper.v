@@ -290,83 +290,83 @@ module simmem_top_wrapper #(
   output m_rready // Read ready
 );
 
-  wire [WriteAddrWidth-1:0] s_waddr;
-  wire [WriteAddrWidth-1:0] m_waddr;
-  wire [ReadAddrWidth-1:0] s_raddr;
-  wire [ReadAddrWidth-1:0] m_raddr;
-  wire [WriteDataWidth-1:0] s_wdata;
-  wire [WriteDataWidth-1:0] m_wdata;
-  wire [ReadDataWidth-1:0] s_rdata;
-  wire [ReadDataWidth-1:0] m_rdata;
-  wire [WriteRespWidth-1:0] s_wrsp;
-  wire [WriteRespWidth-1:0] m_wrsp;
+  wire [WriteAddrWidth-1:0] s_waddr_internal;
+  wire [WriteAddrWidth-1:0] m_waddr_internal;
+  wire [ReadAddrWidth-1:0] s_raddr_internal;
+  wire [ReadAddrWidth-1:0] m_raddr_internal;
+  wire [WriteDataWidth-1:0] s_wdata_internal;
+  wire [WriteDataWidth-1:0] m_wdata_internal;
+  wire [ReadDataWidth-1:0] s_rdata_internal;
+  wire [ReadDataWidth-1:0] m_rdata_internal;
+  wire [WriteRespWidth-1:0] s_wrsp_internal;
+  wire [WriteRespWidth-1:0] m_wrsp_internal;
 
-  assign s_waddr[0+:IDWidth] = s_awid;
-  assign m_waddr[0+:IDWidth] = m_awid;
-  assign s_waddr[IDWidth+:AxAddrWidth] = s_awaddr;
-  assign m_waddr[IDWidth+:AxAddrWidth] = m_awaddr;
-  assign s_waddr[IDWidth+AxAddrWidth+:AxLenWidth] = s_awlen;
-  assign m_waddr[IDWidth+AxAddrWidth+:AxLenWidth] = m_awlen;
-  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = s_awsize;
-  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = m_awsize;
-  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = s_awburst;
-  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = m_awburst;
-  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = s_awlock;
-  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = m_awlock;
-  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = s_awcache;
-  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = m_awcache;
-  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = s_awprot;
-  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = m_awprot;
-  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = s_awregion;
-  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = m_awregion;
-  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = s_awqos;
-  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = m_awqos;
-  // assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = s_awuser;
-  // assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = m_awuser;
+  assign s_waddr_internal[0+:IDWidth] = s_awid;
+  assign m_waddr_internal[0+:IDWidth] = m_awid;
+  assign s_waddr_internal[IDWidth+:AxAddrWidth] = s_awaddr;
+  assign m_waddr_internal[IDWidth+:AxAddrWidth] = m_awaddr;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+:AxLenWidth] = s_awlen;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+:AxLenWidth] = m_awlen;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = s_awsize;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = m_awsize;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = s_awburst;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = m_awburst;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = s_awlock;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = m_awlock;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = s_awcache;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = m_awcache;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = s_awprot;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = m_awprot;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = s_awregion;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = m_awregion;
+  assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = s_awqos;
+  assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = m_awqos;
+  // assign s_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = s_awuser;
+  // assign m_waddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = m_awuser;
 
-  assign s_raddr[0+:IDWidth] = s_arid;
-  assign m_raddr[0+:IDWidth] = m_arid;
-  assign s_raddr[IDWidth+:AxAddrWidth] = s_araddr;
-  assign m_raddr[IDWidth+:AxAddrWidth] = m_araddr;
-  assign s_raddr[IDWidth+AxAddrWidth+:AxLenWidth] = s_arlen;
-  assign m_raddr[IDWidth+AxAddrWidth+:AxLenWidth] = m_arlen;
-  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = s_arsize;
-  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = m_arsize;
-  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = s_arburst;
-  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = m_arburst;
-  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = s_arlock;
-  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = m_arlock;
-  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = s_arcache;
-  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = m_arcache;
-  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = s_arprot;
-  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = m_arprot;
-  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = s_arregion;
-  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = m_arregion;
-  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = s_arqos;
-  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = m_arqos;
-  // assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = s_aruser;
-  // assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = m_aruser;
+  assign s_raddr_internal[0+:IDWidth] = s_arid;
+  assign m_raddr_internal[0+:IDWidth] = m_arid;
+  assign s_raddr_internal[IDWidth+:AxAddrWidth] = s_araddr;
+  assign m_raddr_internal[IDWidth+:AxAddrWidth] = m_araddr;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+:AxLenWidth] = s_arlen;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+:AxLenWidth] = m_arlen;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = s_arsize;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = m_arsize;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = s_arburst;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = m_arburst;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = s_arlock;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = m_arlock;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = s_arcache;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = m_arcache;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = s_arprot;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = m_arprot;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = s_arregion;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = m_arregion;
+  assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = s_arqos;
+  assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = m_arqos;
+  // assign s_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = s_aruser;
+  // assign m_raddr_internal[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = m_aruser;
 
-  assign s_wdata[0+:MaxBurstEffSizeBits] = s_wdata;
-  assign m_wdata[0+:MaxBurstEffSizeBits] = m_wdata;
-  assign s_wdata[MaxBurstEffSizeBits+:WStrbWidth] = s_wstrb;
-  assign m_wdata[MaxBurstEffSizeBits+:WStrbWidth] = m_wstrb;
-  assign s_wdata[MaxBurstEffSizeBits+WStrbWidth+:XLastWidth] = s_wlast;
-  assign m_wdata[MaxBurstEffSizeBits+WStrbWidth+:XLastWidth] = m_wlast;
+  assign s_wdata_internal[0+:MaxBurstEffSizeBits] = s_wdata;
+  assign m_wdata_internal[0+:MaxBurstEffSizeBits] = m_wdata;
+  assign s_wdata_internal[MaxBurstEffSizeBits+:WStrbWidth] = s_wstrb;
+  assign m_wdata_internal[MaxBurstEffSizeBits+:WStrbWidth] = m_wstrb;
+  assign s_wdata_internal[MaxBurstEffSizeBits+WStrbWidth+:XLastWidth] = s_wlast;
+  assign m_wdata_internal[MaxBurstEffSizeBits+WStrbWidth+:XLastWidth] = m_wlast;
 
-  assign s_rdata[0+:IDWidth] = s_rid;
-  assign m_rdata[0+:IDWidth] = m_rid;
-  assign s_rdata[IDWidth+:MaxBurstEffSizeBits] = s_rdata;
-  assign m_rdata[IDWidth+:MaxBurstEffSizeBits] = m_rdata;
-  assign s_rdata[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = s_rlast;
-  assign m_rdata[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = m_rlast;
-  assign s_rdata[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = s_rlast;
-  assign m_rdata[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = m_rlast;
+  assign s_rdata_internal[0+:IDWidth] = s_rid;
+  assign m_rdata_internal[0+:IDWidth] = m_rid;
+  assign s_rdata_internal[IDWidth+:MaxBurstEffSizeBits] = s_rdata;
+  assign m_rdata_internal[IDWidth+:MaxBurstEffSizeBits] = m_rdata;
+  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = s_rlast;
+  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = m_rlast;
+  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = s_rlast;
+  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = m_rlast;
 
-  assign s_wrsp[0+:IDWidth] = s_bid;
-  assign m_wrsp[0+:IDWidth] = m_bid;
-  assign s_wrsp[IDWidth+:XRespWidth] = s_bresp;
-  assign m_wrsp[IDWidth+:XRespWidth] = m_bresp;
+  assign s_wrsp_internal[0+:IDWidth] = s_bid;
+  assign m_wrsp_internal[0+:IDWidth] = m_bid;
+  assign s_wrsp_internal[IDWidth+:XRespWidth] = s_bresp;
+  assign m_wrsp_internal[IDWidth+:XRespWidth] = m_bresp;
 
   simmem_top i_simmem_top (
       .clk_i            (clk_i),
@@ -391,16 +391,16 @@ module simmem_top_wrapper #(
       .wrsp_out_ready_i (s_bready),
       .wrsp_in_ready_o  (m_bready),
       .wrsp_out_valid_o (s_bvalid),
-      .raddr_i          (s_raddr),
-      .waddr_i          (s_waddr),
-      .wdata_i          (s_wdata),
-      .rdata_i          (m_rdata),
-      .wrsp_i           (m_wrsp),
-      .raddr_o          (m_raddr),
-      .waddr_o          (m_waddr),
-      .wdata_o          (m_wdata),
-      .rdata_o          (s_rdata),
-      .wrsp_o           (s_wrsp)
+      .raddr_i          (s_raddr_internal),
+      .waddr_i          (s_waddr_internal),
+      .wdata_i          (s_wdata_internal),
+      .rdata_i          (m_rdata_internal),
+      .wrsp_i           (m_wrsp_internal),
+      .raddr_o          (m_raddr_internal),
+      .waddr_o          (m_waddr_internal),
+      .wdata_o          (m_wdata_internal),
+      .rdata_o          (s_rdata_internal),
+      .wrsp_o           (s_wrsp_internal)
   );
 
 endmodule
