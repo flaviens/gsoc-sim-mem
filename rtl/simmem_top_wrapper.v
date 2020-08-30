@@ -282,168 +282,89 @@ module simmem_top_wrapper #(
   output m_rready // Read ready
 );
 
-  int unsigned IDWidth = 2;
-  int unsigned NumIds = 1 << IDWidth;
+  localparam WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth;// + AxUserWidth;
+  localparam ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth;// + AxUserWidth;
+  localparam WriteDataWidth = MaxBurstSizeBits + WStrbWidth + XLastWidth;
+  localparam ReadDataWidth  = IDWidth + MaxBurstSizeBits + XRespWidth + XLastWidth;
+  localparam WriteRespWidth = IDWidth + XRespWidth;
 
-  // Address field widths
-  int unsigned AxAddrWidth = GlobalMemCapaW;
-  int unsigned AxLenWidth = 8;
-  int unsigned AxSizeWidth = 3;
-  int unsigned AxBurstWidth = 2;
-  int unsigned AxLockWidth = 2;
-  int unsigned AxCacheWidth = 4;
-  int unsigned AxProtWidth = 4;
-  int unsigned AxQoSWidth = 4;
-  int unsigned AxRegionWidth = 4;
-  int unsigned AwUserWidth = 0;
-  int unsigned ArUserWidth = 0;
+  wire [WriteAddrWidth-1:0] s_waddr;
+  wire [WriteAddrWidth-1:0] m_waddr;
+  wire [ReadAddrWidth-1:0] s_raddr;
+  wire [ReadAddrWidth-1:0] m_raddr;
+  wire [WriteDataWidth-1:0] s_wdata;
+  wire [WriteDataWidth-1:0] m_wdata;
+  wire [ReadDataWidth-1:0] s_rdata;
+  wire [ReadDataWidth-1:0] m_rdata;
+  wire [WriteRespWidth-1:0] s_wrsp;
+  wire [WriteRespWidth-1:0] m_wrsp;
 
-  // Data & response field widths
-  int unsigned XLastWidth = 1;
-  // XRespWidth should be increased to 10 when testing, to have wider patterns to compare.
-  int unsigned XRespWidth = 2;
-  int unsigned WUserWidth = 0;
-  int unsigned RUserWidth = 0;
-  int unsigned BUserWidth = 0;
+  assign s_waddr[0+:IDWidth] = s_awid;
+  assign m_waddr[0+:IDWidth] = m_awid;
+  assign s_waddr[IDWidth+:AxAddrWidth] = s_awaddr;
+  assign m_waddr[IDWidth+:AxAddrWidth] = m_awaddr;
+  assign s_waddr[IDWidth+AxAddrWidth+:AxLenWidth] = s_awlen;
+  assign m_waddr[IDWidth+AxAddrWidth+:AxLenWidth] = m_awlen;
+  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = s_awsize;
+  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = m_awsize;
+  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = s_awburst;
+  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = m_awburst;
+  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = s_awlock;
+  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = m_awlock;
+  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = s_awcache;
+  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = m_awcache;
+  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = s_awprot;
+  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = m_awprot;
+  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = s_awregion;
+  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = m_awregion;
+  assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = s_awqos;
+  assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = m_awqos;
+  // assign s_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = s_awuser;
+  // assign m_waddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = m_awuser;
 
+  assign s_raddr[0+:IDWidth] = s_arid;
+  assign m_raddr[0+:IDWidth] = m_arid;
+  assign s_raddr[IDWidth+:AxAddrWidth] = s_araddr;
+  assign m_raddr[IDWidth+:AxAddrWidth] = m_araddr;
+  assign s_raddr[IDWidth+AxAddrWidth+:AxLenWidth] = s_arlen;
+  assign m_raddr[IDWidth+AxAddrWidth+:AxLenWidth] = m_arlen;
+  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = s_arsize;
+  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+:AxSizeWidth] = m_arsize;
+  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = s_arburst;
+  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+:AxBurstWidth] = m_arburst;
+  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = s_arlock;
+  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+:AxLockWidth] = m_arlock;
+  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = s_arcache;
+  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+:AxCacheWidth] = m_arcache;
+  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = s_arprot;
+  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+:AxProtWidth] = m_arprot;
+  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = s_arregion;
+  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+:AxRegionWidth] = m_arregion;
+  assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = s_arqos;
+  assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+:AxQoSWidth] = m_arqos;
+  // assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = s_aruser;
+  // assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = m_aruser;
 
-  typedef struct packed {
-    // logic [AwUserWidth-1:0] user_signal;
-    logic [AxQoSWidth-1:0] qos;
-    logic [AxRegionWidth-1:0] region;
-    logic [AxProtWidth-1:0] protection_type;
-    logic [AxCacheWidth-1:0] memory_type;
-    logic [AxLockWidth-1:0] lock_type;
-    burst_type_e burst_type;
-    logic [AxSizeWidth-1:0] burst_size;
-    logic [AxLenWidth-1:0] burst_len;
-    logic [AxAddrWidth-1:0] addr;
-    logic [IDWidth-1:0] id;
-  } waddr_t;
+  assign s_wdata[0+:MaxBurstSizeBits] = s_wdata;
+  assign m_wdata[0+:MaxBurstSizeBits] = m_wdata;
+  assign s_wdata[MaxBurstSizeBits+:WStrbWidth] = s_wstrb;
+  assign m_wdata[MaxBurstSizeBits+:WStrbWidth] = m_wstrb;
+  assign s_wdata[MaxBurstSizeBits+WStrbWidth+:XLastWidth] = s_wlast;
+  assign m_wdata[MaxBurstSizeBits+WStrbWidth+:XLastWidth] = m_wlast;
 
-  typedef struct packed {
-    // logic [ArUserWidth-1:0] user_signal;
-    logic [AxQoSWidth-1:0] qos;
-    logic [AxRegionWidth-1:0] region;
-    logic [AxProtWidth-1:0] protection_type;
-    logic [AxCacheWidth-1:0] memory_type;
-    logic [AxLockWidth-1:0] lock_type;
-    burst_type_e burst_type;
-    logic [AxSizeWidth-1:0] burst_size;
-    logic [AxLenWidth-1:0] burst_len;
-    logic [AxAddrWidth-1:0] addr;
-    logic [IDWidth-1:0] id;
-  } raddr_t;
+  assign s_rdata[0+:IDWidth] = s_rid;
+  assign m_rdata[0+:IDWidth] = m_rid;
+  assign s_rdata[IDWidth+:MaxBurstSizeBits] = s_rdata;
+  assign m_rdata[IDWidth+:MaxBurstSizeBits] = m_rdata;
+  assign s_rdata[IDWidth+MaxBurstSizeBits+:XRespWidth] = s_rlast;
+  assign m_rdata[IDWidth+MaxBurstSizeBits+:XRespWidth] = m_rlast;
+  assign s_rdata[IDWidth+MaxBurstSizeBits+XRespWidth+:XLastWidth] = s_rlast;
+  assign m_rdata[IDWidth+MaxBurstSizeBits+XRespWidth+:XLastWidth] = m_rlast;
 
-  typedef struct packed {
-    // logic [WUserWidth-1:0] user_signal;
-    logic [XLastWidth-1:0] last;
-    logic [WStrbWidth-1:0] strobes;
-    logic [MaxBurstEffSizeBytes-1:0] data;
-  // logic [IDWidth-1:0] id; AXI4 does not allocate identifiers in write data messages
-  } wdata_t;
-
-  typedef struct packed {
-    // logic [RUserWidth-1:0] user_signal;
-    logic [XLastWidth-1:0] last;
-    logic [WStrbWidth-1:0] response;
-    logic [MaxBurstEffSizeBytes-1:0] data;
-    logic [IDWidth-1:0] id;
-  } rdata_all_fields_t;
-
-  typedef struct packed {
-    logic [$bits(rdata_all_fields_t)-IDWidth-1:0] payload;
-    logic [IDWidth-1:0] id;
-  } rdata_merged_payload_t;
-
-  typedef union packed {
-    rdata_all_fields_t all_fields;
-    rdata_merged_payload_t merged_payload;
-  } rdata_t;
-
-  typedef struct packed {
-    // logic [BUserWidth-1:0] user_signal;
-    logic [XRespWidth-1:0] payload;
-    logic [IDWidth-1:0] id;
-  } wrsp_merged_payload_t;
-
-  // For the write response, the union is only a wrapper helping generic response bank implementation
-  typedef union packed {wrsp_merged_payload_t merged_payload;} wrsp_t;
-
-
-  waddr_t s_waddr;
-  waddr_t m_waddr;
-  raddr_t s_raddr;
-  raddr_t m_raddr;
-  wdata_t s_wdata;
-  wdata_t m_wdata;
-  rdata_all_fields_t s_rdata;
-  rdata_all_fields_t m_rdata;
-  wrsp_merged_payload_t s_wrsp;
-  wrsp_merged_payload_t m_wrsp;
-
-  assign s_waddr.id = s_awid;
-  assign m_waddr.id = m_awid;
-  assign s_waddr.addr = s_awaddr;
-  assign m_waddr.addr = m_awaddr;
-  assign s_waddr.burst_len = s_awlen;
-  assign m_waddr.burst_len = m_awlen;
-  assign s_waddr.burst_size = s_awsize;
-  assign m_waddr.burst_size = m_awsize;
-  assign s_waddr.burst_type = s_awburst;
-  assign m_waddr.burst_type = m_awburst;
-  assign s_waddr.lock_type = s_awlock;
-  assign m_waddr.lock_type = m_awlock;
-  assign s_waddr.memory_type = s_awcache;
-  assign m_waddr.memory_type = m_awcache;
-  assign s_waddr.protection_type = s_awprot;
-  assign m_waddr.protection_type = m_awprot;
-  assign s_waddr.region = s_awregion;
-  assign m_waddr.region = m_awregion;
-  assign s_waddr.qos = s_awqos;
-  assign m_waddr.qos = m_awqos;
-
-  assign s_raddr.id = s_arid;
-  assign m_raddr.id = m_arid;
-  assign s_raddr.addr = s_araddr;
-  assign m_raddr.addr = m_araddr;
-  assign s_raddr.burst_len = s_arlen;
-  assign m_raddr.burst_len = m_arlen;
-  assign s_raddr.burst_size = s_arsize;
-  assign m_raddr.burst_size = m_arsize;
-  assign s_raddr.burst_type = s_arburst;
-  assign m_raddr.burst_type = m_arburst;
-  assign s_raddr.lock_type = s_arlock;
-  assign m_raddr.lock_type = m_arlock;
-  assign s_raddr.memory_type = s_arcache;
-  assign m_raddr.memory_type = m_arcache;
-  assign s_raddr.protection_type = s_arprot;
-  assign m_raddr.protection_type = m_arprot;
-  assign s_raddr.region = s_arregion;
-  assign m_raddr.region = m_arregion;
-  assign s_raddr.qos = s_arqos;
-  assign m_raddr.qos = m_arqos;
-
-  assign s_wdata.data = s_wdata;
-  assign m_wdata.data = m_wdata;
-  assign s_wdata.strobes = s_wstrb;
-  assign m_wdata.strobes = m_wstrb;
-  assign s_wdata.last = s_wlast;
-  assign m_wdata.last = m_wlast;
-
-  assign s_rdata.id = s_rid;
-  assign m_rdata.id = m_rid;
-  assign s_rdata.data = s_rdata;
-  assign m_rdata.data = m_rdata;
-  assign s_rdata.response = s_rresp;
-  assign m_rdata.response = m_rresp;
-  assign s_rdata.last = s_rlast;
-  assign m_rdata.last = m_rlast;
-
-  assign s_wrsp.id = s_bid;
-  assign m_wrsp.id = m_bid;
-  assign s_wrsp.payload = s_bresp;
-  assign m_wrsp.payload = m_bresp;
+  assign s_wrsp[0+:IDWidth] = s_bid;
+  assign m_wrsp[0+:IDWidth] = m_bid;
+  assign s_wrsp[IDWidth+:XRespWidth] = s_bresp;
+  assign m_wrsp[IDWidth+:XRespWidth] = m_bresp;
 
   simmem_top i_simmem_top (
       .clk_i            (clk_i),
