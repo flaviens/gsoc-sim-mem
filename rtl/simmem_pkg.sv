@@ -86,7 +86,7 @@ package simmem_pkg;
   parameter int unsigned AxLenWidth = 8;
   parameter int unsigned AxSizeWidth = 3;
   parameter int unsigned AxBurstWidth = 2;
-  parameter int unsigned AxLockWidth = 2;
+  parameter int unsigned AxLockWidth = 1;
   parameter int unsigned AxCacheWidth = 4;
   parameter int unsigned AxProtWidth = 4;
   parameter int unsigned AxQoSWidth = 4;
