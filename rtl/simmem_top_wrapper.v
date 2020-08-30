@@ -358,8 +358,8 @@ module simmem_top_wrapper #(
   assign m_rdata_internal[0+:IDWidth] = m_rid;
   assign s_rdata_internal[IDWidth+:MaxBurstEffSizeBits] = s_rdata;
   assign m_rdata_internal[IDWidth+:MaxBurstEffSizeBits] = m_rdata;
-  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = s_rlast;
-  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = m_rlast;
+  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = s_rresp;
+  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = m_rresp;
   assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = s_rlast;
   assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = m_rlast;
 
