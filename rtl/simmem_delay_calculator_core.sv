@@ -656,8 +656,8 @@ module simmem_delay_calculator_core #(
   logic [GlobalMemCapaW-1:0] slt_raddrs[NumRSlots][MaxBurstEffLen];
 
   // Least significant bits of the addresses.
-  logic slt_waddr_lsbs[NumWSlots][MaxBurstEffLen][BurstAddrLSBs];
-  logic slt_raddr_lsbs[NumRSlots][MaxBurstEffLen][BurstAddrLSBs];
+  logic [BurstAddrLSBs-1:0] slt_waddr_lsbs[NumWSlots][MaxBurstEffLen];
+  logic [BurstAddrLSBs-1:0] slt_raddr_lsbs[NumRSlots][MaxBurstEffLen];
 
   // Write data entries address.
   for (genvar i_slt = 0; i_slt < NumWSlots; i_slt = i_slt + 1) begin : gen_waddrs_perslt
@@ -667,9 +667,9 @@ module simmem_delay_calculator_core #(
       end else begin
         always_comb begin
           if (wslt_q[i_slt].burst_fixed) begin
-            assign slt_waddr_lsbs[i_slt][i_bit] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+            slt_waddr_lsbs[i_slt][i_bit] = wslt_q[i_slt].addr[BurstAddrLSBs-1:0];
           end else begin
-            assign slt_waddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_waddr_lsbs[i_slt][i_bit - 1] +
+            slt_waddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_waddr_lsbs[i_slt][i_bit - 1] +
                 BurstAddrLSBs'(get_effective_burst_size(AxSizeWidth'(wslt_q[i_slt].burst_size))));
           end
         end
