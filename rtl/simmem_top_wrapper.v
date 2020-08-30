@@ -35,8 +35,10 @@ module simmem_top_wrapper #(
     parameter ArUserWidth = 0,
 
     // Data & response field widths
-    parameter MaxBurstSizeBytes = 4,
-    parameter MaxBurstSizeBits = MaxBurstSizeBytes * 8,
+    parameter MaxBurstSizeField = 2,
+    parameter MaxBurstEffSizeBytes = 1 << MaxBurstSizeField,
+    parameter MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8,
+
     parameter XLastWidth = 1,
     parameter XRespWidth = 3,
     parameter WUserWidth = 0,
@@ -47,8 +49,8 @@ module simmem_top_wrapper #(
 
     parameter WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
     parameter ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
-    parameter WriteDataWidth = MaxBurstSizeBits + WStrbWidth + XLastWidth,
-    parameter ReadDataWidth  = IDWidth + MaxBurstSizeBits + XRespWidth + XLastWidth,
+    parameter WriteDataWidth = MaxBurstEffSizeBits + WStrbWidth + XLastWidth,
+    parameter ReadDataWidth  = IDWidth + MaxBurstEffSizeBits + XRespWidth + XLastWidth,
     parameter WriteRespWidth = IDWidth + XRespWidth
   ) (
     input clk_i,
@@ -183,7 +185,7 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RID" *)
   output [IDWidth-1:0] s_rid, // Read ID tag
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RDATA" *)
-  output [MaxBurstSizeBits-1:0] s_rdata, // Read data
+  output [MaxBurstEffSizeBits-1:0] s_rdata, // Read data
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RRESP" *)
   output [1:0] s_rresp, // Read response
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RLAST" *)
@@ -275,7 +277,7 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RID" *)
   input [IDWidth-1:0] m_rid, // Read ID tag
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RDATA" *)
-  input [MaxBurstSizeBits-1:0] m_rdata, // Read data
+  input [MaxBurstEffSizeBits-1:0] m_rdata, // Read data
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RRESP" *)
   input [1:0] m_rresp, // Read response
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RLAST" *)
@@ -345,21 +347,21 @@ module simmem_top_wrapper #(
   // assign s_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = s_aruser;
   // assign m_raddr[IDWidth+AxAddrWidth+AxLenWidth+AxSizeWidth+AxBurstWidth+AxLockWidth+AxCacheWidth+AxProtWidth+AxRegionWidth+AxQoSWidth+:AxUserWidth] = m_aruser;
 
-  assign s_wdata[0+:MaxBurstSizeBits] = s_wdata;
-  assign m_wdata[0+:MaxBurstSizeBits] = m_wdata;
-  assign s_wdata[MaxBurstSizeBits+:WStrbWidth] = s_wstrb;
-  assign m_wdata[MaxBurstSizeBits+:WStrbWidth] = m_wstrb;
-  assign s_wdata[MaxBurstSizeBits+WStrbWidth+:XLastWidth] = s_wlast;
-  assign m_wdata[MaxBurstSizeBits+WStrbWidth+:XLastWidth] = m_wlast;
+  assign s_wdata[0+:MaxBurstEffSizeBits] = s_wdata;
+  assign m_wdata[0+:MaxBurstEffSizeBits] = m_wdata;
+  assign s_wdata[MaxBurstEffSizeBits+:WStrbWidth] = s_wstrb;
+  assign m_wdata[MaxBurstEffSizeBits+:WStrbWidth] = m_wstrb;
+  assign s_wdata[MaxBurstEffSizeBits+WStrbWidth+:XLastWidth] = s_wlast;
+  assign m_wdata[MaxBurstEffSizeBits+WStrbWidth+:XLastWidth] = m_wlast;
 
   assign s_rdata[0+:IDWidth] = s_rid;
   assign m_rdata[0+:IDWidth] = m_rid;
-  assign s_rdata[IDWidth+:MaxBurstSizeBits] = s_rdata;
-  assign m_rdata[IDWidth+:MaxBurstSizeBits] = m_rdata;
-  assign s_rdata[IDWidth+MaxBurstSizeBits+:XRespWidth] = s_rlast;
-  assign m_rdata[IDWidth+MaxBurstSizeBits+:XRespWidth] = m_rlast;
-  assign s_rdata[IDWidth+MaxBurstSizeBits+XRespWidth+:XLastWidth] = s_rlast;
-  assign m_rdata[IDWidth+MaxBurstSizeBits+XRespWidth+:XLastWidth] = m_rlast;
+  assign s_rdata[IDWidth+:MaxBurstEffSizeBits] = s_rdata;
+  assign m_rdata[IDWidth+:MaxBurstEffSizeBits] = m_rdata;
+  assign s_rdata[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = s_rlast;
+  assign m_rdata[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = m_rlast;
+  assign s_rdata[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = s_rlast;
+  assign m_rdata[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = m_rlast;
 
   assign s_wrsp[0+:IDWidth] = s_bid;
   assign m_wrsp[0+:IDWidth] = m_bid;
