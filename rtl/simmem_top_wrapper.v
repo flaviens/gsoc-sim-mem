@@ -45,7 +45,7 @@ module simmem_top_wrapper #(
     parameter RUserWidth = 0,
     parameter BUserWidth = 0,
 
-    parameter WStrbWidth = MaxBurstSizeBytes,
+    parameter WStrbWidth = MaxBurstEffSizeBytes,
 
     parameter WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
     parameter ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
