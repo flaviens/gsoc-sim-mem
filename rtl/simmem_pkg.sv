@@ -161,7 +161,7 @@ package simmem_pkg;
   typedef struct packed {
     // logic [RUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
-    logic [WStrbWidth-1:0] response;
+    logic [XRespWidth-1:0] response;
     logic [MaxBurstEffSizeBits-1:0] data;
     logic [IDWidth-1:0] id;
   } rdata_all_fields_t;
