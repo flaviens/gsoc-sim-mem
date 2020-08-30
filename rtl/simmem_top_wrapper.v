@@ -135,7 +135,7 @@ module simmem_top_wrapper #(
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s WID" *)
   // input [WIDWidth-1:0] s_wid, // Write ID tag (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s WDATA" *)
-  input [AxSizeWidth-1:0] s_wdata, // Write data
+  input [MaxBurstEffSizeBits-1:0] s_wdata, // Write data
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s WSTRB" *)
   input [WStrbWidth-1:0] s_wstrb, // Write strobes
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s WLAST" *)
@@ -227,7 +227,7 @@ module simmem_top_wrapper #(
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m WID" *)
   // output [WIDWidth-1:0] m_wid, // Write ID tag (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m WDATA" *)
-  output [AxSizeWidth-1:0] m_wdata, // Write data
+  output [MaxBurstEffSizeBits-1:0] m_wdata, // Write data
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m WSTRB" *)
   output [WStrbWidth-1:0] m_wstrb, // Write strobes
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m WLAST" *)
