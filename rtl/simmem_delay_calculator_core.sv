@@ -692,9 +692,9 @@ module simmem_delay_calculator_core #(
       end else begin
         always_comb begin
           if (rslt_q[i_slt].burst_fixed) begin
-            assign slt_raddr_lsbs[i_slt][i_bit] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
+            slt_raddr_lsbs[i_slt][i_bit] = rslt_q[i_slt].addr[BurstAddrLSBs-1:0];
           end else begin
-            assign slt_raddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_raddr_lsbs[i_slt][i_bit - 1] +
+            slt_raddr_lsbs[i_slt][i_bit] = BurstAddrLSBs'(slt_raddr_lsbs[i_slt][i_bit - 1] +
                 BurstAddrLSBs'(get_effective_burst_size(AxSizeWidth'(rslt_q[i_slt].burst_size))));
           end
         end
