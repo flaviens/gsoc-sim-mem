@@ -45,11 +45,11 @@ module simmem_top_wrapper #(
 
     parameter WStrbWidth = MaxBurstSizeBytes,
 
-    localparam WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
-    localparam ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
-    localparam WriteDataWidth = MaxBurstSizeBits + WStrbWidth + XLastWidth,
-    localparam ReadDataWidth  = IDWidth + MaxBurstSizeBits + XRespWidth + XLastWidth,
-    localparam WriteRespWidth = IDWidth + XRespWidth
+    parameter WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
+    parameter ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
+    parameter WriteDataWidth = MaxBurstSizeBits + WStrbWidth + XLastWidth,
+    parameter ReadDataWidth  = IDWidth + MaxBurstSizeBits + XRespWidth + XLastWidth,
+    parameter WriteRespWidth = IDWidth + XRespWidth
   ) (
     input clk_i,
     input rst_ni,
