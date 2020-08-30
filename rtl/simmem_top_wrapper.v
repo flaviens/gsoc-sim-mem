@@ -43,7 +43,14 @@ module simmem_top_wrapper #(
     parameter RUserWidth = 0,
     parameter BUserWidth = 0,
 
-    parameter WStrbWidth = MaxBurstSizeBytes
+    parameter WStrbWidth = MaxBurstSizeBytes,
+
+    localparam WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth;// + AxUserWidth;
+    localparam ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth;// + AxUserWidth;
+    localparam WriteDataWidth = MaxBurstSizeBits + WStrbWidth + XLastWidth;
+    localparam ReadDataWidth  = IDWidth + MaxBurstSizeBits + XRespWidth + XLastWidth;
+    localparam WriteRespWidth = IDWidth + XRespWidth;
+
   ) (
     input clk_i,
     input rst_ni,
@@ -281,12 +288,6 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RREADY" *)
   output m_rready // Read ready
 );
-
-  localparam WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth;// + AxUserWidth;
-  localparam ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth;// + AxUserWidth;
-  localparam WriteDataWidth = MaxBurstSizeBits + WStrbWidth + XLastWidth;
-  localparam ReadDataWidth  = IDWidth + MaxBurstSizeBits + XRespWidth + XLastWidth;
-  localparam WriteRespWidth = IDWidth + XRespWidth;
 
   wire [WriteAddrWidth-1:0] s_waddr;
   wire [WriteAddrWidth-1:0] m_waddr;
