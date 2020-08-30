@@ -108,7 +108,7 @@ module simmem_delay_calculator #(
       wdata_immediate_cnt = 0;
       if (!wdata_cnt_d[MaxPendingWDataW]) begin
         // If wdata_cnt_d is nonnegative, then consider sending immediate data
-        if (XBurstEffLenW'(wdata_cnt_d) >= get_effective_burst_len(waddr_i.burst_len)) begin
+        if (AxLenWidth'(wdata_cnt_d) >= get_effective_burst_len(waddr_i.burst_len)) begin
           // If wdata_cnt_d is nonnegative and all the data associated with the address has arrived
           // not later than the address, then transmit all this data with the address request to the
           // delay calculator core.

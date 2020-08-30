@@ -28,7 +28,7 @@ module simmem_top_wrapper #(
     parameter AxBurstWidth = 2,
     parameter AxLockWidth = 1,
     parameter AxCacheWidth = 4,
-    parameter AxProtWidth = 4,
+    parameter AxProtWidth = 3,
     parameter AxQoSWidth = 4,
     parameter AxRegionWidth = 4,
     parameter AwUserWidth = 0,
@@ -40,7 +40,7 @@ module simmem_top_wrapper #(
     parameter MaxBurstEffSizeBits = MaxBurstEffSizeBytes * 8,
 
     parameter XLastWidth = 1,
-    parameter XRespWidth = 3,
+    parameter XRespWidth = 2,
     parameter WUserWidth = 0,
     parameter RUserWidth = 0,
     parameter BUserWidth = 0,
@@ -50,8 +50,8 @@ module simmem_top_wrapper #(
     parameter WriteAddrWidth = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
     parameter ReadAddrWidth  = IDWidth + AxAddrWidth + AxLenWidth + AxSizeWidth + AxBurstWidth + AxLockWidth + AxCacheWidth + AxProtWidth + AxRegionWidth + AxQoSWidth,// + AxUserWidth,
     parameter WriteDataWidth = MaxBurstEffSizeBits + WStrbWidth + XLastWidth,
-    parameter ReadDataWidth  = IDWidth + MaxBurstEffSizeBits + XRespWidth + XLastWidth,
-    parameter WriteRespWidth = IDWidth + XRespWidth
+    parameter ReadDataWidth  = IDWidth + MaxBurstEffSizeBits + XRespWidth-1 + XLastWidth,
+    parameter WriteRespWidth = IDWidth + XRespWidth-1
   ) (
     input clk_i,
     input rst_ni,
@@ -113,19 +113,19 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWLEN" *)
   input [AxLenWidth-1:0] s_awlen, // Burst length
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWSIZE" *)
-  input [2:0] s_awsize, // Burst size
+  input [AxSizeWidth-1:0] s_awsize, // Burst size
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWBURST" *)
-  input [1:0] s_awburst, // Burst type
+  input [AxBurstWidth-1:0] s_awburst, // Burst type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWLOCK" *)
   input [AxLockWidth-1:0] s_awlock, // Lock type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWCACHE" *)
-  input [3:0] s_awcache, // Cache type
+  input [AxCacheWidth-1:0] s_awcache, // Cache type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWPROT" *)
-  input [2:0] s_awprot, // Protection type
+  input [AxProtWidth-1:0] s_awprot, // Protection type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWREGION" *)
-  input [3:0] s_awregion, // Write address slave region
+  input [AxRegionWidth-1:0] s_awregion, // Write address slave region
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWQOS" *)
-  input [3:0] s_awqos, // Transaction Quality of Service token
+  input [AxQoSWidth-1:0] s_awqos, // Transaction Quality of Service token
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWUSER" *)
   // input [AwUserWidth-1:0] s_awuser, // Write address user sideband (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s AWVALID" *)
@@ -163,19 +163,19 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARLEN" *)
   input [AxLenWidth-1:0] s_arlen, // Burst length
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARSIZE" *)
-  input [2:0] s_arsize, // Burst size
+  input [AxSizeWidth-1:0] s_arsize, // Burst size
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARBURST" *)
-  input [1:0] s_arburst, // Burst type
+  input [AxBurstWidth-1:0] s_arburst, // Burst type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARLOCK" *)
   input [AxLockWidth-1:0] s_arlock, // Lock type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARCACHE" *)
-  input [3:0] s_arcache, // Cache type
+  input [AxCacheWidth-1:0] s_arcache, // Cache type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARPROT" *)
-  input [2:0] s_arprot, // Protection type
+  input [AxProtWidth-1:0] s_arprot, // Protection type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARREGION" *)
-  input [3:0] s_arregion, // Read address slave region
+  input [AxRegionWidth-1:0] s_arregion, // Read address slave region
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARQOS" *)
-  input [3:0] s_arqos, // Quality of service token
+  input [AxQoSWidth:0] s_arqos, // Quality of service token
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARUSER" *)
   // input [RUserWidth-1:0] s_aruser, // Read address user sideband (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARVALID" *)
@@ -187,7 +187,7 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RDATA" *)
   output [MaxBurstEffSizeBits-1:0] s_rdata, // Read data
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RRESP" *)
-  output [1:0] s_rresp, // Read response
+  output [XRespWidth-1:0] s_rresp, // Read response
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RLAST" *)
   output s_rlast, // Read last beat
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s RUSER" *)
@@ -205,19 +205,19 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWLEN" *)
   output [AxLenWidth-1:0] m_awlen, // Burst length
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWSIZE" *)
-  output [2:0] m_awsize, // Burst size
+  output [AxSizeWidth-1:0] m_awsize, // Burst size
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWBURST" *)
-  output [1:0] m_awburst, // Burst type
+  output [AxBurstWidth-1:0] m_awburst, // Burst type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWLOCK" *)
   output [AxLockWidth-1:0] m_awlock, // Lock type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWCACHE" *)
-  output [3:0] m_awcache, // Cache type
+  output [AxCacheWidth-1:0] m_awcache, // Cache type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWPROT" *)
-  output [2:0] m_awprot, // Protection type
+  output [AxProtWidth-1:0] m_awprot, // Protection type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWREGION" *)
-  output [3:0] m_awregion, // Write address slave region
+  output [AxRegionWidth-1:0] m_awregion, // Write address slave region
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWQOS" *)
-  output [3:0] m_awqos, // Transaction Quality of Service token
+  output [AxQoSWidth-1:0] m_awqos, // Transaction Quality of Service token
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWUSER" *)
   // output [AwUserWidth-1:0] m_awuser, // Write address user sideband (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m AWVALID" *)
@@ -255,19 +255,19 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARLEN" *)
   output [AxLenWidth-1:0] m_arlen, // Burst length
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARSIZE" *)
-  output [2:0] m_arsize, // Burst size
+  output [AxSizeWidth-1:0] m_arsize, // Burst size
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARBURST" *)
-  output [1:0] m_arburst, // Burst type
+  output [AxBurstWidth-1:0] m_arburst, // Burst type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARLOCK" *)
   output [AxLockWidth-1:0] m_arlock, // Lock type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARCACHE" *)
-  output [3:0] m_arcache, // Cache type
+  output [AxCacheWidth-1:0] m_arcache, // Cache type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARPROT" *)
-  output [2:0] m_arprot, // Protection type
+  output [AxProtWidth-1:0] m_arprot, // Protection type
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARREGION" *)
-  output [3:0] m_arregion, // Read address slave region
+  output [AxRegionWidth-1:0] m_arregion, // Read address slave region
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARQOS" *)
-  output [3:0] m_arqos, // Quality of service token
+  output [AxQoSWidth:0] m_arqos, // Quality of service token
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARUSER" *)
   // output [RUserWidth-1:0] m_aruser, // Read address user sideband (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARVALID" *)
@@ -279,7 +279,7 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RDATA" *)
   input [MaxBurstEffSizeBits-1:0] m_rdata, // Read data
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RRESP" *)
-  input [1:0] m_rresp, // Read response
+  input [XRespWidth-1:0] m_rresp, // Read response
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RLAST" *)
   input m_rlast, // Read last beat
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m RUSER" *)
@@ -358,15 +358,15 @@ module simmem_top_wrapper #(
   assign m_rdata_internal[0+:IDWidth] = m_rid;
   assign s_rdata_internal[IDWidth+:MaxBurstEffSizeBits] = s_rdata;
   assign m_rdata_internal[IDWidth+:MaxBurstEffSizeBits] = m_rdata;
-  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = s_rresp;
-  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth] = m_rresp;
-  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = s_rlast;
-  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth+:XLastWidth] = m_rlast;
+  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth-1] = s_rresp;
+  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+:XRespWidth-1] = m_rresp;
+  assign s_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth-1+:XLastWidth] = s_rlast;
+  assign m_rdata_internal[IDWidth+MaxBurstEffSizeBits+XRespWidth-1+:XLastWidth] = m_rlast;
 
   assign s_wrsp_internal[0+:IDWidth] = s_bid;
   assign m_wrsp_internal[0+:IDWidth] = m_bid;
-  assign s_wrsp_internal[IDWidth+:XRespWidth] = s_bresp;
-  assign m_wrsp_internal[IDWidth+:XRespWidth] = m_bresp;
+  assign s_wrsp_internal[IDWidth+:XRespWidth-1] = s_bresp;
+  assign m_wrsp_internal[IDWidth+:XRespWidth-1] = m_bresp;
 
   simmem_top i_simmem_top (
       .clk_i            (clk_i),
