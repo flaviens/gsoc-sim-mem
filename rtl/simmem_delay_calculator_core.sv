@@ -665,7 +665,9 @@ module simmem_delay_calculator_core #(
       if (i_bit == 0) begin
         assign slt_waddr_lsbs[i_slt][0] = BurstAddrLSBs'(wslt_q[i_slt].addr);
       end else begin
-        assign slt_waddr_lsbs[i_slt][i_bit] = wslt_q[i_slt].burst_fixed ? BurstAddrLSBs'(wslt_q[i_slt].addr) : BurstAddrLSBs'(slt_waddr_lsbs[i_slt][i_bit - 1] +
+        assign slt_waddr_lsbs[i_slt][i_bit] =
+            wslt_q[i_slt].burst_fixed ? BurstAddrLSBs'(wslt_q[i_slt].addr) :
+            BurstAddrLSBs'(slt_waddr_lsbs[i_slt][i_bit - 1] +
             BurstAddrLSBs'(get_effective_burst_size(AxSizeWidth'(wslt_q[i_slt].burst_size))));
       end
 

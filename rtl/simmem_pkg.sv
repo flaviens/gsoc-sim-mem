@@ -154,7 +154,7 @@ package simmem_pkg;
     // logic [WUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
     logic [WStrbWidth-1:0] strobes;
-    logic [MaxBurstEffSizeBytes-1:0] data;
+    logic [MaxBurstEffSizeBits-1:0] data;
   // logic [IDWidth-1:0] id; AXI4 does not allocate identifiers in write data messages
   } wdata_t;
 
@@ -162,7 +162,7 @@ package simmem_pkg;
     // logic [RUserWidth-1:0] user_signal;
     logic [XLastWidth-1:0] last;
     logic [WStrbWidth-1:0] response;
-    logic [MaxBurstEffSizeBytes-1:0] data;
+    logic [MaxBurstEffSizeBits-1:0] data;
     logic [IDWidth-1:0] id;
   } rdata_all_fields_t;
 
