@@ -82,7 +82,7 @@ module simmem_delay_calculator #(
   logic core_wdata_valid_input;
   // Determines whether the core is ready to receive new data.
   logic core_wdata_ready;
-  assign core_wdata_ready = wdata_cnt_q[MaxPendingWDataW];
+  assign core_wdata_ready = wdata_cnt_q[MaxPendingWDataW-1];
 
   // Counts how many data requests have been received before or with the write address request.
   logic [MaxBurstLenField-1:0] wdata_immediate_cnt;
