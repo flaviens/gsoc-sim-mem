@@ -175,7 +175,7 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARREGION" *)
   input [AxRegionWidth-1:0] s_arregion, // Read address slave region
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARQOS" *)
-  input [AxQoSWidth:0] s_arqos, // Quality of service token
+  input [AxQoSWidth-1:0] s_arqos, // Quality of service token
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARUSER" *)
   // input [RUserWidth-1:0] s_aruser, // Read address user sideband (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 s ARVALID" *)
@@ -267,7 +267,7 @@ module simmem_top_wrapper #(
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARREGION" *)
   output [AxRegionWidth-1:0] m_arregion, // Read address slave region
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARQOS" *)
-  output [AxQoSWidth:0] m_arqos, // Quality of service token
+  output [AxQoSWidth-1:0] m_arqos, // Quality of service token
   // (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARUSER" *)
   // output [RUserWidth-1:0] m_aruser, // Read address user sideband (optional)
   (* X_INTERFACE_INFO = "xilinx.com:interface:aximm:1.0 m ARVALID" *)
